@@ -17,7 +17,7 @@
 
 ```mermaid
 graph TD
-    A[App.tsx] --> B[AuthGuard 组件]
+    A[app.tsx] --> B[AuthGuard 组件]
     B --> C{认证状态检查}
     C -->|未认证| D[GitHubAuthPage]
     C -->|已认证| E[MainApp 组件]
@@ -104,7 +104,7 @@ sequenceDiagram
 ### 当前路由结构
 
 ```
-App.tsx
+app.tsx
   └── RouterProvider
       └── Routes
           ├── / (HomePage)
@@ -116,7 +116,7 @@ App.tsx
 ### 重构后路由结构
 
 ```
-App.tsx
+app.tsx
   └── AuthGuard
       ├── GitHubAuthPage (认证流程)
       └── MainApp (认证后)

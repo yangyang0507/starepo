@@ -176,7 +176,7 @@ graph LR
     │   └── ./src/preload/types.ts      # 预加载类型定义
     ├── ./src/renderer/          # 渲染进程代码
     │   ├── ./src/renderer/main.tsx     # 渲染进程入口
-    │   ├── ./src/renderer/App.tsx      # 应用根组件
+    │   ├── ./src/renderer/app.tsx      # 应用根组件
     │   ├── ./src/renderer/components/  # UI 组件
     │   │   ├── ./src/renderer/components/ui/        # 基础 UI 组件
     │   │   ├── ./src/renderer/components/chat/      # 聊天相关组件
