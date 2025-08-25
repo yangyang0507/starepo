@@ -1,5 +1,5 @@
 import { createRoute } from "@tanstack/react-router";
-import { RootRoute } from "./__root";
+import { RootRoute } from "./root";
 import HomePage from "@/pages/home-page";
 import SecondPage from "@/pages/second-page";
 import GitHubRepositoriesPage from "@/pages/github-repositories-page";
