@@ -77,10 +77,6 @@ export function TitleBar({ title = "StarRepo", className }: TitleBarProps) {
         isMac ? "pl-20 pr-3" : "px-3" // Mac 平台为交通灯按钮预留空间
       )}>
         <div className="flex items-center gap-2">
-          {/* 应用图标 */}
-          <div className="flex h-4 w-4 items-center justify-center">
-            <div className="h-3 w-3 rounded-sm bg-gradient-to-br from-blue-500 to-purple-600" />
-          </div>
           {/* 应用标题 */}
           <span className="text-sm font-medium text-foreground/80">
             {title}

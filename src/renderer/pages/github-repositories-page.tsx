@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { RepositoryList } from "@/components";
 import { githubServices } from "@/services/github";
+import { AppLayout } from "@/components/layout/app-layout";
 import type { GitHubUser, GitHubRepository } from "@/services/github/types";
 
 interface GitHubRepositoriesPageState {
@@ -227,29 +228,31 @@ const GitHubRepositoriesPage: React.FC = () => {
   // 如果未认证，显示认证提示
   if (!state.user && !state.loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-8">
-        <div className="text-center">
-          <h1 className="mb-4 text-2xl font-bold">GitHub 仓库管理</h1>
-          <p className="mb-6 text-gray-600">
-            请先进行 GitHub 认证以访问您的仓库
-          </p>
-          <button
-            onClick={() => (window.location.href = "/github-auth")}
-            className="rounded-lg bg-blue-600 px-6 py-2 text-white transition-colors hover:bg-blue-700"
-          >
-            前往认证
-          </button>
+      <AppLayout title="GitHub 仓库管理">
+        <div className="flex flex-1 flex-col items-center justify-center p-8">
+          <div className="text-center">
+            <h1 className="mb-4 text-2xl font-bold">GitHub 仓库管理</h1>
+            <p className="mb-6 text-gray-600">
+              请先进行 GitHub 认证以访问您的仓库
+            </p>
+            <button
+              onClick={() => (window.location.href = "/github-auth")}
+              className="rounded-lg bg-blue-600 px-6 py-2 text-white transition-colors hover:bg-blue-700"
+            >
+              前往认证
+            </button>
+          </div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* 头部 */}
-      <header className="border-b bg-white shadow-sm">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
+    <AppLayout title="GitHub 仓库管理">
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* 页面头部 */}
+        <div className="border-b bg-white px-6 py-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center">
               <h1 className="text-xl font-semibold text-gray-900">
                 GitHub 仓库管理
@@ -277,25 +280,25 @@ const GitHubRepositoriesPage: React.FC = () => {
             </div>
           </div>
         </div>
-      </header>
 
-      {/* 主内容 */}
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {state.error && (
-          <div className="mb-6 rounded-md border border-red-200 bg-red-50 p-4">
-            <p className="text-red-800">{state.error}</p>
-          </div>
-        )}
+        {/* 主内容 */}
+        <div className="flex-1 overflow-auto bg-gray-50 p-6">
+          {state.error && (
+            <div className="mb-6 rounded-md border border-red-200 bg-red-50 p-4">
+              <p className="text-red-800">{state.error}</p>
+            </div>
+          )}
 
-        <RepositoryList
-          repositories={state.repositories}
-          starredRepoIds={state.starredRepoIds}
-          loading={state.loading}
-          onStar={handleStar}
-          onUnstar={handleUnstar}
-        />
-      </main>
-    </div>
+          <RepositoryList
+            repositories={state.repositories}
+            starredRepoIds={state.starredRepoIds}
+            loading={state.loading}
+            onStar={handleStar}
+            onUnstar={handleUnstar}
+          />
+        </div>
+      </div>
+    </AppLayout>
   );
 };
 
