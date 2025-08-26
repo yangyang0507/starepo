@@ -41,8 +41,6 @@ export class WindowManager {
         preload: preloadPath,
       },
       titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
-      trafficLightPosition:
-        process.platform === "darwin" ? { x: 8, y: 8 } : undefined,
       show: false, // 窗口创建后不立即显示，等加载完成后再显示
     });
 
