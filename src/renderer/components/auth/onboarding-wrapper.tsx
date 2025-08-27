@@ -1,5 +1,6 @@
 import React from "react";
 import { AuthStep } from "@/services/github/types";
+import { IconMessage2Star } from "@tabler/icons-react";
 
 interface OnboardingWrapperProps {
   children: React.ReactNode;
@@ -30,7 +31,7 @@ export default function OnboardingWrapper({
     return stepOrder.indexOf(currentStep);
   };
 
-  const renderProgressIndicator = () => {
+  const renderHeaderAndProgress = () => {
     const currentIndex = getCurrentStepIndex();
     const totalSteps = stepOrder.length;
     const progressPercent =
@@ -44,7 +45,21 @@ export default function OnboardingWrapper({
         : Math.max(10, ((currentIndex + 1) / totalSteps) * 100);
 
     return (
-      <div className="mx-auto mb-8 w-full max-w-md">
+      <div className="mx-auto mb-8 w-full max-w-lg">
+        {/* Header */}
+        <div className="mb-6 text-center">
+          <div className="mb-2 flex items-center justify-center space-x-3">
+            <IconMessage2Star className="!size-8" />
+            <div>
+              <h1 className="text-2xl font-bold">StarRepo</h1>
+            </div>
+          </div>
+          <p className="text-muted-foreground text-sm">
+            连接您的 GitHub 账户以开始使用
+          </p>
+        </div>
+
+        {/* Progress Indicator */}
         <div className="mb-2 flex items-center justify-between">
           <span className="text-muted-foreground text-sm font-medium">
             步骤 {Math.max(1, currentIndex + 1)} / {totalSteps}
@@ -97,26 +112,11 @@ export default function OnboardingWrapper({
 
   return (
     <div className="bg-background flex min-h-screen flex-col">
-      {/* Header */}
-      <div className="bg-card/50 border-b">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center space-x-3">
-            <div className="text-2xl">🌟</div>
-            <div>
-              <h1 className="text-xl font-semibold">StarRepo</h1>
-              <p className="text-muted-foreground text-sm">
-                连接您的 GitHub 账户以开始使用
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Main Content */}
       <div className="flex flex-1 flex-col justify-center px-6 py-8">
         <div className="mx-auto w-full max-w-lg">
-          {renderProgressIndicator()}
-          {renderErrorSection()}
+          <div className="text-center">{renderHeaderAndProgress()}</div>
+          <div className="mb-6 text-center">{renderErrorSection()}</div>
 
           {/* Loading Overlay */}
           <div className={`relative ${isLoading ? "pointer-events-none" : ""}`}>
@@ -133,16 +133,9 @@ export default function OnboardingWrapper({
 
             {/* Content */}
             <div className="bg-card rounded-lg border p-6 shadow-sm">
-              {children}
+              <div className="text-center">{children}</div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="bg-card/25 border-t px-6 py-4">
-        <div className="text-muted-foreground text-center text-xs">
-          StarRepo - GitHub 仓库管理工具
         </div>
       </div>
     </div>

@@ -115,7 +115,7 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
 
     // 排序
     filtered.sort((a, b) => {
-      let aValue: any, bValue: any;
+      let aValue: string | number, bValue: string | number;
 
       switch (filters.sortBy) {
         case "name":
@@ -207,7 +207,7 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
     const pages = [];
     const maxVisiblePages = 7;
     let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-    let endPage = Math.min(
+    const endPage = Math.min(
       paginationInfo.totalPages,
       startPage + maxVisiblePages - 1,
     );
@@ -336,7 +336,7 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
             <div
               className={`${
                 viewOptions.layout === "grid"
-                  ? "grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
+                  ? "grid grid-cols-1 gap-3 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
                   : "space-y-3 sm:space-y-4"
               }`}
             >

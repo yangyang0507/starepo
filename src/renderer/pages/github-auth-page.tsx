@@ -52,7 +52,7 @@ export default function GitHubAuthPage({
     };
   }, [onAuthSuccess]);
 
-  const handleAuthMethodSelect = (method: "token") => {
+  const handleAuthMethodSelect = () => {
     setError("");
     setCurrentStep("token");
   };
@@ -126,7 +126,7 @@ export default function GitHubAuthPage({
       case "selector":
         return (
           <GitHubAuthSelector
-            onAuthMethodSelect={handleAuthMethodSelect}
+            onAuthMethodSelect={() => handleAuthMethodSelect()}
             isLoading={isLoading}
           />
         );
@@ -144,7 +144,7 @@ export default function GitHubAuthPage({
       
       case "success":
         return (
-          <div className="mx-auto w-full max-w-md space-y-6 text-center">
+          <div className="space-y-6 text-center">
             <div className="space-y-2">
               <div className="text-6xl">🎉</div>
               <h2 className="text-2xl font-bold">认证成功！</h2>
@@ -154,8 +154,8 @@ export default function GitHubAuthPage({
             </div>
 
             {authState?.user && (
-              <div className="bg-muted/50 space-y-3 rounded-lg p-4">
-                <div className="flex items-center space-x-3">
+              <div className="bg-muted/50 space-y-3 rounded-lg p-4 mx-auto max-w-sm">
+                <div className="flex items-center justify-center space-x-3">
                   <img
                     src={authState.user.avatar_url}
                     alt={authState.user.login}
@@ -204,7 +204,7 @@ export default function GitHubAuthPage({
                   // 立即触发认证成功回调，让AuthGuard切换到主应用
                   onAuthSuccess?.();
                 }}
-                className="w-full"
+                className="w-full max-w-sm mx-auto block"
                 size="lg"
               >
                 开始使用
@@ -214,7 +214,7 @@ export default function GitHubAuthPage({
                 variant="outline"
                 onClick={handleLogout}
                 disabled={isLoading}
-                className="w-full"
+                className="w-full max-w-sm mx-auto block"
               >
                 {isLoading ? "登出中..." : "切换账户"}
               </Button>

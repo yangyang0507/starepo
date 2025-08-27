@@ -32,7 +32,7 @@ export default function GitHubAuthSelector({
   };
 
   return (
-    <div className={cn("mx-auto w-full max-w-md space-y-6", className)}>
+    <div className={cn("space-y-6", className)}>
       <div className="space-y-2 text-center">
         <h2 className="text-2xl font-bold">连接GitHub</h2>
         <p className="text-muted-foreground">
