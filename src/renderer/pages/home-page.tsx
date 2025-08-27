@@ -24,17 +24,7 @@ export default function HomePage() {
             orientation="vertical"
             className="mr-2 data-[orientation=vertical]:h-4"
           />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem className="hidden md:block">
-                <BreadcrumbLink href="/">{t("appName")}</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="hidden md:block" />
-              <BreadcrumbItem>
-                <BreadcrumbPage>{t("titleHomePage")}</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
+          <h1 className="text-base font-medium">首页</h1>
         </div>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">

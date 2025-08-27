@@ -13,12 +13,12 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { 
-  Settings, 
-  Github, 
-  Key, 
-  User, 
-  CheckCircle, 
+import {
+  Settings,
+  Github,
+  Key,
+  User,
+  CheckCircle,
   AlertCircle,
   RefreshCw,
   LogOut,
@@ -44,7 +44,7 @@ export default function SettingsPage() {
   const [authState, setAuthState] = useState<AuthState | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showTokenManagement, setShowTokenManagement] = useState(false);
-  
+
   // 主题和语言 hooks
   const { theme, changeTheme, isLoading: themeLoading } = useTheme();
   const { i18n } = useTranslation();
@@ -174,7 +174,7 @@ export default function SettingsPage() {
               <AlertCircle className="h-4 w-4" />
               <span>未连接到 GitHub</span>
             </div>
-            <Button 
+            <Button
               onClick={() => setShowTokenManagement(true)}
               className="w-full"
             >
@@ -206,9 +206,9 @@ export default function SettingsPage() {
               className="group"
             >
               <Avatar className="h-16 w-16 ring-2 ring-transparent group-hover:ring-primary/20 transition-all">
-                <AvatarImage 
-                  src={authState.user?.avatar_url} 
-                  alt={authState.user?.login || "用户头像"} 
+                <AvatarImage
+                  src={authState.user?.avatar_url}
+                  alt={authState.user?.login || "用户头像"}
                 />
                 <AvatarFallback>
                   <User className="h-8 w-8" />
@@ -278,7 +278,7 @@ export default function SettingsPage() {
                 Personal Access Token
               </Badge>
             </div>
-            
+
             <div className="bg-muted/50 rounded-lg p-4 space-y-2">
               <div className="flex items-center gap-2 text-sm">
                 <Shield className="h-4 w-4 text-green-600" />
@@ -308,7 +308,7 @@ export default function SettingsPage() {
                 )}
                 刷新状态
               </Button>
-              
+
               <Button
                 variant="outline"
                 onClick={() => setShowTokenManagement(true)}
@@ -318,7 +318,7 @@ export default function SettingsPage() {
                 更换 Token
               </Button>
             </div>
-            
+
             <Button
               variant="destructive"
               onClick={handleLogout}
@@ -353,35 +353,13 @@ export default function SettingsPage() {
             orientation="vertical"
             className="mr-2 data-[orientation=vertical]:h-4"
           />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem className="hidden md:block">
-                <BreadcrumbLink href="/">StarRepo</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="hidden md:block" />
-              <BreadcrumbItem>
-                <BreadcrumbPage>设置</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
+          <h1 className="text-base font-medium">设置</h1>
         </div>
       </header>
-      
+
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        {/* 页面标题 */}
-        <div className="bg-card rounded-xl border p-6">
-          <div className="flex items-center gap-3">
-            <div className="bg-primary/10 flex h-12 w-12 items-center justify-center rounded-lg">
-              <Settings className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">设置</h1>
-              <p className="text-muted-foreground">
-                管理您的 GitHub 连接和应用设置
-              </p>
-            </div>
-          </div>
-        </div>
+        {/* GitHub 连接设置 */}
+        {renderGitHubSection()}
 
         {/* 外观设置 */}
         <Card>
@@ -411,7 +389,7 @@ export default function SettingsPage() {
                   </Badge>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-3 gap-2">
                 <Button
                   variant={theme === "light" ? "default" : "outline"}
@@ -464,7 +442,7 @@ export default function SettingsPage() {
                   </Badge>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   variant={i18n.language === "zh-CN" ? "default" : "outline"}
@@ -486,9 +464,6 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
-
-        {/* GitHub 连接设置 */}
-        {renderGitHubSection()}
 
         {/* 应用设置 */}
         <Card>
