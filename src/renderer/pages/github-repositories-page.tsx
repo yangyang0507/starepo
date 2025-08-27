@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { RepositoryList } from "@/components";
 import { githubServices } from "@/services/github";
 import { AppLayout } from "@/components/layout/app-layout";
@@ -46,6 +46,18 @@ const GitHubRepositoriesPage: React.FC = () => {
     error: null,
     syncing: false,
   });
+
+  // 防抖引用，避免快速的状态变化
+  const lastUpdateRef = useRef<number>(0);
+
+  // 防抖状态设置函数，避免快速闪烁
+  const debouncedSetState = useCallback((updater: (prev: GitHubRepositoriesPageState) => GitHubRepositoriesPageState) => {
+    const now = Date.now();
+    if (now - lastUpdateRef.current > 100) { // 最小间隔100ms
+      lastUpdateRef.current = now;
+      setState(updater);
+    }
+  }, []);
 
   // 初始化数据
   const initializeData = useCallback(async () => {
@@ -100,6 +112,9 @@ const GitHubRepositoriesPage: React.FC = () => {
 
   // 刷新数据
   const handleRefresh = useCallback(async () => {
+    // 防止重复刷新
+    if (state.syncing) return;
+
     setState((prev) => ({ ...prev, syncing: true, error: null }));
 
     try {
@@ -126,7 +141,7 @@ const GitHubRepositoriesPage: React.FC = () => {
         error: error instanceof Error ? error.message : "刷新失败，请稍后重试",
       }));
     }
-  }, []);
+  }, [state.syncing]);
 
   // Star操作
   const handleStar = useCallback(async (repo: GitHubRepository) => {
@@ -201,38 +216,17 @@ const GitHubRepositoriesPage: React.FC = () => {
 
   // 监听同步事件
   useEffect(() => {
-    const handleSyncComplete = async () => {
-      // 同步完成后只刷新数据，不重新启动同步
-      setState((prev) => ({ ...prev, syncing: true, error: null }));
-
-      try {
-        const starredData = await githubServices.star.getStarredRepositories();
-        const repositories = starredData.repositories.map((starredRepo) => ({
-          ...starredRepo,
-          starred_at: undefined,
-        })) as GitHubRepository[];
-
-        const starredRepoIds = new Set(repositories.map((repo) => repo.id));
-
-        setState((prev) => ({
-          ...prev,
-          repositories,
-          starredRepoIds,
-          syncing: false,
-          error: null,
-        }));
-      } catch (error) {
-        console.error("刷新数据失败:", error);
-        setState((prev) => ({
-          ...prev,
-          syncing: false,
-          error: error instanceof Error ? error.message : "刷新数据失败",
-        }));
-      }
+    const handleSyncComplete = () => {
+      // 同步完成后只更新同步状态，不重新获取数据
+      debouncedSetState((prev) => ({
+        ...prev,
+        syncing: false,
+        error: null,
+      }));
     };
 
     const handleSyncError = (error: any) => {
-      setState((prev) => ({
+      debouncedSetState((prev) => ({
         ...prev,
         syncing: false,
         error: error?.message || "同步失败",
@@ -247,7 +241,7 @@ const GitHubRepositoriesPage: React.FC = () => {
       syncService.removeEventListener(handleSyncComplete);
       syncService.removeEventListener(handleSyncError);
     };
-  }, [initializeData]);
+  }, [debouncedSetState]);
 
   // 如果未认证，显示认证提示
   if (!state.user && !state.loading) {
