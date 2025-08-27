@@ -299,96 +299,98 @@ const GitHubRepositoriesPage: React.FC = () => {
         </div>
       </header>
 
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <div className="flex flex-1 flex-col gap-4 p-2 sm:p-4 pt-0">
         {/* 用户信息卡片 */}
         {state.user && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Github className="h-5 w-5" />
-                GitHub 连接状态
-                <Badge variant="outline" className="ml-auto text-green-600 border-green-600">
+          <Card className="overflow-hidden">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                <Github className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                <span className="truncate">GitHub 连接状态</span>
+                <Badge variant="outline" className="ml-auto text-green-600 border-green-600 text-xs">
                   <CheckCircle className="mr-1 h-3 w-3" />
                   已连接
                 </Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="flex items-start gap-4">
+            <CardContent className="pt-0">
+              <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
                 <button
                   onClick={() => window.open(`https://github.com/${state.user?.login}`, '_blank')}
-                  className="group"
+                  className="group flex-shrink-0"
                 >
-                  <Avatar className="h-16 w-16 ring-2 ring-transparent group-hover:ring-primary/20 transition-all">
+                  <Avatar className="h-12 w-12 sm:h-16 sm:w-16 ring-2 ring-transparent group-hover:ring-primary/20 transition-all">
                     <AvatarImage
                       src={state.user.avatar_url}
                       alt={state.user.login}
                     />
                     <AvatarFallback>
-                      <User className="h-8 w-8" />
+                      <User className="h-6 w-6 sm:h-8 sm:w-8" />
                     </AvatarFallback>
                   </Avatar>
                 </button>
-                <div className="flex-1 space-y-2">
+                <div className="flex-1 min-w-0 space-y-2">
                   <div>
                     <button
                       onClick={() => window.open(`https://github.com/${state.user?.login}`, '_blank')}
-                      className="group text-left"
+                      className="group text-left w-full"
                     >
-                      <h3 className="font-semibold text-lg group-hover:text-primary transition-colors flex items-center gap-2">
-                        {state.user.name || state.user.login}
-                        <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <h3 className="font-semibold text-base sm:text-lg group-hover:text-primary transition-colors flex items-center gap-2 truncate">
+                        <span className="truncate">{state.user.name || state.user.login}</span>
+                        <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                       </h3>
                     </button>
                     <button
                       onClick={() => window.open(`https://github.com/${state.user?.login}`, '_blank')}
-                      className="text-muted-foreground hover:text-foreground text-sm transition-colors"
+                      className="text-muted-foreground hover:text-foreground text-sm transition-colors truncate block"
                     >
                       @{state.user.login}
                     </button>
                   </div>
                   {state.user.bio && (
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground line-clamp-2">
                       {state.user.bio}
                     </p>
                   )}
-                  <div className="flex gap-4 text-sm">
+                  <div className="flex flex-wrap gap-3 sm:gap-4 text-sm">
                     <div className="flex items-center gap-1 text-muted-foreground">
-                      <Star className="h-4 w-4" />
+                      <Star className="h-4 w-4 flex-shrink-0" />
                       <span className="font-medium">{state.repositories.length}</span>
-                      <span>已标星</span>
+                      <span className="hidden xs:inline">已标星</span>
                     </div>
                     <button
                       onClick={() => window.open(`https://github.com/${state.user?.login}?tab=repositories`, '_blank')}
                       className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer group"
                     >
                       <span className="font-medium">{state.user.public_repos || 0}</span>
-                      <span>仓库</span>
-                      <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <span className="hidden xs:inline">仓库</span>
+                      <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                     </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
                   <Button
                     variant="outline"
                     onClick={handleRefresh}
                     disabled={state.syncing}
                     size="sm"
+                    className="flex-1 sm:flex-none"
                   >
                     {state.syncing ? (
                       <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
                       <RefreshCw className="mr-2 h-4 w-4" />
                     )}
-                    刷新
+                    <span className="hidden xs:inline">刷新</span>
                   </Button>
                   <Button
                     variant="destructive"
                     onClick={handleLogout}
                     size="sm"
+                    className="flex-1 sm:flex-none"
                   >
                     <LogOut className="mr-2 h-4 w-4" />
-                    登出
+                    <span className="hidden xs:inline">登出</span>
                   </Button>
                 </div>
               </div>

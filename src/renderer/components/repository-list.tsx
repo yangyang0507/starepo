@@ -304,7 +304,7 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
       />
 
       {/* 内容区域 */}
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-3 sm:p-6">
         {loading && repositories.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <Loader2 className="mb-4 h-8 w-8 animate-spin text-primary" />
@@ -336,8 +336,8 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
             <div
               className={`${
                 viewOptions.layout === "grid"
-                  ? "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-                  : "space-y-4"
+                  ? "grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
+                  : "space-y-3 sm:space-y-4"
               }`}
             >
               {paginatedRepositories.map((repo) => (
