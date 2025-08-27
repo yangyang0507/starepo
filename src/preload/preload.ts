@@ -169,6 +169,16 @@ const aiAPI = {
     Promise.resolve({ success: false, error: "Not implemented" }),
 };
 
+// Shell API - 用于打开外部链接
+const shellAPI = {
+  openExternal: (url: string): Promise<APIResponse> =>
+    ipcRenderer.invoke("shell:openExternal", url),
+  openPath: (path: string): Promise<APIResponse<string>> =>
+    ipcRenderer.invoke("shell:openPath", path),
+  showItemInFolder: (fullPath: string): Promise<APIResponse> =>
+    ipcRenderer.invoke("shell:showItemInFolder", fullPath),
+};
+
 // 合并所有 API
 const electronAPI = {
   window: windowAPI,
@@ -178,6 +188,7 @@ const electronAPI = {
   database: databaseAPI,
   ai: aiAPI,
   secureStorage: secureStorageAPI,
+  shell: shellAPI,
 };
 
 // 将 API 暴露给渲染进程

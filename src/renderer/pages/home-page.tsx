@@ -10,8 +10,6 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTranslation } from "react-i18next";
-import ToggleTheme from "@/components/toggle-theme";
-import LangToggle from "@/components/lang-toggle";
 import { AppLayout } from "@/components/layout/app-layout";
 
 export default function HomePage() {
@@ -51,9 +49,8 @@ export default function HomePage() {
                   管理和探索您的 GitHub 仓库，发现优质开源项目
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <LangToggle />
-                <ToggleTheme />
+              <div className="text-6xl">
+                🌟
               </div>
             </div>
           </div>

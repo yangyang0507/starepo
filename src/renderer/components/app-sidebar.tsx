@@ -1,17 +1,9 @@
 import * as React from "react";
 import {
-  AudioWaveform,
-  BookOpen,
-  Bot,
-  Command,
-  Frame,
-  GalleryVerticalEnd,
-  Map,
   PieChart,
   Settings2,
   SquareTerminal,
   Star,
-  Github,
 } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
@@ -19,7 +11,6 @@ import { Logo } from "@/components/logo";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar";
@@ -45,7 +36,7 @@ const data = {
     },
     {
       title: "设置",
-      url: "/second-page",
+      url: "/settings",
       icon: Settings2,
     },
   ],

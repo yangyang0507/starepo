@@ -2,6 +2,7 @@ import { ipcMain } from "electron";
 import { WindowManager } from "../../window";
 import { IPC_CHANNELS } from "../../../shared/constants/ipc-channels";
 import { setupSecureStorageHandlers } from "../secure-storage-handler";
+import { setupShellHandlers } from "./shell-handler";
 
 /**
  * 注册所有 IPC 处理器
@@ -11,6 +12,7 @@ export function registerIpcHandlers(): void {
   registerThemeHandlers();
   registerLanguageHandlers();
   setupSecureStorageHandlers();
+  setupShellHandlers();
   // 未来可以在这里添加更多处理器
   // registerGitHubHandlers();
   // registerDatabaseHandlers();

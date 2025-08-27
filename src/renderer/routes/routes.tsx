@@ -3,6 +3,7 @@ import { RootRoute } from "./root";
 import HomePage from "@/pages/home-page";
 import SecondPage from "@/pages/second-page";
 import GitHubRepositoriesPage from "@/pages/github-repositories-page";
+import SettingsPage from "@/pages/settings-page";
 
 // TODO: Steps to add a new route:
 // 1. Create a new page component in the '../pages/' directory (e.g., NewPage.tsx)
@@ -41,8 +42,15 @@ export const GitHubRepositoriesRoute = createRoute({
   component: GitHubRepositoriesPage,
 });
 
+export const SettingsRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/settings",
+  component: SettingsPage,
+});
+
 export const rootTree = RootRoute.addChildren([
   HomeRoute,
   SecondPageRoute,
   GitHubRepositoriesRoute,
+  SettingsRoute,
 ]);

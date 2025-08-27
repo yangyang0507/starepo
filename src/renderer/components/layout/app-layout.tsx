@@ -23,7 +23,9 @@ export function AppLayout({ children, title, className }: AppLayoutProps) {
           <SidebarInset className="flex flex-1 flex-col">
             {/* 页面内容 */}
             <div className="flex flex-1 flex-col overflow-hidden">
-              {children}
+              <div className="flex-1 overflow-y-auto">
+                {children}
+              </div>
             </div>
           </SidebarInset>
         </SidebarProvider>

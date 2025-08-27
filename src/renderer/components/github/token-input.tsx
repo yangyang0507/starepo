@@ -94,7 +94,7 @@ export default function TokenInput({
             <li>
               访问 GitHub Settings → Developer settings → Personal access tokens
             </li>
-            <li>点击 "Generate new token" → "Generate new token (classic)"</li>
+            <li>点击 &quot;Generate new token&quot; → &quot;Generate new token (classic)&quot;</li>
             <li>设置过期时间和所需权限范围</li>
             <li>复制生成的token并粘贴到上方输入框</li>
           </ol>
