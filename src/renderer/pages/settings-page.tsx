@@ -1,44 +1,35 @@
-import React, { useState, useEffect } from "react";
+import TokenManagement from "@/components/github/token-management";
+import { AppLayout } from "@/components/layout/app-layout";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import {
-  Settings,
-  Github,
-  Key,
-  User,
-  CheckCircle,
-  AlertCircle,
-  RefreshCw,
-  LogOut,
-  Edit2,
-  Shield,
-  Palette,
-  Globe,
-  Monitor,
-  Sun,
-  Moon,
-  ExternalLink
-} from "lucide-react";
-import { AppLayout } from "@/components/layout/app-layout";
-import TokenManagement from "@/components/github/token-management";
-import { githubAuthService } from "@/services/github/auth-service";
 import { useTheme } from "@/hooks/use-theme";
-import { useTranslation } from "react-i18next";
-import { setAppLanguage } from "@/utils/language-helpers";
+import { githubAuthService } from "@/services/github/auth-service";
 import type { AuthState } from "@/services/github/types";
+import { setAppLanguage } from "@/utils/language-helpers";
 import type { ThemeMode } from "@shared/types";
+import {
+  AlertCircle,
+  CheckCircle,
+  Edit2,
+  ExternalLink,
+  Github,
+  Globe,
+  Key,
+  LogOut,
+  Monitor,
+  Moon,
+  Palette,
+  RefreshCw,
+  Shield,
+  Sun,
+  User
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 export default function SettingsPage() {
   const [authState, setAuthState] = useState<AuthState | null>(null);

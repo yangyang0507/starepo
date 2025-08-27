@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import SearchAndFilter from "@/components/search-and-filter";
 import RepositoryCard from "@/components/repository-card";
 import type {
@@ -217,57 +218,56 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
 
     // 上一页按钮
     pages.push(
-      <button
+      <Button
         key="prev"
+        variant="outline"
+        size="sm"
         onClick={() => handlePageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        className="flex items-center rounded-l-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
       >
         <ChevronLeft className="mr-1 h-4 w-4" />
         上一页
-      </button>,
+      </Button>,
     );
 
     // 页码按钮
     for (let i = startPage; i <= endPage; i++) {
       pages.push(
-        <button
+        <Button
           key={i}
+          variant={i === currentPage ? "default" : "outline"}
+          size="sm"
           onClick={() => handlePageChange(i)}
-          className={`border-t border-r border-b border-gray-300 px-3 py-2 text-sm font-medium dark:border-gray-700 ${
-            i === currentPage
-              ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300"
-              : "bg-white text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
-          }`}
         >
           {i}
-        </button>,
+        </Button>,
       );
     }
 
     // 下一页按钮
     pages.push(
-      <button
+      <Button
         key="next"
+        variant="outline"
+        size="sm"
         onClick={() => handlePageChange(currentPage + 1)}
         disabled={currentPage === paginationInfo.totalPages}
-        className="flex items-center rounded-r-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
       >
         下一页
         <ChevronRight className="ml-1 h-4 w-4" />
-      </button>,
+      </Button>,
     );
 
     return (
-      <div className="mt-8 flex items-center justify-between">
-        <div className="text-sm text-gray-700 dark:text-gray-300">
+      <div className="mt-6 flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
           显示第{" "}
           <span className="font-medium">{paginationInfo.startIndex + 1}</span>{" "}
           到 <span className="font-medium">{paginationInfo.endIndex}</span>{" "}
           项，共{" "}
           <span className="font-medium">{paginationInfo.totalItems}</span> 项
         </div>
-        <div className="flex">{pages}</div>
+        <div className="flex items-center gap-1">{pages}</div>
       </div>
     );
   };
@@ -277,21 +277,16 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
       <div
         className={`flex flex-col items-center justify-center py-12 ${className}`}
       >
-        <AlertCircle className="mb-4 h-12 w-12 text-red-500" />
-        <h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-white">
-          加载失败
-        </h3>
-        <p className="mb-4 max-w-md text-center text-gray-600 dark:text-gray-400">
+        <AlertCircle className="mb-4 h-12 w-12 text-destructive" />
+        <h3 className="mb-2 text-lg font-medium">加载失败</h3>
+        <p className="mb-4 max-w-md text-center text-muted-foreground">
           {error}
         </p>
         {onRefresh && (
-          <button
-            onClick={onRefresh}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
-          >
-            <RefreshCw className="h-4 w-4" />
+          <Button onClick={onRefresh}>
+            <RefreshCw className="mr-2 h-4 w-4" />
             重试
-          </button>
+          </Button>
         )}
       </div>
     );
@@ -309,16 +304,16 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
       />
 
       {/* 内容区域 */}
-      <div className="flex-1 p-4">
+      <div className="flex-1 p-6">
         {loading && repositories.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="mb-4 h-8 w-8 animate-spin text-blue-500" />
-            <p className="text-gray-600 dark:text-gray-400">正在加载仓库...</p>
+            <Loader2 className="mb-4 h-8 w-8 animate-spin text-primary" />
+            <p className="text-muted-foreground">正在加载仓库...</p>
           </div>
         ) : filteredRepositories.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <div className="mb-4 text-6xl">📦</div>
-            <h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-white">
+            <h3 className="mb-2 text-lg font-medium">
               {searchQuery ||
               Object.values(filters).some(
                 (v) => v !== undefined && v !== false && v !== true,
@@ -326,7 +321,7 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
                 ? "未找到匹配的仓库"
                 : "暂无仓库"}
             </h3>
-            <p className="max-w-md text-center text-gray-600 dark:text-gray-400">
+            <p className="max-w-md text-center text-muted-foreground">
               {searchQuery ||
               Object.values(filters).some(
                 (v) => v !== undefined && v !== false && v !== true,
@@ -366,9 +361,9 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
 
       {/* 加载更多指示器 */}
       {loading && repositories.length > 0 && (
-        <div className="flex items-center justify-center border-t border-gray-200 py-4 dark:border-gray-700">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin text-blue-500" />
-          <span className="text-gray-600 dark:text-gray-400">正在更新...</span>
+        <div className="flex items-center justify-center border-t py-4">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin text-primary" />
+          <span className="text-muted-foreground">正在更新...</span>
         </div>
       )}
     </div>

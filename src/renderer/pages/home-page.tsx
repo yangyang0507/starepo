@@ -1,16 +1,7 @@
-import React from "react";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+import { AppLayout } from "@/components/layout/app-layout";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTranslation } from "react-i18next";
-import { AppLayout } from "@/components/layout/app-layout";
 
 export default function HomePage() {
   const { t } = useTranslation();
