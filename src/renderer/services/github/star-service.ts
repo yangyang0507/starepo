@@ -269,6 +269,81 @@ export class GitHubStarService {
   }
 
   /**
+   * 获取所有收藏的仓库（一次性加载完毕）
+   */
+  async getAllStarredRepositories(
+    options: {
+      onProgress?: (loaded: number, total?: number) => void;
+      batchSize?: number;
+    } = {},
+  ): Promise<{
+    repositories: StarredRepository[];
+    totalLoaded: number;
+  }> {
+    const { onProgress, batchSize = 100 } = options;
+
+    try {
+      const allRepositories: StarredRepository[] = [];
+      let page = 1;
+      let hasNextPage = true;
+      let totalLoaded = 0;
+
+      // 首次获取第一页来确定总数（如果API提供的话）
+      const firstPageData = await this.getStarredRepositories({
+        per_page: batchSize,
+        page: 1,
+      });
+
+      allRepositories.push(...firstPageData.repositories);
+      totalLoaded += firstPageData.repositories.length;
+      hasNextPage = firstPageData.pagination.has_next_page;
+      page++;
+
+      // 报告初始进度
+      onProgress?.(totalLoaded);
+
+      // 循环获取剩余页面
+      while (hasNextPage) {
+        try {
+          const pageData = await this.getStarredRepositories({
+            per_page: batchSize,
+            page,
+          });
+
+          allRepositories.push(...pageData.repositories);
+          totalLoaded += pageData.repositories.length;
+          hasNextPage = pageData.pagination.has_next_page;
+          page++;
+
+          // 报告进度
+          onProgress?.(totalLoaded);
+
+          // 添加小延迟避免API速率限制
+          if (hasNextPage) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        } catch (error) {
+          console.warn(`获取第${page}页数据失败:`, error);
+          // 如果是速率限制错误，等待更长时间
+          if (error instanceof Error && error.message.includes('rate limit')) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+          }
+          // 其他错误则停止加载
+          break;
+        }
+      }
+
+      return {
+        repositories: allRepositories,
+        totalLoaded,
+      };
+    } catch (error) {
+      throw this.handleError(error, "获取所有收藏仓库失败");
+    }
+  }
+
+  /**
    * 获取收藏仓库的统计信息
    */
   async getStarredRepositoriesStats(): Promise<{

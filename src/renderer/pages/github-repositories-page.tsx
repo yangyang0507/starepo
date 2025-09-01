@@ -24,7 +24,8 @@ import {
   User,
   ExternalLink,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Loader2
 } from "lucide-react";
 import type { GitHubUser, GitHubRepository } from "@/services/github/types";
 
@@ -35,6 +36,9 @@ interface GitHubRepositoriesPageState {
   loading: boolean;
   error: string | null;
   syncing: boolean;
+  // 一次性加载相关状态
+  loadingProgress: number | null; // 加载进度 (0-100)
+  totalLoaded: number;
 }
 
 const GitHubRepositoriesPage: React.FC = () => {
@@ -45,6 +49,8 @@ const GitHubRepositoriesPage: React.FC = () => {
     loading: true,
     error: null,
     syncing: false,
+    loadingProgress: null,
+    totalLoaded: 0,
   });
 
   // 防抖引用，避免快速的状态变化
@@ -78,8 +84,20 @@ const GitHubRepositoriesPage: React.FC = () => {
       // 获取用户信息
       const user = await githubServices.user.getCurrentUser();
 
-      // 获取Star仓库列表
-      const starredData = await githubServices.star.getStarredRepositories();
+      // 获取所有Star仓库列表（一次性加载完毕）
+      const starredData = await githubServices.star.getAllStarredRepositories({
+        batchSize: 100,
+        onProgress: (loaded, total) => {
+          // 更新加载进度
+          const progress = total ? Math.round((loaded / total) * 100) : null;
+          setState((prev) => ({
+            ...prev,
+            loadingProgress: progress,
+            totalLoaded: loaded,
+          }));
+        },
+      });
+
       const repositories = starredData.repositories.map((starredRepo) => ({
         ...starredRepo,
         // 移除starred_at字段，保持GitHubRepository类型一致
@@ -95,6 +113,8 @@ const GitHubRepositoriesPage: React.FC = () => {
         loading: false,
         error: null,
         syncing: false,
+        loadingProgress: null,
+        totalLoaded: starredData.totalLoaded,
       });
 
       // 启动同步服务
@@ -118,8 +138,20 @@ const GitHubRepositoriesPage: React.FC = () => {
     setState((prev) => ({ ...prev, syncing: true, error: null }));
 
     try {
-      // 重新获取数据
-      const starredData = await githubServices.star.getStarredRepositories();
+      // 重新获取所有数据
+      const starredData = await githubServices.star.getAllStarredRepositories({
+        batchSize: 100,
+        onProgress: (loaded, total) => {
+          // 更新加载进度
+          const progress = total ? Math.round((loaded / total) * 100) : null;
+          setState((prev) => ({
+            ...prev,
+            loadingProgress: progress,
+            totalLoaded: loaded,
+          }));
+        },
+      });
+
       const repositories = starredData.repositories.map((starredRepo) => ({
         ...starredRepo,
         starred_at: undefined,
@@ -132,6 +164,8 @@ const GitHubRepositoriesPage: React.FC = () => {
         repositories,
         starredRepoIds,
         syncing: false,
+        loadingProgress: null,
+        totalLoaded: starredData.totalLoaded,
       }));
     } catch (error) {
       console.error("刷新失败:", error);
@@ -142,6 +176,7 @@ const GitHubRepositoriesPage: React.FC = () => {
       }));
     }
   }, [state.syncing]);
+
 
   // Star操作
   const handleStar = useCallback(async (repo: GitHubRepository) => {
@@ -194,6 +229,8 @@ const GitHubRepositoriesPage: React.FC = () => {
         loading: false,
         error: null,
         syncing: false,
+        loadingProgress: null,
+        totalLoaded: 0,
       });
     } catch (error) {
       console.error("登出失败:", error);
@@ -225,11 +262,11 @@ const GitHubRepositoriesPage: React.FC = () => {
       }));
     };
 
-    const handleSyncError = (error: any) => {
+    const handleSyncError = (error: unknown) => {
       debouncedSetState((prev) => ({
         ...prev,
         syncing: false,
-        error: error?.message || "同步失败",
+        error: error instanceof Error ? error.message : "同步失败",
       }));
     };
 
@@ -392,6 +429,38 @@ const GitHubRepositoriesPage: React.FC = () => {
                     <LogOut className="mr-2 h-4 w-4" />
                     <span className="hidden xs:inline">登出</span>
                   </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 加载进度指示器 */}
+        {(state.loadingProgress !== null || state.loading) && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between text-sm mb-2">
+                    <span className="text-muted-foreground">
+                      {state.loadingProgress !== null
+                        ? `正在加载仓库... (${state.totalLoaded} 个已加载)`
+                        : "正在初始化..."
+                      }
+                    </span>
+                    {state.loadingProgress !== null && (
+                      <span className="font-medium">{state.loadingProgress}%</span>
+                    )}
+                  </div>
+                  {state.loadingProgress !== null && (
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div
+                        className="bg-primary h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${state.loadingProgress}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
