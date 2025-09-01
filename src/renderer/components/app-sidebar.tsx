@@ -31,7 +31,7 @@ const data = {
     },
     {
       title: "统计分析",
-      url: "/second-page",
+      url: "/stats-page",
       icon: PieChart,
     },
     {

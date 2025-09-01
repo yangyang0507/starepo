@@ -1,7 +1,7 @@
 import { createRoute } from "@tanstack/react-router";
 import { RootRoute } from "./root";
 import HomePage from "@/pages/home-page";
-import SecondPage from "@/pages/second-page";
+import StatsPage from "@/pages/stats-page";
 import GitHubRepositoriesPage from "@/pages/github-repositories-page";
 import SettingsPage from "@/pages/settings-page";
 
@@ -30,10 +30,10 @@ export const HomeRoute = createRoute({
   component: HomePage,
 });
 
-export const SecondPageRoute = createRoute({
+export const StatsPageRoute = createRoute({
   getParentRoute: () => RootRoute,
-  path: "/second-page",
-  component: SecondPage,
+  path: "/stats-page",
+  component: StatsPage,
 });
 
 export const GitHubRepositoriesRoute = createRoute({
@@ -50,7 +50,7 @@ export const SettingsRoute = createRoute({
 
 export const rootTree = RootRoute.addChildren([
   HomeRoute,
-  SecondPageRoute,
+  StatsPageRoute,
   GitHubRepositoriesRoute,
   SettingsRoute,
 ]);

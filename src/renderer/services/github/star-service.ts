@@ -449,6 +449,212 @@ export class GitHubStarService {
   }
 
   /**
+   * 获取时间序列统计数据
+   */
+  async getStarredTimeSeriesStats(
+    period: 'day' | 'week' | 'month' | 'year' = 'month',
+    limit: number = 12
+  ): Promise<{
+    period: string;
+    data: Array<{
+      date: string;
+      count: number;
+      cumulative: number;
+    }>;
+  }> {
+    try {
+      // 获取所有收藏的仓库数据
+      const { repositories: allStarred } = await this.getAllStarredRepositories({
+        forceRefresh: false,
+        useCache: true,
+      });
+
+      // 按收藏时间排序（最新的在前）
+      const sortedRepos = allStarred.sort((a, b) =>
+        new Date(b.starred_at).getTime() - new Date(a.starred_at).getTime()
+      );
+
+      // 生成时间序列数据
+      const timeSeries: Array<{
+        date: string;
+        count: number;
+        cumulative: number;
+      }> = [];
+
+      const now = new Date();
+      let cumulative = 0;
+
+      // 根据周期生成时间点
+      for (let i = limit - 1; i >= 0; i--) {
+        let periodStart: Date;
+        let periodEnd: Date;
+        let periodLabel: string;
+
+        switch (period) {
+          case 'day':
+            periodStart = new Date(now);
+            periodStart.setDate(now.getDate() - i);
+            periodStart.setHours(0, 0, 0, 0);
+
+            periodEnd = new Date(periodStart);
+            periodEnd.setHours(23, 59, 59, 999);
+
+            periodLabel = periodStart.toISOString().split('T')[0];
+            break;
+
+          case 'week':
+            periodStart = new Date(now);
+            periodStart.setDate(now.getDate() - (i * 7) - now.getDay());
+            periodStart.setHours(0, 0, 0, 0);
+
+            periodEnd = new Date(periodStart);
+            periodEnd.setDate(periodStart.getDate() + 6);
+            periodEnd.setHours(23, 59, 59, 999);
+
+            periodLabel = `${periodStart.getFullYear()}-W${Math.ceil((periodStart.getTime() - new Date(periodStart.getFullYear(), 0, 1).getTime()) / (7 * 24 * 60 * 60 * 1000))}`;
+            break;
+
+          case 'month':
+            periodStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+
+            periodEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+            periodEnd.setHours(23, 59, 59, 999);
+
+            periodLabel = periodStart.toISOString().slice(0, 7);
+            break;
+
+          case 'year':
+            periodStart = new Date(now.getFullYear() - i, 0, 1);
+
+            periodEnd = new Date(now.getFullYear() - i, 11, 31);
+            periodEnd.setHours(23, 59, 59, 999);
+
+            periodLabel = periodStart.getFullYear().toString();
+            break;
+
+          default:
+            periodStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            periodEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+            periodEnd.setHours(23, 59, 59, 999);
+            periodLabel = periodStart.toISOString().slice(0, 7);
+        }
+
+        // 统计该时间段内的收藏数量
+        const periodCount = sortedRepos.filter(repo => {
+          const starredTime = new Date(repo.starred_at);
+          return starredTime >= periodStart && starredTime <= periodEnd;
+        }).length;
+
+        cumulative += periodCount;
+
+        timeSeries.push({
+          date: periodLabel,
+          count: periodCount,
+          cumulative: cumulative,
+        });
+      }
+
+      return {
+        period,
+        data: timeSeries,
+      };
+    } catch (error) {
+      throw this.handleError(error, "获取时间序列统计数据失败");
+    }
+  }
+
+  /**
+   * 获取扩展的统计信息（包含时间序列）
+   */
+  async getExtendedStats(): Promise<{
+    basic: {
+      total_count: number;
+      languages: Record<string, number>;
+      topics: Record<string, number>;
+      most_starred: GitHubRepository | null;
+      recently_starred: GitHubRepository | null;
+    };
+    timeSeries: {
+      monthly: Array<{
+        date: string;
+        count: number;
+        cumulative: number;
+      }>;
+      weekly: Array<{
+        date: string;
+        count: number;
+        cumulative: number;
+      }>;
+    };
+    insights: {
+      avgStarsPerMonth: number;
+      mostActiveMonth: string;
+      topLanguages: Array<{ name: string; count: number; percentage: number }>;
+      topTopics: Array<{ name: string; count: number; percentage: number }>;
+    };
+  }> {
+    try {
+      // 获取基础统计
+      const basic = await this.getStarredRepositoriesStats();
+
+      // 获取时间序列数据
+      const [monthlyData, weeklyData] = await Promise.all([
+        this.getStarredTimeSeriesStats('month', 12),
+        this.getStarredTimeSeriesStats('week', 12),
+      ]);
+
+      // 计算洞察信息
+      const totalRepos = basic.total_count;
+
+      // 计算每月平均收藏数
+      const avgStarsPerMonth = monthlyData.data.length > 0
+        ? monthlyData.data.reduce((sum, item) => sum + item.count, 0) / monthlyData.data.length
+        : 0;
+
+      // 找到最活跃的月份
+      const mostActiveMonth = monthlyData.data.length > 0
+        ? monthlyData.data.reduce((max, current) => current.count > max.count ? current : max).date
+        : '';
+
+      // 计算热门语言占比
+      const topLanguages = Object.entries(basic.languages)
+        .map(([name, count]) => ({
+          name,
+          count,
+          percentage: totalRepos > 0 ? (count / totalRepos) * 100 : 0,
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+      // 计算热门主题占比
+      const topTopics = Object.entries(basic.topics)
+        .map(([name, count]) => ({
+          name,
+          count,
+          percentage: totalRepos > 0 ? (count / totalRepos) * 100 : 0,
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+      return {
+        basic,
+        timeSeries: {
+          monthly: monthlyData.data,
+          weekly: weeklyData.data,
+        },
+        insights: {
+          avgStarsPerMonth: Math.round(avgStarsPerMonth * 100) / 100,
+          mostActiveMonth,
+          topLanguages,
+          topTopics,
+        },
+      };
+    } catch (error) {
+      throw this.handleError(error, "获取扩展统计信息失败");
+    }
+  }
+
+  /**
    * 搜索收藏的仓库
    */
   async searchStarredRepositories(
