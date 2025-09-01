@@ -40,6 +40,8 @@ interface GitHubRepositoriesPageState {
     lastUpdated?: Date;
     totalCount?: number;
   } | null;
+  // 刷新提示消息
+  refreshMessage: string | null;
 }
 
 const GitHubRepositoriesPage: React.FC = () => {
@@ -54,6 +56,7 @@ const GitHubRepositoriesPage: React.FC = () => {
     totalLoaded: 0,
     fromCache: false,
     cacheStatus: null,
+    refreshMessage: null,
   });
 
   // 防抖引用，避免快速的状态变化
@@ -120,6 +123,7 @@ const GitHubRepositoriesPage: React.FC = () => {
         totalLoaded: starredData.totalLoaded,
         fromCache: starredData.fromCache || false,
         cacheStatus: null, // 稍后会更新缓存状态
+        refreshMessage: null,
       });
 
       // 启动同步服务
@@ -136,17 +140,17 @@ const GitHubRepositoriesPage: React.FC = () => {
   }, []);
 
   // 刷新数据
-  const handleRefresh = useCallback(async (forceRefresh: boolean = false) => {
+  const handleRefresh = useCallback(async () => {
     // 防止重复刷新
     if (state.syncing) return;
 
-    setState((prev) => ({ ...prev, syncing: true, error: null }));
+    setState((prev) => ({ ...prev, syncing: true, error: null, refreshMessage: null }));
 
     try {
-      // 重新获取所有数据
+      // 重新获取所有数据（强制刷新）
       const starredData = await githubServices.star.getAllStarredRepositories({
         batchSize: 100,
-        forceRefresh, // 支持强制刷新
+        forceRefresh: true,
         onProgress: (loaded, total) => {
           // 更新加载进度
           const progress = total ? Math.round((loaded / total) * 100) : null;
@@ -173,26 +177,30 @@ const GitHubRepositoriesPage: React.FC = () => {
         loadingProgress: null,
         totalLoaded: starredData.totalLoaded,
         fromCache: starredData.fromCache || false,
+        refreshMessage: `刷新完成，共加载 ${repositories.length} 个仓库`,
       }));
+
+      // 3秒后清除提示消息
+      setTimeout(() => {
+        setState((prev) => ({ ...prev, refreshMessage: null }));
+      }, 3000);
     } catch (error) {
       console.error("刷新失败:", error);
       setState((prev) => ({
         ...prev,
         syncing: false,
         error: error instanceof Error ? error.message : "刷新失败，请稍后重试",
+        refreshMessage: "刷新失败，请稍后重试",
       }));
+
+      // 3秒后清除错误提示消息
+      setTimeout(() => {
+        setState((prev) => ({ ...prev, refreshMessage: null }));
+      }, 3000);
     }
   }, [state.syncing]);
 
-  // 普通刷新（使用缓存）
-  const handleNormalRefresh = useCallback(() => {
-    handleRefresh(false);
-  }, [handleRefresh]);
 
-  // 强制刷新（忽略缓存）
-  const handleForceRefresh = useCallback(() => {
-    handleRefresh(true);
-  }, [handleRefresh]);
 
 
   // Star操作
@@ -250,6 +258,7 @@ const GitHubRepositoriesPage: React.FC = () => {
         totalLoaded: 0,
         fromCache: false,
         cacheStatus: null,
+        refreshMessage: null,
       });
     } catch (error) {
       console.error("登出失败:", error);
@@ -478,7 +487,7 @@ const GitHubRepositoriesPage: React.FC = () => {
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <Button
                     variant="outline"
-                    onClick={handleNormalRefresh}
+                    onClick={handleRefresh}
                     disabled={state.syncing}
                     size="sm"
                     className="flex-1 sm:flex-none"
@@ -488,18 +497,7 @@ const GitHubRepositoriesPage: React.FC = () => {
                     ) : (
                       <RefreshCw className="mr-2 h-4 w-4" />
                     )}
-                    <span className="xs:inline">刷新</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleForceRefresh}
-                    disabled={state.syncing}
-                    size="sm"
-                    className="flex-1 sm:flex-none"
-                    title="强制从GitHub重新获取所有数据"
-                  >
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    <span className="xs:inline">强制刷新</span>
+                    <span className="xs:inline">{state.syncing ? "刷新中" : "刷新"}</span>
                   </Button>
                   <Button
                     variant="destructive"
@@ -543,6 +541,28 @@ const GitHubRepositoriesPage: React.FC = () => {
                     </div>
                   )}
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 刷新提示消息 */}
+        {state.refreshMessage && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                {state.refreshMessage.includes("刷新完成") ? (
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                ) : (
+                  <AlertCircle className="h-5 w-5 text-destructive" />
+                )}
+                <span className={`text-sm font-medium ${
+                  state.refreshMessage.includes("刷新完成")
+                    ? "text-green-600"
+                    : "text-destructive"
+                }`}>
+                  {state.refreshMessage}
+                </span>
               </div>
             </CardContent>
           </Card>
