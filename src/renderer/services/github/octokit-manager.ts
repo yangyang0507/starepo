@@ -1,7 +1,6 @@
-import { Octokit } from "octokit";
-import { throttling } from "@octokit/plugin-throttling";
 import { retry } from "@octokit/plugin-retry";
-import { createTokenAuth } from "@octokit/auth-token";
+import { throttling } from "@octokit/plugin-throttling";
+import { Octokit } from "octokit";
 
 // 扩展 Octokit 功能
 const MyOctokit = Octokit.plugin(throttling, retry);
@@ -92,7 +91,7 @@ export class OctokitManager {
       this.config = config;
 
       const octokitConfig: any = {
-        userAgent: config.userAgent || "StarRepo/1.0.0",
+        userAgent: config.userAgent || "Starepo/1.0.0",
         baseUrl: config.baseUrl || "https://api.github.com",
         request: {
           timeout: config.timeout || 10000,

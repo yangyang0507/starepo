@@ -2,7 +2,7 @@
 
 ## 概述
 
-为 StarRepo Electron 应用添加强制的 GitHub 认证引导流程，确保用户在首次启动应用时完成 GitHub 认证设置，只有认证成功后才能进入主应用界面。
+为 Starepo Electron 应用添加强制的 GitHub 认证引导流程，确保用户在首次启动应用时完成 GitHub 认证设置，只有认证成功后才能进入主应用界面。
 
 ### 目标
 

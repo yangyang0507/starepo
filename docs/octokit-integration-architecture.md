@@ -2,7 +2,7 @@
 
 ## 概述
 
-本文档描述了 StarRepo 应用中 Octokit.js 的集成架构，包括客户端初始化、API 调用封装、错误处理、重试机制和缓存策略。基于官方文档 <mcreference link="https://github.com/octokit/octokit.js" index="0">0</mcreference>，我们将实现一个完整的 GitHub API 集成方案。
+本文档描述了 Starepo 应用中 Octokit.js 的集成架构，包括客户端初始化、API 调用封装、错误处理、重试机制和缓存策略。基于官方文档 <mcreference link="https://github.com/octokit/octokit.js" index="0">0</mcreference>，我们将实现一个完整的 GitHub API 集成方案。
 
 ## 架构设计
 
@@ -79,7 +79,7 @@ export class OctokitManager {
       this.config = config;
 
       const octokitConfig: any = {
-        userAgent: config.userAgent || "StarRepo/1.0.0",
+        userAgent: config.userAgent || "Starepo/1.0.0",
         baseUrl: config.baseUrl || "https://api.github.com",
         request: {
           timeout: config.timeout || 10000,
@@ -1124,7 +1124,7 @@ export class GitHubService {
         authMethod: config.authMethod,
         token: config.token,
         baseUrl: config.baseUrl,
-        userAgent: config.userAgent || "StarRepo/1.0.0",
+        userAgent: config.userAgent || "Starepo/1.0.0",
       });
 
       // 初始化服务

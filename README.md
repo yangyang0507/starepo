@@ -1,4 +1,4 @@
-# StarRepo - GitHub Star 智能管理工具
+# Starepo - GitHub Star 智能管理工具
 
 > 仍在建设中……
 
@@ -464,7 +464,7 @@ OPENAI_API_KEY=your_openai_api_key
 
 #### Personal Access Token 设置
 
-StarRepo 使用 Personal Access Token 进行 GitHub 认证：
+Starepo 使用 Personal Access Token 进行 GitHub 认证：
 
 1. 访问 [GitHub Personal Access Tokens](https://github.com/settings/tokens)
 2. 点击 "Generate new token (classic)"
@@ -490,7 +490,7 @@ npm run start
 
 #### GitHub 认证设置
 
-1. **启动应用**：运行 `npm run start` 启动 StarRepo
+1. **启动应用**：运行 `npm run start` 启动 Starepo
 2. **Token 认证流程**：
    - 应用会显示 Token 认证界面
    - 按照应用内指南创建 GitHub Personal Access Token

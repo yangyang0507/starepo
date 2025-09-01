@@ -2,7 +2,7 @@
 
 ## 概述
 
-本文档提供了 StarRepo 应用中 GitHub 集成功能的完整实现指南，包括界面设计、认证流程、技术架构和使用说明。该集成基于 Octokit.js 官方库实现，支持 Personal Access Token 认证方式。
+本文档提供了 Starepo 应用中 GitHub 集成功能的完整实现指南，包括界面设计、认证流程、技术架构和使用说明。该集成基于 Octokit.js 官方库实现，支持 Personal Access Token 认证方式。
 
 ## 功能特性
 
@@ -118,7 +118,7 @@ const MyOctokit = Octokit.plugin(throttling, retry);
 
 const octokit = new MyOctokit({
   auth: token,
-  userAgent: "StarRepo/1.0.0",
+  userAgent: "Starepo/1.0.0",
   throttle: {
     onRateLimit: handleRateLimit,
     onSecondaryRateLimit: handleSecondaryRateLimit,
@@ -586,7 +586,7 @@ export const debugGitHubService = () => {
 
 ## 总结
 
-本文档提供了 StarRepo 应用中 GitHub 集成功能的完整实现指南，涵盖了从界面设计到技术架构的各个方面。通过遵循本指南，开发者可以：
+本文档提供了 Starepo 应用中 GitHub 集成功能的完整实现指南，涵盖了从界面设计到技术架构的各个方面。通过遵循本指南，开发者可以：
 
 1. 实现安全可靠的 GitHub 认证
 2. 构建高性能的 API 集成
@@ -613,4 +613,4 @@ export const debugGitHubService = () => {
 
 _本文档版本：v1.0.0_  
 _最后更新：2024年1月_  
-_维护者：StarRepo 开发团队_
+_维护者：Starepo 开发团队_

@@ -1,33 +1,26 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
 import { RepositoryList } from "@/components";
-import { githubServices } from "@/services/github";
 import { AppLayout } from "@/components/layout/app-layout";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { githubServices } from "@/services/github";
+import type { GitHubRepository, GitHubUser } from "@/services/github/types";
+import { indexedDBStorage } from "@/services/indexeddb-storage";
 import {
-  Github,
-  Star,
-  RefreshCw,
-  LogOut,
-  User,
-  ExternalLink,
   AlertCircle,
   CheckCircle,
-  Loader2
+  ExternalLink,
+  Github,
+  Loader2,
+  LogOut,
+  RefreshCw,
+  Star,
+  User
 } from "lucide-react";
-import type { GitHubUser, GitHubRepository } from "@/services/github/types";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 interface GitHubRepositoriesPageState {
   user: GitHubUser | null;
@@ -39,6 +32,14 @@ interface GitHubRepositoriesPageState {
   // 一次性加载相关状态
   loadingProgress: number | null; // 加载进度 (0-100)
   totalLoaded: number;
+  // 缓存相关状态
+  fromCache: boolean; // 数据是否来自缓存
+  cacheStatus: {
+    hasCache: boolean;
+    isFresh: boolean;
+    lastUpdated?: Date;
+    totalCount?: number;
+  } | null;
 }
 
 const GitHubRepositoriesPage: React.FC = () => {
@@ -51,6 +52,8 @@ const GitHubRepositoriesPage: React.FC = () => {
     syncing: false,
     loadingProgress: null,
     totalLoaded: 0,
+    fromCache: false,
+    cacheStatus: null,
   });
 
   // 防抖引用，避免快速的状态变化
@@ -115,6 +118,8 @@ const GitHubRepositoriesPage: React.FC = () => {
         syncing: false,
         loadingProgress: null,
         totalLoaded: starredData.totalLoaded,
+        fromCache: starredData.fromCache || false,
+        cacheStatus: null, // 稍后会更新缓存状态
       });
 
       // 启动同步服务
@@ -131,7 +136,7 @@ const GitHubRepositoriesPage: React.FC = () => {
   }, []);
 
   // 刷新数据
-  const handleRefresh = useCallback(async () => {
+  const handleRefresh = useCallback(async (forceRefresh: boolean = false) => {
     // 防止重复刷新
     if (state.syncing) return;
 
@@ -141,6 +146,7 @@ const GitHubRepositoriesPage: React.FC = () => {
       // 重新获取所有数据
       const starredData = await githubServices.star.getAllStarredRepositories({
         batchSize: 100,
+        forceRefresh, // 支持强制刷新
         onProgress: (loaded, total) => {
           // 更新加载进度
           const progress = total ? Math.round((loaded / total) * 100) : null;
@@ -166,6 +172,7 @@ const GitHubRepositoriesPage: React.FC = () => {
         syncing: false,
         loadingProgress: null,
         totalLoaded: starredData.totalLoaded,
+        fromCache: starredData.fromCache || false,
       }));
     } catch (error) {
       console.error("刷新失败:", error);
@@ -176,6 +183,16 @@ const GitHubRepositoriesPage: React.FC = () => {
       }));
     }
   }, [state.syncing]);
+
+  // 普通刷新（使用缓存）
+  const handleNormalRefresh = useCallback(() => {
+    handleRefresh(false);
+  }, [handleRefresh]);
+
+  // 强制刷新（忽略缓存）
+  const handleForceRefresh = useCallback(() => {
+    handleRefresh(true);
+  }, [handleRefresh]);
 
 
   // Star操作
@@ -231,6 +248,8 @@ const GitHubRepositoriesPage: React.FC = () => {
         syncing: false,
         loadingProgress: null,
         totalLoaded: 0,
+        fromCache: false,
+        cacheStatus: null,
       });
     } catch (error) {
       console.error("登出失败:", error);
@@ -241,6 +260,50 @@ const GitHubRepositoriesPage: React.FC = () => {
     }
   }, []);
 
+  // 异步检查和更新缓存
+  const checkAndUpdateCache = useCallback(async () => {
+    if (!state.user) return;
+
+    try {
+      const cacheStatus = await indexedDBStorage.getCacheStatus(state.user.login);
+
+      setState((prev) => ({
+        ...prev,
+        cacheStatus,
+      }));
+
+      // 如果有缓存但已过期，启动后台更新
+      if (cacheStatus.hasCache && !cacheStatus.isFresh) {
+        console.log("缓存已过期，启动后台更新...");
+        // 异步更新，不阻塞UI
+        githubServices.star.getAllStarredRepositories({
+          forceRefresh: true,
+          batchSize: 100,
+          onProgress: (loaded) => {
+            // 后台更新不显示进度，只在控制台记录
+            console.log(`后台更新进度: ${loaded} 个仓库`);
+          },
+        }).then((result) => {
+          console.log(`后台更新完成，共 ${result.totalLoaded} 个仓库`);
+          // 更新缓存状态
+          setState((prev) => ({
+            ...prev,
+            cacheStatus: {
+              hasCache: true,
+              isFresh: true,
+              lastUpdated: new Date(),
+              totalCount: result.totalLoaded,
+            },
+          }));
+        }).catch((error) => {
+          console.warn("后台更新失败:", error);
+        });
+      }
+    } catch (error) {
+      console.warn("检查缓存状态失败:", error);
+    }
+  }, [state.user]);
+
   // 初始化
   useEffect(() => {
     initializeData();
@@ -250,6 +313,13 @@ const GitHubRepositoriesPage: React.FC = () => {
       githubServices.sync.stopSync();
     };
   }, [initializeData]);
+
+  // 数据加载完成后检查缓存状态
+  useEffect(() => {
+    if (state.user && !state.loading) {
+      checkAndUpdateCache();
+    }
+  }, [state.user, state.loading, checkAndUpdateCache]);
 
   // 监听同步事件
   useEffect(() => {
@@ -408,7 +478,7 @@ const GitHubRepositoriesPage: React.FC = () => {
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <Button
                     variant="outline"
-                    onClick={handleRefresh}
+                    onClick={handleNormalRefresh}
                     disabled={state.syncing}
                     size="sm"
                     className="flex-1 sm:flex-none"
@@ -418,7 +488,18 @@ const GitHubRepositoriesPage: React.FC = () => {
                     ) : (
                       <RefreshCw className="mr-2 h-4 w-4" />
                     )}
-                    <span className="hidden xs:inline">刷新</span>
+                    <span className="xs:inline">刷新</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleForceRefresh}
+                    disabled={state.syncing}
+                    size="sm"
+                    className="flex-1 sm:flex-none"
+                    title="强制从GitHub重新获取所有数据"
+                  >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    <span className="xs:inline">强制刷新</span>
                   </Button>
                   <Button
                     variant="destructive"
@@ -427,7 +508,7 @@ const GitHubRepositoriesPage: React.FC = () => {
                     className="flex-1 sm:flex-none"
                   >
                     <LogOut className="mr-2 h-4 w-4" />
-                    <span className="hidden xs:inline">登出</span>
+                    <span className="xs:inline">登出</span>
                   </Button>
                 </div>
               </div>
@@ -466,6 +547,7 @@ const GitHubRepositoriesPage: React.FC = () => {
             </CardContent>
           </Card>
         )}
+
 
         {/* 仓库列表卡片 */}
         <Card className="flex-1">

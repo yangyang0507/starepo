@@ -51,7 +51,7 @@ export default function OnboardingWrapper({
           <div className="mb-2 flex items-center justify-center space-x-3">
             <IconMessage2Star className="!size-8" />
             <div>
-              <h1 className="text-2xl font-bold">StarRepo</h1>
+              <h1 className="text-2xl font-bold">Starepo</h1>
             </div>
           </div>
           <p className="text-muted-foreground text-sm">

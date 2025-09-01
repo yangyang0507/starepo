@@ -2,7 +2,7 @@
 
 ## 概述
 
-本文档描述了 StarRepo 应用中手动输入 GitHub Personal Access Token 的功能设计，为用户提供一个安全、便捷的 Token 管理方案。
+本文档描述了 Starepo 应用中手动输入 GitHub Personal Access Token 的功能设计，为用户提供一个安全、便捷的 Token 管理方案。
 
 ## 功能需求
 
@@ -27,7 +27,7 @@
 
 ```
 ┌─────────────────────────────────────────────┐
-│              StarRepo                       │
+│              Starepo                       │
 │         GitHub Token 设置                   │
 ├─────────────────────────────────────────────┤
 │                                             │
@@ -66,7 +66,7 @@
 │  2️⃣ 点击 "Generate new token (classic)"    │
 │                                             │
 │  3️⃣ 设置 Token 信息：                      │
-│     • Note: StarRepo App                   │
+│     • Note: Starepo App                   │
 │     • Expiration: 建议选择 90 days         │
 │                                             │
 │  4️⃣ 选择权限范围：                         │
@@ -352,7 +352,7 @@ export const TokenGuide: React.FC<TokenGuideProps> = ({ onBack }) => {
       title: '设置 Token 信息',
       description: '填写以下信息：',
       details: [
-        { label: 'Note', value: 'StarRepo App', copyable: true },
+        { label: 'Note', value: 'Starepo App', copyable: true },
         { label: 'Expiration', value: '建议选择 90 days 或更长' }
       ]
     },
@@ -466,7 +466,7 @@ export const TokenGuide: React.FC<TokenGuideProps> = ({ onBack }) => {
             <li>• Token 具有与您的 GitHub 账户相同的权限，请妥善保管</li>
             <li>• 不要在公共场所或不安全的网络环境下输入 Token</li>
             <li>• 如果怀疑 Token 泄露，请立即在 GitHub 设置中撤销</li>
-            <li>• StarRepo 会将 Token 加密存储在本地，不会上传到任何服务器</li>
+            <li>• Starepo 会将 Token 加密存储在本地，不会上传到任何服务器</li>
           </ul>
         </div>
 
@@ -514,7 +514,7 @@ export class GitHubTokenValidator {
       // 创建 Octokit 实例
       const octokit = new Octokit({
         auth: token,
-        userAgent: "StarRepo/1.0.0",
+        userAgent: "Starepo/1.0.0",
       });
 
       // 验证 Token 并获取用户信息

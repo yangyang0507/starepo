@@ -2,7 +2,7 @@
 
 ## 概述
 
-已成功为 StarRepo 创建了一个全面的设置界面，主要用于 GitHub Token 的维护和管理。
+已成功为 Starepo 创建了一个全面的设置界面，主要用于 GitHub Token 的维护和管理。
 
 ## 功能特性
 
@@ -75,7 +75,7 @@ graph TD
     E --> F["SettingsPage Header"]
     F --> G["SidebarTrigger"]
     F --> H["Breadcrumb Navigation"]
-    F --> I["StarRepo > 设置"]
+    F --> I["Starepo > 设置"]
     
     E --> J["Page Content"]
     J --> K["页面标题卡片"]

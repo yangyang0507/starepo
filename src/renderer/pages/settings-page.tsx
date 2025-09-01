@@ -515,7 +515,7 @@ export default function SettingsPage() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              StarRepo - GitHub Star 智能管理工具
+              Starepo - GitHub Star 智能管理工具
             </p>
           </CardContent>
         </Card>

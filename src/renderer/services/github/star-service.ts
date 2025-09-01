@@ -1,4 +1,5 @@
 import { octokitManager } from "./octokit-manager";
+import { indexedDBStorage } from "../indexeddb-storage";
 import type {
   GitHubRepository,
   GitHubError,
@@ -269,26 +270,63 @@ export class GitHubStarService {
   }
 
   /**
-   * 获取所有收藏的仓库（一次性加载完毕）
+   * 获取所有收藏的仓库（支持缓存）
    */
   async getAllStarredRepositories(
     options: {
       onProgress?: (loaded: number, total?: number) => void;
       batchSize?: number;
+      forceRefresh?: boolean; // 强制从API刷新
+      useCache?: boolean; // 是否使用缓存
     } = {},
   ): Promise<{
     repositories: StarredRepository[];
     totalLoaded: number;
+    fromCache?: boolean;
   }> {
-    const { onProgress, batchSize = 100 } = options;
+    const {
+      onProgress,
+      batchSize = 100,
+      forceRefresh = false,
+      useCache = true
+    } = options;
 
     try {
+      // 获取当前用户信息
+      const octokit = octokitManager.getOctokit();
+      if (!octokit) {
+        throw new Error("GitHub客户端未初始化，请先进行认证");
+      }
+
+      // 获取当前用户信息用于缓存键
+      const userResponse = await octokit.rest.users.getAuthenticated();
+      const userLogin = userResponse.data.login;
+
+      // 检查缓存（除非强制刷新或禁用缓存）
+      if (useCache && !forceRefresh) {
+        try {
+          const cachedData = await indexedDBStorage.loadRepositories(userLogin);
+          if (cachedData && indexedDBStorage.isCacheFresh(cachedData.metadata)) {
+            console.log(`从缓存加载 ${cachedData.repositories.length} 个仓库`);
+            return {
+              repositories: cachedData.repositories,
+              totalLoaded: cachedData.repositories.length,
+              fromCache: true,
+            };
+          }
+        } catch (cacheError) {
+          console.warn("读取缓存失败，将从API获取:", cacheError);
+        }
+      }
+
+      // 从API获取数据
+      console.log("从GitHub API获取仓库数据...");
       const allRepositories: StarredRepository[] = [];
       let page = 1;
       let hasNextPage = true;
       let totalLoaded = 0;
 
-      // 首次获取第一页来确定总数（如果API提供的话）
+      // 首次获取第一页
       const firstPageData = await this.getStarredRepositories({
         per_page: batchSize,
         page: 1,
@@ -334,9 +372,17 @@ export class GitHubStarService {
         }
       }
 
+      // 保存到缓存（异步，不阻塞返回）
+      if (useCache) {
+        indexedDBStorage.saveRepositories(userLogin, allRepositories)
+          .then(() => console.log(`已保存 ${allRepositories.length} 个仓库到缓存`))
+          .catch(error => console.warn("保存缓存失败:", error));
+      }
+
       return {
         repositories: allRepositories,
         totalLoaded,
+        fromCache: false,
       };
     } catch (error) {
       throw this.handleError(error, "获取所有收藏仓库失败");

@@ -1,11 +1,10 @@
-import { githubStarService } from "./star-service";
 import { githubAuthService } from "./auth-service";
+import { githubStarService } from "./star-service";
 import type {
-  StarredRepository,
-  SyncStatus,
   StarOperation,
+  StarredRepository,
   SyncEvent,
-  GitHubRepository,
+  SyncStatus
 } from "./types";
 
 /**
