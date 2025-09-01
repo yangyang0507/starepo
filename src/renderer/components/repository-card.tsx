@@ -10,7 +10,9 @@ import {
   Code,
   Tag,
 } from "lucide-react";
-import type { GitHubRepository, ViewOptions } from "@/services/github/types";
+import type { GitHubRepository, ViewOptions, GitHubUser, StarredRepository } from "@/services/github/types";
+import { indexedDBStorage } from "@/services/indexeddb-storage";
+import { octokitManager } from "@/services/github/octokit-manager";
 
 interface RepositoryCardProps {
   repository: GitHubRepository;
@@ -83,6 +85,7 @@ export const RepositoryCard: React.FC<RepositoryCardProps> = ({
   className = "",
 }) => {
   const [isStarring, setIsStarring] = useState(false);
+  const [showRemainingTopics, setShowRemainingTopics] = useState(false);
 
   const handleStarToggle = useCallback(
     async (e: React.MouseEvent) => {
@@ -95,8 +98,76 @@ export const RepositoryCard: React.FC<RepositoryCardProps> = ({
       try {
         if (isStarred && onUnstar) {
           await onUnstar(repository);
+          // unstar 操作成功后，从 IndexedDB 中删除这条数据
+          try {
+            const octokit = octokitManager.getOctokit();
+            if (octokit) {
+              const userResponse = await octokit.rest.users.getAuthenticated();
+              const userLogin = userResponse.data.login;
+
+              // 从 IndexedDB 中删除这条仓库数据
+              const cachedData = await indexedDBStorage.loadRepositories(userLogin);
+              if (cachedData) {
+                const updatedRepositories = cachedData.repositories.filter(
+                  (repo: StarredRepository) => repo.id !== repository.id
+                );
+
+                if (updatedRepositories.length !== cachedData.repositories.length) {
+                  await indexedDBStorage.saveRepositories(userLogin, updatedRepositories);  
+                  console.log(`已从 IndexedDB 中删除仓库 ${repository.name}，unstar 操作成功`);
+                }
+              }
+            }
+          } catch (cacheError) {
+            console.warn("更新 IndexedDB 失败:", cacheError);
+          }
         } else if (!isStarred && onStar) {
           await onStar(repository);
+          // star 操作成功后，添加到 IndexedDB 中
+          try {
+            const octokit = octokitManager.getOctokit();
+            if (octokit) {
+              const userResponse = await octokit.rest.users.getAuthenticated();
+              const userLogin = userResponse.data.login;
+
+              // 获取当前时间作为 starred_at
+              const starredAt = new Date().toISOString();
+
+              // 创建 StarredRepository 对象
+              const starredRepo: StarredRepository = {
+                ...repository,
+                starred_at: starredAt,
+              };
+
+              // 加载现有数据并添加新仓库
+              const cachedData = await indexedDBStorage.loadRepositories(userLogin);
+              let updatedRepositories: StarredRepository[] = [];
+
+              if (cachedData) {
+                // 检查是否已经存在，避免重复添加
+                const existingIndex = cachedData.repositories.findIndex(
+                  (repo: StarredRepository) => repo.id === repository.id
+                );
+
+                if (existingIndex === -1) {
+                  // 不存在，添加到列表开头（最新收藏的排在前面）
+                  updatedRepositories = [starredRepo, ...cachedData.repositories];
+                } else {
+                  // 已存在，更新 starred_at 时间
+                  updatedRepositories = [...cachedData.repositories];
+                  updatedRepositories[existingIndex] = starredRepo;
+                }
+              } else {
+                // 没有缓存数据，创建新列表
+                updatedRepositories = [starredRepo];
+              }
+
+              await indexedDBStorage.saveRepositories(userLogin, updatedRepositories);
+              console.log(`已添加到 IndexedDB 中，star 操作成功`);
+            }
+          } catch (cacheError) {
+            console.warn("更新 IndexedDB 失败:", cacheError);
+          }
         }
       } catch (error) {
         console.error("Star operation failed:", error);
@@ -107,9 +178,30 @@ export const RepositoryCard: React.FC<RepositoryCardProps> = ({
     [isStarred, isStarring, loading, onStar, onUnstar, repository],
   );
 
+  // 处理外部链接跳转
+  const handleExternalLink = useCallback(async (url: string) => {
+    try {
+      if (window.electronAPI?.shell?.openExternal) {
+        const result = await window.electronAPI.shell.openExternal(url);
+        if (!result.success) {
+          console.error("打开外部链接失败:", result.error);
+          // 如果 Electron API 失败，尝试备用方案
+          window.open(url, '_blank');
+        }
+      } else {
+        // 备用方案：在默认浏览器中打开
+        window.open(url, '_blank');
+      }
+    } catch (error) {
+      console.error("打开链接时发生错误:", error);
+      // 最后的备用方案
+      window.open(url, '_blank');
+    }
+  }, []);
+
   const handleCardClick = useCallback(() => {
-    window.open(repository.html_url, "_blank");
-  }, [repository.html_url]);
+    handleExternalLink(repository.html_url);
+  }, [repository.html_url, handleExternalLink]);
 
   const cardContent = (
     <>
@@ -184,9 +276,34 @@ export const RepositoryCard: React.FC<RepositoryCardProps> = ({
               </span>
             ))}
             {repository.topics.length > 5 && (
-              <span className="inline-flex items-center rounded-full bg-gradient-to-r from-gray-50 to-slate-50 px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-200/50 dark:from-gray-800/50 dark:to-slate-800/50 dark:text-gray-400 dark:ring-gray-600/30">
-                +{repository.topics.length - 5}
-              </span>
+              <div className="relative inline-block">
+                <span
+                  className="inline-flex cursor-pointer items-center rounded-full bg-gradient-to-r from-gray-50 to-slate-50 px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-200/50 transition-all duration-200 hover:from-gray-100 hover:to-slate-100 hover:ring-gray-300/50 dark:from-gray-800/50 dark:to-slate-800/50 dark:text-gray-400 dark:ring-gray-600/30 dark:hover:from-gray-700/50 dark:hover:to-slate-700/50"
+                  onMouseEnter={() => setShowRemainingTopics(true)}
+                  onMouseLeave={() => setShowRemainingTopics(false)}
+                >
+                  +{repository.topics.length - 5}
+                </span>
+
+                {/* Hover 弹窗显示剩余标签 */}
+                {showRemainingTopics && (
+                  <div className="absolute bottom-full left-0 z-50 mb-2 max-w-xs rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                    <div className="flex flex-wrap gap-1.5">
+                      {repository.topics.slice(5).map((topic) => (
+                        <span
+                          key={topic}
+                          className="inline-flex items-center rounded-full bg-gradient-to-r from-blue-50 to-indigo-50 px-2.5 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-200/50 dark:from-blue-900/20 dark:to-indigo-900/20 dark:text-blue-300 dark:ring-blue-700/30"
+                        >
+                          <Tag className="mr-1 h-3 w-3" />
+                          {topic}
+                        </span>
+                      ))}
+                    </div>
+                    {/* 小箭头 */}
+                    <div className="absolute -bottom-1 left-3 h-2 w-2 rotate-45 border-b border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"></div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}

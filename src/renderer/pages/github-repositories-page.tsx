@@ -139,6 +139,20 @@ const GitHubRepositoriesPage: React.FC = () => {
     }
   }, []);
 
+  // 刷新用户信息
+  const refreshUserInfo = useCallback(async () => {
+    try {
+      const user = await githubServices.user.getCurrentUser();
+      setState((prev) => ({
+        ...prev,
+        user,
+      }));
+      console.log("用户信息已刷新");
+    } catch (error) {
+      console.error("刷新用户信息失败:", error);
+    }
+  }, []);
+
   // 刷新数据
   const handleRefresh = useCallback(async () => {
     // 防止重复刷新
@@ -180,6 +194,9 @@ const GitHubRepositoriesPage: React.FC = () => {
         refreshMessage: `刷新完成，共加载 ${repositories.length} 个仓库`,
       }));
 
+      // 同时刷新用户信息
+      await refreshUserInfo();
+
       // 3秒后清除提示消息
       setTimeout(() => {
         setState((prev) => ({ ...prev, refreshMessage: null }));
@@ -198,7 +215,7 @@ const GitHubRepositoriesPage: React.FC = () => {
         setState((prev) => ({ ...prev, refreshMessage: null }));
       }, 3000);
     }
-  }, [state.syncing]);
+  }, [state.syncing, refreshUserInfo]);
 
 
 
@@ -211,6 +228,8 @@ const GitHubRepositoriesPage: React.FC = () => {
         ...prev,
         starredRepoIds: new Set([...prev.starredRepoIds, repo.id]),
       }));
+      // 刷新用户信息以更新 star 数量
+      await refreshUserInfo();
     } catch (error) {
       console.error("Star操作失败:", error);
       setState((prev) => ({
@@ -219,7 +238,7 @@ const GitHubRepositoriesPage: React.FC = () => {
           error instanceof Error ? error.message : "Star操作失败，请稍后重试",
       }));
     }
-  }, []);
+  }, [refreshUserInfo]);
 
   // Unstar操作
   const handleUnstar = useCallback(async (repo: GitHubRepository) => {
@@ -233,6 +252,8 @@ const GitHubRepositoriesPage: React.FC = () => {
           starredRepoIds: newStarredRepoIds,
         };
       });
+      // 刷新用户信息以更新 star 数量
+      await refreshUserInfo();
     } catch (error) {
       console.error("Unstar操作失败:", error);
       setState((prev) => ({
@@ -241,7 +262,7 @@ const GitHubRepositoriesPage: React.FC = () => {
           error instanceof Error ? error.message : "Unstar操作失败，请稍后重试",
       }));
     }
-  }, []);
+  }, [refreshUserInfo]);
 
   // 登出
   const handleLogout = useCallback(async () => {
