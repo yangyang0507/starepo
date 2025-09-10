@@ -80,7 +80,7 @@ export default function GitHubAuthPage({
             onTokenSubmit={handleTokenSubmit}
             onBack={handleBackToSelector}
             isLoading={isLoading}
-            error={error}
+            error={error ?? undefined}
           />
         );
 
@@ -174,7 +174,7 @@ export default function GitHubAuthPage({
     <OnboardingWrapper
       currentStep={currentStep}
       completedSteps={getCompletedSteps()}
-      error={error}
+      error={error ?? undefined}
       isLoading={isLoading}
       onRetry={handleRetry}
     >
