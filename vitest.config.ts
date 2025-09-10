@@ -6,7 +6,11 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(__dirname, "./src/renderer"),
+      "@main": path.resolve(__dirname, "./src/main"),
+      "@preload": path.resolve(__dirname, "./src/preload"),
+      "@shared": path.resolve(__dirname, "./src/shared"),
+      "@assets": path.resolve(__dirname, "./src/assets"),
     },
   },
   test: {

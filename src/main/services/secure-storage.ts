@@ -143,8 +143,8 @@ export class SecureStorageService {
       try {
         await fs.unlink(filePath);
         console.log(`安全存储项目已删除: ${key}`);
-      } catch (error: any) {
-        if (error.code !== "ENOENT") {
+      } catch (error: unknown) {
+        if (error && typeof error === 'object' && 'code' in error && error.code !== "ENOENT") {
           throw error;
         }
         // 文件不存在，忽略错误
@@ -297,7 +297,7 @@ export class SecureStorageService {
         JSON.stringify(metadata, null, 2),
         "utf8",
       );
-    } catch (error) {
+    } catch {
       // 如果元数据文件已存在，则更新访问时间
       await this.updateMetadata();
     }
@@ -371,7 +371,7 @@ export class GitHubTokenStorage {
   }
 
   // 保存用户信息
-  async saveUserInfo(userInfo: any): Promise<void> {
+  async saveUserInfo(userInfo: import("@shared/types").GitHubUser): Promise<void> {
     await this.secureStorage.setItem(
       GitHubTokenStorage.USER_KEY,
       JSON.stringify(userInfo),
@@ -379,7 +379,7 @@ export class GitHubTokenStorage {
   }
 
   // 获取用户信息
-  async getUserInfo(): Promise<any | null> {
+  async getUserInfo(): Promise<import("@shared/types").GitHubUser | null> {
     const userInfoStr = await this.secureStorage.getItem(
       GitHubTokenStorage.USER_KEY,
     );

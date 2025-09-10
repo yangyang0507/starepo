@@ -38,7 +38,7 @@ export const RepositoriesRanking: React.FC<RepositoriesRankingProps> = ({
   const sortedRepositories = React.useMemo(() => {
     return [...repositories]
       .sort((a, b) => {
-        let aValue: any, bValue: any;
+        let aValue: string | number, bValue: string | number;
 
         switch (sortField) {
           case 'stargazers_count':

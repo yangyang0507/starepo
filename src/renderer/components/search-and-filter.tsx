@@ -6,7 +6,6 @@ import {
   ChevronDown,
   Star,
   GitFork,
-  Calendar,
   Code,
 } from "lucide-react";
 import type { FilterOptions, ViewOptions } from "@/services/github/types";

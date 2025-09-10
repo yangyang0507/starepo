@@ -7,10 +7,9 @@ import {
   ExternalLink,
   Archive,
   Lock,
-  Code,
   Tag,
 } from "lucide-react";
-import type { GitHubRepository, ViewOptions, GitHubUser, StarredRepository } from "@/services/github/types";
+import type { GitHubRepository, ViewOptions, StarredRepository } from "@/services/github/types";
 import { indexedDBStorage } from "@/services/indexeddb-storage";
 import { octokitManager } from "@/services/github/octokit-manager";
 

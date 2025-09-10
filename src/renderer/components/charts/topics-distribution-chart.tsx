@@ -12,8 +12,15 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tag } from "lucide-react";
 
+// 定义数据类型
+interface _TopicData {
+  topic: string;
+  count: number;
+  percentage: number;
+}
+
 // 自定义 Tooltip 组件
-const CustomTooltip: React.FC<TooltipProps<any, any>> = ({ active, payload, label }) => {
+const CustomTooltip: React.FC<TooltipProps<number, string>> = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     const data = payload[0];
     return (

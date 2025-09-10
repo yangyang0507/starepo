@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import {
-  LineChart,
   Line,
   XAxis,
   YAxis,
@@ -13,10 +12,10 @@ import {
   AreaChart,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, Calendar } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 
 // 自定义 Tooltip 组件
-const CustomTooltip: React.FC<TooltipProps<any, any>> = ({ active, payload, label }) => {
+const CustomTooltip: React.FC<TooltipProps<number, string>> = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
       <div className="rounded-lg border bg-background p-3 shadow-md">
@@ -63,13 +62,14 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({
           // 显示为 "2024-01" 格式
           displayLabel = item.date;
           break;
-        case 'week':
+        case 'week': {
           // 显示为 "W01" 或 "1月W1" 格式
-          const [year, week] = item.date.split('-W');
+          const [_year, week] = item.date.split('-W');
           if (week) {
             displayLabel = `W${week}`;
           }
           break;
+        }
         case 'day':
           // 显示为日期
           displayLabel = item.date;

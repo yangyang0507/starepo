@@ -36,8 +36,16 @@ const getLanguageColor = (language: string): string => {
   return colors[language] || "#6b7280";
 };
 
+// 定义数据类型
+interface _LanguageData {
+  language: string;
+  count: number;
+  percentage: number;
+  color: string;
+}
+
 // 自定义 Tooltip 组件
-const CustomTooltip: React.FC<TooltipProps<any, any>> = ({ active, payload }) => {
+const CustomTooltip: React.FC<TooltipProps<number, string>> = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const data = payload[0];
     return (
@@ -53,10 +61,10 @@ const CustomTooltip: React.FC<TooltipProps<any, any>> = ({ active, payload }) =>
 };
 
 // 自定义 Legend 组件
-const CustomLegend: React.FC<any> = ({ payload }) => {
+const CustomLegend: React.FC<{ payload?: Array<{ color: string; value: string }> }> = ({ payload }) => {
   return (
     <div className="flex flex-wrap justify-center gap-2 mt-4">
-      {payload?.map((entry: any, index: number) => (
+      {payload?.map((entry, index: number) => (
         <div key={index} className="flex items-center gap-1 text-xs">
           <div
             className="w-3 h-3 rounded-full"
@@ -150,7 +158,7 @@ export const LanguageDistributionChart: React.FC<LanguageDistributionChartProps>
         <div className="mt-4 space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground">详细统计</h4>
           <div className="space-y-1">
-            {languages.slice(0, 5).map((lang, index) => (
+            {languages.slice(0, 5).map((lang) => (
               <div key={lang.name} className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
                   <div

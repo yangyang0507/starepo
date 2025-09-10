@@ -1,7 +1,7 @@
 // 使用 preload 脚本暴露的 API
 
 // IPC 响应类型
-interface IPCResponse<T = any> {
+interface IPCResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;

@@ -326,13 +326,13 @@ export class OctokitManager {
   }
 
   // 处理速率限制
-  private handleRateLimit(retryAfter: number, options: any): boolean {
+  private handleRateLimit(retryAfter: number, _options: unknown): boolean {
     console.warn(`触发速率限制，将在 ${retryAfter} 秒后重试`);
     return true; // 允许重试
   }
 
   // 处理二级速率限制
-  private handleSecondaryRateLimit(retryAfter: number, options: any): boolean {
+  private handleSecondaryRateLimit(retryAfter: number, _options: unknown): boolean {
     console.warn(`触发二级速率限制，将在 ${retryAfter} 秒后重试`);
     return true; // 允许重试
   }

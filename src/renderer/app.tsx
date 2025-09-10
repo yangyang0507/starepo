@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import "./localization/i18n";
 import { updateAppLanguage } from "./utils/language-helpers";
 import AuthGuard from "./components/auth/auth-guard";
+import { ErrorBoundary } from "./components/error-boundary";
 
 export default function App() {
   const { i18n } = useTranslation();
@@ -12,5 +13,9 @@ export default function App() {
     updateAppLanguage(i18n);
   }, [i18n]);
 
-  return <AuthGuard />;
+  return (
+    <ErrorBoundary>
+      <AuthGuard />
+    </ErrorBoundary>
+  );
 }

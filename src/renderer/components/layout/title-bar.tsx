@@ -7,9 +7,9 @@ interface TitleBarProps {
   className?: string;
 }
 
-export function TitleBar({ title = "Starepo", className }: TitleBarProps) {
+export function TitleBar({ title: _title = "Starepo", className }: TitleBarProps) {
   const [isMaximized, setIsMaximized] = useState(false);
-  const [isHovered, setIsHovered] = useState<string | null>(null);
+  const [_isHovered, setIsHovered] = useState<string | null>(null);
   const [isMac, setIsMac] = useState(false);
 
   // 检测平台

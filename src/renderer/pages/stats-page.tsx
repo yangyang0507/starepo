@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -12,7 +12,6 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, BarChart3, Calendar, Github, RefreshCw, TrendingUp } from "lucide-react";
 import { githubServices } from "@/services/github";
@@ -115,7 +114,7 @@ interface StatsPageState {
 }
 
 export default function StatsPage() {
-  const { t } = useTranslation();
+  const { t: _t } = useTranslation();
   const [state, setState] = useState<StatsPageState>({
     loading: true,
     error: null,

@@ -61,7 +61,7 @@ export function setupSecureStorageHandlers(): void {
 
   ipcMain.handle(
     SECURE_STORAGE_CHANNELS.SAVE_USER_INFO,
-    async (event, userInfo: any) => {
+    async (event, userInfo: import("@shared/types").GitHubUser) => {
       try {
         await githubTokenStorage.saveUserInfo(userInfo);
         return { success: true };
@@ -232,11 +232,12 @@ export function setupSecureStorageHandlers(): void {
   });
 
   // 系统检查
-  ipcMain.handle(SECURE_STORAGE_CHANNELS.IS_ENCRYPTION_AVAILABLE, () => {
+  ipcMain.handle(SECURE_STORAGE_CHANNELS.IS_ENCRYPTION_AVAILABLE, async () => {
     try {
+      const { safeStorage } = await import("electron");
       const isAvailable =
         secureStorageService.constructor.name === "SecureStorageService"
-          ? require("electron").safeStorage.isEncryptionAvailable()
+          ? safeStorage.isEncryptionAvailable()
           : false;
       return { success: true, data: isAvailable };
     } catch (error) {

@@ -24,9 +24,44 @@ export default [
       "react-compiler/react-compiler": "error",
     },
   },
-  { languageOptions: { globals: globals.browser } },
+  { 
+    languageOptions: { 
+      globals: globals.browser,
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+    } 
+  },
   pluginJs.configs.recommended,
   pluginReact.configs.flat.recommended,
   eslintPluginPrettierRecommended,
   ...tseslint.configs.recommended,
+  {
+    settings: {
+      react: {
+        version: "detect",
+      },
+    },
+    rules: {
+      // 支持 React 17+ 的新 JSX Transform，不需要导入 React
+      "react/react-in-jsx-scope": "off",
+      "react/jsx-uses-react": "off",
+      
+      // TypeScript 相关规则优化
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-unused-vars": ["error", { 
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_" 
+      }],
+      "@typescript-eslint/no-require-imports": "error",
+      
+      // React 相关规则
+      "react/prop-types": "off", // TypeScript 已提供类型检查
+      
+      // 通用规则
+      "no-case-declarations": "error",
+    },
+  },
 ];

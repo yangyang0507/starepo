@@ -118,7 +118,7 @@ const secureStorageAPI = {
   getGitHubToken: () =>
     ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.GET_GITHUB_TOKEN),
 
-  saveUserInfo: (userInfo: any) =>
+  saveUserInfo: (userInfo: import("@shared/types").GitHubUser) =>
     ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.SAVE_USER_INFO, userInfo),
 
   getUserInfo: () => ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.GET_USER_INFO),

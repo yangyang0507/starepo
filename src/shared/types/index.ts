@@ -32,13 +32,47 @@ export interface AppSettings {
   closeToTray: boolean;
 }
 
-// GitHub 相关类型 (未来功能)
+// GitHub 相关类型
 export interface GitHubUser {
   id: number;
   login: string;
   name: string | null;
   avatar_url: string;
   email: string | null;
+  bio?: string | null;
+  blog?: string | null;
+  company?: string | null;
+  location?: string | null;
+  public_repos: number;
+  public_gists: number;
+  followers: number;
+  following: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// GitHub 认证相关类型
+export interface GitHubAuthInfo {
+  token: string;
+  authMethod: "token";
+  user: GitHubUser;
+  scopes?: string[];
+  expiresAt?: number;
+}
+
+// 安全存储相关类型
+export interface SecureStorageItem {
+  key: string;
+  value: string;
+  createdAt: number;
+  updatedAt: number;
+  expiresAt?: number;
+}
+
+export interface StorageMetadata {
+  version: string;
+  createdAt: number;
+  lastAccessed: number;
 }
 
 export interface GitHubRepo {
