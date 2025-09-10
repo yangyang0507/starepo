@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { themeAPI } from "@/services/api";
 import type { ThemeMode } from "@shared/types";
 
@@ -11,8 +11,8 @@ export function useTheme() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 更新DOM主题类
-  const updateDOMTheme = (themeMode: ThemeMode) => {
+  // 更新DOM主题类 - 使用 useCallback 优化
+  const updateDOMTheme = useCallback((themeMode: ThemeMode) => {
     // 移除现有的主题类
     document.documentElement.classList.remove("dark", "light");
 
@@ -31,7 +31,7 @@ export function useTheme() {
         document.documentElement.classList.add("light");
       }
     }
-  };
+  }, []);
 
   // 初始化主题
   useEffect(() => {
@@ -78,8 +78,8 @@ export function useTheme() {
     return cleanup;
   }, []);
 
-  // 切换主题
-  const toggleTheme = async () => {
+  // 切换主题 - 使用 useCallback 优化
+  const toggleTheme = useCallback(async () => {
     try {
       setError(null);
       const newTheme = await themeAPI.toggleTheme();
@@ -90,10 +90,10 @@ export function useTheme() {
       setError(err instanceof Error ? err.message : "Failed to toggle theme");
       console.error("Failed to toggle theme:", err);
     }
-  };
+  }, [updateDOMTheme]);
 
-  // 设置特定主题
-  const changeTheme = async (newTheme: ThemeMode) => {
+  // 设置特定主题 - 使用 useCallback 优化
+  const changeTheme = useCallback(async (newTheme: ThemeMode) => {
     try {
       setError(null);
       const updatedTheme = await themeAPI.setTheme(newTheme);
@@ -104,13 +104,14 @@ export function useTheme() {
       setError(err instanceof Error ? err.message : "Failed to change theme");
       console.error("Failed to change theme:", err);
     }
-  };
+  }, [updateDOMTheme]);
 
-  return {
+  // 使用 useMemo 优化返回对象，避免不必要的重新创建
+  return useMemo(() => ({
     theme,
     isLoading,
     error,
     toggleTheme,
     changeTheme,
-  };
+  }), [theme, isLoading, error, toggleTheme, changeTheme]);
 }

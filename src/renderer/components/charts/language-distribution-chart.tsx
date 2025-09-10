@@ -86,7 +86,7 @@ interface LanguageDistributionChartProps {
   className?: string;
 }
 
-export const LanguageDistributionChart: React.FC<LanguageDistributionChartProps> = ({
+const LanguageDistributionChart: React.FC<LanguageDistributionChartProps> = ({
   languages,
   className = "",
 }) => {
@@ -185,4 +185,24 @@ export const LanguageDistributionChart: React.FC<LanguageDistributionChartProps>
   );
 };
 
-export default LanguageDistributionChart;
+// 使用 React.memo 优化性能
+const MemoizedLanguageDistributionChart = React.memo(LanguageDistributionChart, (prevProps, nextProps) => {
+  // 比较 languages 数组的内容
+  if (prevProps.languages.length !== nextProps.languages.length) {
+    return false;
+  }
+  
+  for (let i = 0; i < prevProps.languages.length; i++) {
+    const prev = prevProps.languages[i];
+    const next = nextProps.languages[i];
+    if (prev.name !== next.name || prev.count !== next.count || prev.percentage !== next.percentage) {
+      return false;
+    }
+  }
+  
+  return prevProps.className === nextProps.className;
+});
+
+// 同时提供默认导出和命名导出
+export { MemoizedLanguageDistributionChart as LanguageDistributionChart };
+export default MemoizedLanguageDistributionChart;

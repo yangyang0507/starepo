@@ -281,7 +281,7 @@ export interface SecureStorageOptions {
 // 事件类型
 export interface GitHubEvent {
   type: string;
-  data: any;
+  data: Record<string, unknown>;
   timestamp: number;
 }
 
@@ -311,5 +311,62 @@ export interface AuthEvent extends GitHubEvent {
 
 export interface RateLimitEvent extends GitHubEvent {
   type: "rate-limit-updated" | "rate-limit-warning" | "rate-limit-exceeded";
-  data: any;
+  data: {
+    limit: number;
+    remaining: number;
+    reset: number;
+    used: number;
+    resource: string;
+  };
+}
+
+// GitHub API 响应类型
+export interface GitHubAPIStarredItem {
+  starred_at: string;
+  repo: GitHubRepository;
+}
+
+export interface GitHubAPIUser {
+  id: number;
+  login: string;
+  name: string | null;
+  avatar_url: string;
+  email: string | null;
+  bio?: string | null;
+  blog?: string | null;
+  company?: string | null;
+  location?: string | null;
+  public_repos: number;
+  public_gists: number;
+  followers: number;
+  following: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GitHubAPIRepository {
+  id: number;
+  name: string;
+  full_name: string;
+  description: string | null;
+  html_url: string;
+  stargazers_count: number;
+  language: string | null;
+  topics: string[];
+  updated_at: string;
+  created_at: string;
+  forks_count: number;
+  watchers_count: number;
+  size: number;
+  default_branch: string;
+  archived: boolean;
+  disabled: boolean;
+  private: boolean;
+  fork: boolean;
+  owner: {
+    login: string;
+    id: number;
+    avatar_url: string;
+    type: string;
+  };
 }

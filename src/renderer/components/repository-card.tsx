@@ -23,6 +23,7 @@ interface RepositoryCardProps {
   className?: string;
 }
 
+// 将工具函数移到组件外部，避免每次渲染时重新创建
 const formatNumber = (num: number): string => {
   if (num >= 1000000) {
     return (num / 1000000).toFixed(1) + "M";
@@ -74,7 +75,7 @@ const getLanguageColor = (language: string | null): string => {
   return colors[language || ""] || "#6b7280";
 };
 
-export const RepositoryCard: React.FC<RepositoryCardProps> = ({
+const RepositoryCard: React.FC<RepositoryCardProps> = ({
   repository,
   viewOptions,
   onStar,
@@ -379,4 +380,13 @@ export const RepositoryCard: React.FC<RepositoryCardProps> = ({
   );
 };
 
-export default RepositoryCard;
+// 使用 React.memo 优化性能，避免不必要的重渲染
+export default React.memo(RepositoryCard, (prevProps, nextProps) => {
+  // 自定义比较函数，只在关键属性变化时重新渲染
+  return (
+    prevProps.repository.id === nextProps.repository.id &&
+    prevProps.isStarred === nextProps.isStarred &&
+    prevProps.loading === nextProps.loading &&
+    prevProps.viewOptions === nextProps.viewOptions
+  );
+});

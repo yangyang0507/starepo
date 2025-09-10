@@ -1,5 +1,5 @@
 import { octokitManager } from "./octokit-manager";
-import type { GitHubUser, GitHubError, PaginationInfo } from "./types";
+import type { GitHubUser, GitHubError, PaginationInfo, GitHubAPIUser } from "./types";
 
 /**
  * GitHub 用户服务类
@@ -116,7 +116,7 @@ export class GitHubUserService {
         page,
       });
 
-      const users: GitHubUser[] = data.items.map((item: any) => ({
+      const users: GitHubUser[] = data.items.map((item: GitHubAPIUser) => ({
         id: item.id,
         login: item.login,
         name: item.name || null,
@@ -182,7 +182,7 @@ export class GitHubUserService {
         page,
       });
 
-      const followers: GitHubUser[] = data.map((item: any) => ({
+      const followers: GitHubUser[] = data.map((item: GitHubAPIUser) => ({
         id: item.id,
         login: item.login,
         name: item.name || null,
@@ -244,7 +244,7 @@ export class GitHubUserService {
         page,
       });
 
-      const following: GitHubUser[] = data.map((item: any) => ({
+      const following: GitHubUser[] = data.map((item: GitHubAPIUser) => ({
         id: item.id,
         login: item.login,
         name: item.name || null,
@@ -294,7 +294,7 @@ export class GitHubUserService {
           username,
         });
         return true;
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (error.status === 404) {
           return false;
         }
@@ -344,7 +344,7 @@ export class GitHubUserService {
   /**
    * 错误处理
    */
-  private handleError(error: any, message: string): GitHubError {
+  private handleError(error: unknown, message: string): GitHubError {
     console.error(message, error);
 
     if (error.response) {

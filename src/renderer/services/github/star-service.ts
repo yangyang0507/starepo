@@ -5,6 +5,8 @@ import type {
   GitHubError,
   PaginationInfo,
   StarredRepository,
+  GitHubAPIStarredItem,
+  GitHubAPIRepository,
 } from "./types";
 
 /**
@@ -50,7 +52,7 @@ export class GitHubStarService {
           },
         });
 
-      const repositories: StarredRepository[] = data.map((item: any) => ({
+      const repositories: StarredRepository[] = data.map((item: GitHubAPIStarredItem) => ({
         ...this.mapToGitHubRepository(item.repo),
         starred_at: item.starred_at,
       }));
@@ -107,7 +109,7 @@ export class GitHubStarService {
         page,
       });
 
-      const repositories: GitHubRepository[] = data.map((repo: any) =>
+      const repositories: GitHubRepository[] = data.map((repo: GitHubAPIRepository) =>
         this.mapToGitHubRepository(repo),
       );
 
@@ -143,7 +145,7 @@ export class GitHubStarService {
           repo,
         });
         return true;
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (error.status === 404) {
           return false;
         }
@@ -227,7 +229,7 @@ export class GitHubStarService {
       try {
         await this.starRepository(owner, repo);
         results.push({ owner, repo, success: true });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.warn(`收藏仓库 ${owner}/${repo} 失败:`, error);
         results.push({
           owner,
@@ -255,7 +257,7 @@ export class GitHubStarService {
       try {
         await this.unstarRepository(owner, repo);
         results.push({ owner, repo, success: true });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.warn(`取消收藏仓库 ${owner}/${repo} 失败:`, error);
         results.push({
           owner,
@@ -700,7 +702,7 @@ export class GitHubStarService {
       // 排序
       if (options.sort) {
         filteredRepositories.sort((a, b) => {
-          let aValue: any, bValue: any;
+          let aValue: string | number, bValue: string | number;
 
           switch (options.sort) {
             case "created":
@@ -736,7 +738,7 @@ export class GitHubStarService {
   /**
    * 将API返回的仓库数据映射为GitHubRepository接口
    */
-  private mapToGitHubRepository(repo: any): GitHubRepository {
+  private mapToGitHubRepository(repo: GitHubAPIRepository): GitHubRepository {
     return {
       id: repo.id,
       name: repo.name,
@@ -771,7 +773,7 @@ export class GitHubStarService {
   /**
    * 错误处理
    */
-  private handleError(error: any, message: string): GitHubError {
+  private handleError(error: unknown, message: string): GitHubError {
     console.error(message, error);
 
     if (error.response) {
