@@ -6,9 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { githubServices } from "@/services/github";
-import type { GitHubRepository, GitHubUser } from "@/services/github/types";
-import { indexedDBStorage } from "@/services/indexeddb-storage";
+import { useRepositoryStore } from "@/stores/repository-store";
 import {
   AlertCircle,
   CheckCircle,
@@ -20,368 +18,47 @@ import {
   Star,
   User
 } from "lucide-react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-
-interface GitHubRepositoriesPageState {
-  user: GitHubUser | null;
-  repositories: GitHubRepository[];
-  starredRepoIds: Set<number>;
-  loading: boolean;
-  error: string | null;
-  syncing: boolean;
-  // 一次性加载相关状态
-  loadingProgress: number | null; // 加载进度 (0-100)
-  totalLoaded: number;
-  // 缓存相关状态
-  fromCache: boolean; // 数据是否来自缓存
-  cacheStatus: {
-    hasCache: boolean;
-    isFresh: boolean;
-    lastUpdated?: Date;
-    totalCount?: number;
-  } | null;
-  // 刷新提示消息
-  refreshMessage: string | null;
-}
+import React, { useEffect } from "react";
 
 const GitHubRepositoriesPage: React.FC = () => {
-  const [state, setState] = useState<GitHubRepositoriesPageState>({
-    user: null,
-    repositories: [],
-    starredRepoIds: new Set(),
-    loading: true,
-    error: null,
-    syncing: false,
-    loadingProgress: null,
-    totalLoaded: 0,
-    fromCache: false,
-    cacheStatus: null,
-    refreshMessage: null,
-  });
+  const {
+    user,
+    repositories,
+    starredRepoIds,
+    loading,
+    error,
+    syncing,
+    loadingProgress,
+    totalLoaded,
+    refreshMessage,
+    initializeData,
+    refreshData,
+    starRepository,
+    unstarRepository,
+    logout,
+    checkAndUpdateCache,
+  } = useRepositoryStore();
 
-  // 防抖引用，避免快速的状态变化
-  const lastUpdateRef = useRef<number>(0);
-
-  // 防抖状态设置函数，避免快速闪烁
-  const debouncedSetState = useCallback((updater: (prev: GitHubRepositoriesPageState) => GitHubRepositoriesPageState) => {
-    const now = Date.now();
-    if (now - lastUpdateRef.current > 100) { // 最小间隔100ms
-      lastUpdateRef.current = now;
-      setState(updater);
-    }
-  }, []);
-
-  // 初始化数据
-  const initializeData = useCallback(async () => {
-    setState((prev) => ({ ...prev, loading: true, error: null }));
-
-    try {
-      // 检查认证状态
-      const isAuthenticated = await githubServices.auth.isAuthenticated();
-      if (!isAuthenticated) {
-        setState((prev) => ({
-          ...prev,
-          loading: false,
-          error: "请先进行GitHub认证",
-        }));
-        return;
-      }
-
-      // 获取用户信息
-      const user = await githubServices.user.getCurrentUser();
-
-      // 获取所有Star仓库列表（一次性加载完毕）
-      const starredData = await githubServices.star.getAllStarredRepositories({
-        batchSize: 100,
-        onProgress: (loaded, total) => {
-          // 更新加载进度
-          const progress = total ? Math.round((loaded / total) * 100) : null;
-          setState((prev) => ({
-            ...prev,
-            loadingProgress: progress,
-            totalLoaded: loaded,
-          }));
-        },
-      });
-
-      const repositories = starredData.repositories.map((starredRepo) => ({
-        ...starredRepo,
-        // 移除starred_at字段，保持GitHubRepository类型一致
-        starred_at: undefined,
-      })) as GitHubRepository[];
-
-      const starredRepoIds = new Set(repositories.map((repo) => repo.id));
-
-      setState({
-        user,
-        repositories,
-        starredRepoIds,
-        loading: false,
-        error: null,
-        syncing: false,
-        loadingProgress: null,
-        totalLoaded: starredData.totalLoaded,
-        fromCache: starredData.fromCache || false,
-        cacheStatus: null, // 稍后会更新缓存状态
-        refreshMessage: null,
-      });
-
-      // 启动同步服务
-      await githubServices.sync.startIncrementalSync();
-    } catch (error) {
-      console.error("初始化失败:", error);
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        error:
-          error instanceof Error ? error.message : "初始化失败，请稍后重试",
-      }));
-    }
-  }, []);
-
-  // 刷新用户信息
-  const refreshUserInfo = useCallback(async () => {
-    try {
-      const user = await githubServices.user.getCurrentUser();
-      setState((prev) => ({
-        ...prev,
-        user,
-      }));
-      console.log("用户信息已刷新");
-    } catch (error) {
-      console.error("刷新用户信息失败:", error);
-    }
-  }, []);
-
-  // 刷新数据
-  const handleRefresh = useCallback(async () => {
-    // 防止重复刷新
-    if (state.syncing) return;
-
-    setState((prev) => ({ ...prev, syncing: true, error: null, refreshMessage: null }));
-
-    try {
-      // 重新获取所有数据（强制刷新）
-      const starredData = await githubServices.star.getAllStarredRepositories({
-        batchSize: 100,
-        forceRefresh: true,
-        onProgress: (loaded, total) => {
-          // 更新加载进度
-          const progress = total ? Math.round((loaded / total) * 100) : null;
-          setState((prev) => ({
-            ...prev,
-            loadingProgress: progress,
-            totalLoaded: loaded,
-          }));
-        },
-      });
-
-      const repositories = starredData.repositories.map((starredRepo) => ({
-        ...starredRepo,
-        starred_at: undefined,
-      })) as GitHubRepository[];
-
-      const starredRepoIds = new Set(repositories.map((repo) => repo.id));
-
-      setState((prev) => ({
-        ...prev,
-        repositories,
-        starredRepoIds,
-        syncing: false,
-        loadingProgress: null,
-        totalLoaded: starredData.totalLoaded,
-        fromCache: starredData.fromCache || false,
-        refreshMessage: `刷新完成，共加载 ${repositories.length} 个仓库`,
-      }));
-
-      // 同时刷新用户信息
-      await refreshUserInfo();
-
-      // 3秒后清除提示消息
-      setTimeout(() => {
-        setState((prev) => ({ ...prev, refreshMessage: null }));
-      }, 3000);
-    } catch (error) {
-      console.error("刷新失败:", error);
-      setState((prev) => ({
-        ...prev,
-        syncing: false,
-        error: error instanceof Error ? error.message : "刷新失败，请稍后重试",
-        refreshMessage: "刷新失败，请稍后重试",
-      }));
-
-      // 3秒后清除错误提示消息
-      setTimeout(() => {
-        setState((prev) => ({ ...prev, refreshMessage: null }));
-      }, 3000);
-    }
-  }, [state.syncing, refreshUserInfo]);
-
-
-
-
-  // Star操作
-  const handleStar = useCallback(async (repo: GitHubRepository) => {
-    try {
-      await githubServices.star.starRepository(repo.owner.login, repo.name);
-      setState((prev) => ({
-        ...prev,
-        starredRepoIds: new Set([...prev.starredRepoIds, repo.id]),
-      }));
-      // 刷新用户信息以更新 star 数量
-      await refreshUserInfo();
-    } catch (error) {
-      console.error("Star操作失败:", error);
-      setState((prev) => ({
-        ...prev,
-        error:
-          error instanceof Error ? error.message : "Star操作失败，请稍后重试",
-      }));
-    }
-  }, [refreshUserInfo]);
-
-  // Unstar操作
-  const handleUnstar = useCallback(async (repo: GitHubRepository) => {
-    try {
-      await githubServices.star.unstarRepository(repo.owner.login, repo.name);
-      setState((prev) => {
-        const newStarredRepoIds = new Set(prev.starredRepoIds);
-        newStarredRepoIds.delete(repo.id);
-        return {
-          ...prev,
-          starredRepoIds: newStarredRepoIds,
-        };
-      });
-      // 刷新用户信息以更新 star 数量
-      await refreshUserInfo();
-    } catch (error) {
-      console.error("Unstar操作失败:", error);
-      setState((prev) => ({
-        ...prev,
-        error:
-          error instanceof Error ? error.message : "Unstar操作失败，请稍后重试",
-      }));
-    }
-  }, [refreshUserInfo]);
-
-  // 登出
-  const handleLogout = useCallback(async () => {
-    try {
-      await githubServices.auth.clearAuth();
-      setState({
-        user: null,
-        repositories: [],
-        starredRepoIds: new Set(),
-        loading: false,
-        error: null,
-        syncing: false,
-        loadingProgress: null,
-        totalLoaded: 0,
-        fromCache: false,
-        cacheStatus: null,
-        refreshMessage: null,
-      });
-    } catch (error) {
-      console.error("登出失败:", error);
-      setState((prev) => ({
-        ...prev,
-        error: error instanceof Error ? error.message : "登出失败，请稍后重试",
-      }));
-    }
-  }, []);
-
-  // 异步检查和更新缓存
-  const checkAndUpdateCache = useCallback(async () => {
-    if (!state.user) return;
-
-    try {
-      const cacheStatus = await indexedDBStorage.getCacheStatus(state.user.login);
-
-      setState((prev) => ({
-        ...prev,
-        cacheStatus,
-      }));
-
-      // 如果有缓存但已过期，启动后台更新
-      if (cacheStatus.hasCache && !cacheStatus.isFresh) {
-        console.log("缓存已过期，启动后台更新...");
-        // 异步更新，不阻塞UI
-        githubServices.star.getAllStarredRepositories({
-          forceRefresh: true,
-          batchSize: 100,
-          onProgress: (loaded) => {
-            // 后台更新不显示进度，只在控制台记录
-            console.log(`后台更新进度: ${loaded} 个仓库`);
-          },
-        }).then((result) => {
-          console.log(`后台更新完成，共 ${result.totalLoaded} 个仓库`);
-          // 更新缓存状态
-          setState((prev) => ({
-            ...prev,
-            cacheStatus: {
-              hasCache: true,
-              isFresh: true,
-              lastUpdated: new Date(),
-              totalCount: result.totalLoaded,
-            },
-          }));
-        }).catch((error) => {
-          console.warn("后台更新失败:", error);
-        });
-      }
-    } catch (error) {
-      console.warn("检查缓存状态失败:", error);
-    }
-  }, [state.user]);
+  // Event handlers that use store actions
+  const handleRefresh = refreshData;
+  const handleStar = starRepository;
+  const handleUnstar = unstarRepository;
+  const handleLogout = logout;
 
   // 初始化
   useEffect(() => {
     initializeData();
-
-    // 清理函数
-    return () => {
-      githubServices.sync.stopSync();
-    };
   }, [initializeData]);
 
   // 数据加载完成后检查缓存状态
   useEffect(() => {
-    if (state.user && !state.loading) {
+    if (user && !loading) {
       checkAndUpdateCache();
     }
-  }, [state.user, state.loading, checkAndUpdateCache]);
-
-  // 监听同步事件
-  useEffect(() => {
-    const handleSyncComplete = () => {
-      // 同步完成后只更新同步状态，不重新获取数据
-      debouncedSetState((prev) => ({
-        ...prev,
-        syncing: false,
-        error: null,
-      }));
-    };
-
-    const handleSyncError = (error: unknown) => {
-      debouncedSetState((prev) => ({
-        ...prev,
-        syncing: false,
-        error: error instanceof Error ? error.message : "同步失败",
-      }));
-    };
-
-    const syncService = githubServices.sync;
-    syncService.addEventListener(handleSyncComplete);
-    syncService.addEventListener(handleSyncError);
-
-    return () => {
-      syncService.removeEventListener(handleSyncComplete);
-      syncService.removeEventListener(handleSyncError);
-    };
-  }, [debouncedSetState]);
+  }, [user, loading, checkAndUpdateCache]);
 
   // 如果未认证，显示认证提示
-  if (!state.user && !state.loading) {
+  if (!user && !loading) {
     return (
       <AppLayout title="GitHub 仓库管理">
         <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
@@ -438,7 +115,7 @@ const GitHubRepositoriesPage: React.FC = () => {
 
       <div className="flex flex-1 flex-col gap-4 p-2 sm:p-4 pt-0">
         {/* 用户信息卡片 */}
-        {state.user && (
+        {user && (
           <Card className="overflow-hidden">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
@@ -453,13 +130,13 @@ const GitHubRepositoriesPage: React.FC = () => {
             <CardContent className="pt-0">
               <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
                 <button
-                  onClick={() => window.open(`https://github.com/${state.user?.login}`, '_blank')}
+                  onClick={() => window.open(`https://github.com/${user?.login}`, '_blank')}
                   className="group flex-shrink-0"
                 >
                   <Avatar className="h-12 w-12 sm:h-16 sm:w-16 ring-2 ring-transparent group-hover:ring-primary/20 transition-all">
                     <AvatarImage
-                      src={state.user.avatar_url}
-                      alt={state.user.login}
+                      src={user.avatar_url}
+                      alt={user.login}
                     />
                     <AvatarFallback>
                       <User className="h-6 w-6 sm:h-8 sm:w-8" />
@@ -469,37 +146,37 @@ const GitHubRepositoriesPage: React.FC = () => {
                 <div className="flex-1 min-w-0 space-y-2">
                   <div>
                     <button
-                      onClick={() => window.open(`https://github.com/${state.user?.login}`, '_blank')}
+                      onClick={() => window.open(`https://github.com/${user?.login}`, '_blank')}
                       className="group text-left w-full"
                     >
                       <h3 className="font-semibold text-base sm:text-lg group-hover:text-primary transition-colors flex items-center gap-2 truncate">
-                        <span className="truncate">{state.user.name || state.user.login}</span>
+                        <span className="truncate">{user.name || user.login}</span>
                         <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                       </h3>
                     </button>
                     <button
-                      onClick={() => window.open(`https://github.com/${state.user?.login}`, '_blank')}
+                      onClick={() => window.open(`https://github.com/${user?.login}`, '_blank')}
                       className="text-muted-foreground hover:text-foreground text-sm transition-colors truncate block"
                     >
-                      @{state.user.login}
+                      @{user.login}
                     </button>
                   </div>
-                  {state.user.bio && (
+                  {user.bio && (
                     <p className="text-sm text-muted-foreground line-clamp-2">
-                      {state.user.bio}
+                      {user.bio}
                     </p>
                   )}
                   <div className="flex flex-wrap gap-3 sm:gap-4 text-sm">
                     <div className="flex items-center gap-1 text-muted-foreground">
                       <Star className="h-4 w-4 flex-shrink-0" />
-                      <span className="font-medium">{state.repositories.length}</span>
+                      <span className="font-medium">{repositories.length}</span>
                       <span className="hidden xs:inline">已标星</span>
                     </div>
                     <button
-                      onClick={() => window.open(`https://github.com/${state.user?.login}?tab=repositories`, '_blank')}
+                      onClick={() => window.open(`https://github.com/${user?.login}?tab=repositories`, '_blank')}
                       className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer group"
                     >
-                      <span className="font-medium">{state.user.public_repos || 0}</span>
+                      <span className="font-medium">{user.public_repos || 0}</span>
                       <span className="hidden xs:inline">仓库</span>
                       <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                     </button>
@@ -509,16 +186,16 @@ const GitHubRepositoriesPage: React.FC = () => {
                   <Button
                     variant="outline"
                     onClick={handleRefresh}
-                    disabled={state.syncing}
+                    disabled={syncing}
                     size="sm"
                     className="flex-1 sm:flex-none"
                   >
-                    {state.syncing ? (
+                    {syncing ? (
                       <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
                       <RefreshCw className="mr-2 h-4 w-4" />
                     )}
-                    <span className="xs:inline">{state.syncing ? "刷新中" : "刷新"}</span>
+                    <span className="xs:inline">{syncing ? "刷新中" : "刷新"}</span>
                   </Button>
                   <Button
                     variant="destructive"
@@ -536,7 +213,7 @@ const GitHubRepositoriesPage: React.FC = () => {
         )}
 
         {/* 加载进度指示器 */}
-        {(state.loadingProgress !== null || state.loading) && (
+        {(loadingProgress !== null || loading) && (
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -544,20 +221,20 @@ const GitHubRepositoriesPage: React.FC = () => {
                 <div className="flex-1">
                   <div className="flex items-center justify-between text-sm mb-2">
                     <span className="text-muted-foreground">
-                      {state.loadingProgress !== null
-                        ? `正在加载仓库... (${state.totalLoaded} 个已加载)`
+                      {loadingProgress !== null
+                        ? `正在加载仓库... (${totalLoaded} 个已加载)`
                         : "正在初始化..."
                       }
                     </span>
-                    {state.loadingProgress !== null && (
-                      <span className="font-medium">{state.loadingProgress}%</span>
+                    {loadingProgress !== null && (
+                      <span className="font-medium">{loadingProgress}%</span>
                     )}
                   </div>
-                  {state.loadingProgress !== null && (
+                  {loadingProgress !== null && (
                     <div className="w-full bg-muted rounded-full h-2">
                       <div
                         className="bg-primary h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${state.loadingProgress}%` }}
+                        style={{ width: `${loadingProgress}%` }}
                       />
                     </div>
                   )}
@@ -568,21 +245,21 @@ const GitHubRepositoriesPage: React.FC = () => {
         )}
 
         {/* 刷新提示消息 */}
-        {state.refreshMessage && (
+        {refreshMessage && (
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                {state.refreshMessage.includes("刷新完成") ? (
+                {refreshMessage.includes("刷新完成") ? (
                   <CheckCircle className="h-5 w-5 text-green-600" />
                 ) : (
                   <AlertCircle className="h-5 w-5 text-destructive" />
                 )}
                 <span className={`text-sm font-medium ${
-                  state.refreshMessage.includes("刷新完成")
+                  refreshMessage.includes("刷新完成")
                     ? "text-green-600"
                     : "text-destructive"
                 }`}>
-                  {state.refreshMessage}
+                  {refreshMessage}
                 </span>
               </div>
             </CardContent>
@@ -596,28 +273,28 @@ const GitHubRepositoriesPage: React.FC = () => {
             <CardTitle className="flex items-center gap-2">
               <Star className="h-5 w-5" />
               Star 仓库列表
-              {state.repositories.length > 0 && (
+              {repositories.length > 0 && (
                 <Badge variant="secondary" className="ml-auto">
-                  {state.repositories.length} 个仓库
+                  {repositories.length} 个仓库
                 </Badge>
               )}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            {state.error && (
+            {error && (
               <div className="p-6">
                 <div className="flex items-center gap-2 text-destructive mb-4">
                   <AlertCircle className="h-4 w-4" />
                   <span className="font-medium">错误提示</span>
                 </div>
-                <p className="text-sm text-muted-foreground">{state.error}</p>
+                <p className="text-sm text-muted-foreground">{error}</p>
               </div>
             )}
 
             <RepositoryList
-              repositories={state.repositories}
-              starredRepoIds={state.starredRepoIds}
-              loading={state.loading}
+              repositories={repositories}
+              starredRepoIds={starredRepoIds}
+              loading={loading}
               onStar={handleStar}
               onUnstar={handleUnstar}
             />

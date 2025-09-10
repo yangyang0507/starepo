@@ -4,14 +4,17 @@ import "./localization/i18n";
 import { updateAppLanguage } from "./utils/language-helpers";
 import AuthGuard from "./components/auth/auth-guard";
 import { ErrorBoundary } from "./components/error-boundary";
+import { useThemeStore } from "./stores/theme-store";
 
 export default function App() {
   const { i18n } = useTranslation();
+  const { initTheme } = useThemeStore();
 
   useEffect(() => {
-    // 只处理语言初始化，主题初始化由useTheme hook处理
+    // Initialize language and theme
     updateAppLanguage(i18n);
-  }, [i18n]);
+    initTheme();
+  }, [i18n, initTheme]);
 
   return (
     <ErrorBoundary>

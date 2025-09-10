@@ -3,8 +3,8 @@ import GitHubAuthSelector from "@/components/github/github-auth-selector";
 import TokenInput from "@/components/github/token-input";
 import OnboardingWrapper from "@/components/auth/onboarding-wrapper";
 import { Button } from "@/components/ui/button";
-import { githubAuthService } from "@/services/github/auth-service";
-import type { AuthState, AuthStep } from "@/services/github/types";
+import { useAuthStore } from "@/stores/auth-store";
+import type { AuthStep } from "@/services/github/types";
 
 interface GitHubAuthPageProps {
   onAuthSuccess?: () => void;
@@ -16,100 +16,43 @@ export default function GitHubAuthPage({
   onAuthFailure,
 }: GitHubAuthPageProps) {
   const [currentStep, setCurrentStep] = useState<AuthStep>("selector");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string>("");
-  const [authState, setAuthState] = useState<AuthState | null>(null);
-  const authService = githubAuthService;
+  const { authState, isLoading, error, login, logout, clearError } = useAuthStore();
 
   useEffect(() => {
     // 检查是否已经认证
-    const checkAuthState = async () => {
-      try {
-        const state = authService.getAuthState();
-        if (state.isAuthenticated) {
-          setAuthState(state);
-          setCurrentStep("success");
-        }
-      } catch (error) {
-        console.error("检查认证状态失败:", error);
-      }
-    };
-
-    checkAuthState();
-
-    // 监听认证状态变化
-    const unsubscribe = authService.addAuthListener((state) => {
-      if (state.isAuthenticated) {
-        setAuthState(state);
-        setCurrentStep("success");
-        // 认证成功后立即通知父组件
-        onAuthSuccess?.();
-      }
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [onAuthSuccess]);
+    if (authState?.isAuthenticated) {
+      setCurrentStep("success");
+      onAuthSuccess?.();
+    }
+  }, [authState, onAuthSuccess]);
 
   const handleAuthMethodSelect = () => {
-    setError("");
+    clearError();
     setCurrentStep("token");
   };
 
   const handleTokenSubmit = async (token: string) => {
-    setIsLoading(true);
-    setError("");
-
-    try {
-      const result = await authService.authenticateWithToken(token);
-
-      if (result.success && result.user) {
-        setAuthState({
-          isAuthenticated: true,
-          authMethod: "token",
-          user: result.user,
-          token,
-        });
-        setCurrentStep("success");
-      } else {
-        const errorMessage = result.error || "认证失败，请检查Token是否正确";
-        setError(errorMessage);
-        onAuthFailure?.(errorMessage);
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "认证过程中发生错误";
-      setError(errorMessage);
-      onAuthFailure?.(errorMessage);
-    } finally {
-      setIsLoading(false);
+    const success = await login(token);
+    
+    if (success) {
+      setCurrentStep("success");
+    } else {
+      onAuthFailure?.(error || "认证失败，请检查Token是否正确");
     }
   };
 
-  
   const handleLogout = async () => {
-    setIsLoading(true);
-    try {
-      await authService.clearAuth();
-      setAuthState(null);
-      setCurrentStep("selector");
-      setError("");
-    } catch {
-      setError("登出失败");
-    } finally {
-      setIsLoading(false);
-    }
+    await logout();
+    setCurrentStep("selector");
   };
 
   const handleBackToSelector = () => {
     setCurrentStep("selector");
-    setError("");
+    clearError();
   };
 
   const handleRetry = () => {
-    setError("");
-    setIsLoading(false);
+    clearError();
   };
 
   const getCompletedSteps = (): AuthStep[] => {

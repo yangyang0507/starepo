@@ -19,9 +19,10 @@ Object.defineProperty(window, 'matchMedia', {
 // Mock Electron API
 const mockElectronAPI = {
   theme: {
-    getTheme: vi.fn().mockResolvedValue({ success: true, data: 'light' }),
-    setTheme: vi.fn().mockResolvedValue({ success: true }),
-    onThemeChanged: vi.fn(),
+    getTheme: vi.fn().mockResolvedValue('light'),
+    setTheme: vi.fn().mockResolvedValue('light'),
+    toggleTheme: vi.fn().mockResolvedValue('dark'),
+    onThemeChanged: vi.fn().mockReturnValue(() => {}), // Return cleanup function
   },
   window: {
     minimize: vi.fn().mockResolvedValue({ success: true }),

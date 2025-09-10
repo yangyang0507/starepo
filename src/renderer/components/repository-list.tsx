@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
   Loader2,
   AlertCircle,
@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import SearchAndFilter from "@/components/search-and-filter";
 import RepositoryCard from "@/components/repository-card";
+import { useUIStore } from "@/stores/ui-store";
 import type {
   GitHubRepository,
   FilterOptions,
@@ -45,22 +46,16 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
   onUnstar,
   className = "",
 }) => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filters, setFilters] = useState<FilterOptions>({
-    sortBy: "updated",
-    sortOrder: "desc",
-    showArchived: false,
-    showForks: true,
-  });
-  const [viewOptions, setViewOptions] = useState<ViewOptions>({
-    layout: "grid",
-    itemsPerPage: 20,
-    showDescription: true,
-    showLanguage: true,
-    showStats: true,
-    showTopics: true,
-  });
-  const [currentPage, setCurrentPage] = useState(1);
+  const {
+    searchQuery,
+    filters,
+    viewOptions,
+    currentPage,
+    setSearchQuery,
+    setFilters,
+    setViewOptions,
+    setCurrentPage,
+  } = useUIStore();
 
   // 筛选和搜索逻辑
   const filteredRepositories = useMemo(() => {
@@ -178,28 +173,23 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
     paginationInfo.endIndex,
   ]);
 
-  // 重置分页当筛选条件改变时
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, filters, viewOptions.itemsPerPage]);
-
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-  }, []);
+  }, [setSearchQuery]);
 
   const handleFilterChange = useCallback((newFilters: FilterOptions) => {
     setFilters(newFilters);
-  }, []);
+  }, [setFilters]);
 
   const handleViewChange = useCallback((newView: ViewOptions) => {
     setViewOptions(newView);
-  }, []);
+  }, [setViewOptions]);
 
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
     // 滚动到顶部
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
+  }, [setCurrentPage]);
 
   const renderPagination = () => {
     if (paginationInfo.totalPages <= 1) return null;
