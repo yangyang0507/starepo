@@ -103,5 +103,6 @@ out/
 # IDE
 .idea/
 .vscode/
-.qoder/
 .trae/
+.claude/
+.gemini-clipboard/

@@ -5,7 +5,7 @@
 
 import type { GitHubRepository } from '@/services/github/types';
 
-// ============ 基础搜索类型 ============
+// ============ 基础搜索类型 =============
 
 export type SearchType = 'keyword' | 'semantic' | 'conversational' | 'hybrid';
 
@@ -24,13 +24,13 @@ export interface SearchOptions {
   fuzzy?: boolean;
   caseSensitive?: boolean;
   wholeWord?: boolean;
-  
+
   // 字段权重
   fieldWeights?: FieldWeights;
-  
+
   // 筛选条件
   filters?: SearchFilters;
-  
+
   // 排序选项
   sortBy?: SortField;
   sortOrder?: 'asc' | 'desc';
@@ -60,7 +60,7 @@ export interface SearchFilters {
 
 export type SortField = 'relevance' | 'name' | 'stars' | 'updated' | 'created';
 
-// ============ 搜索上下文 ============
+// ============ 搜索上下文 =============
 
 export interface SearchContext {
   conversationId?: string;
@@ -88,7 +88,7 @@ export interface UserAction {
   timestamp: Date;
 }
 
-// ============ 搜索权重 ============
+// ============ 搜索权重 =============
 
 export interface SearchWeights {
   keyword: number;    // 关键词搜索权重 (0-1)
@@ -97,7 +97,7 @@ export interface SearchWeights {
   recency: number;    // 时效性权重 (0-1)
 }
 
-// ============ 搜索结果 ============
+// ============ 搜索结果 =============
 
 export interface SearchResult {
   repository: GitHubRepository;
@@ -136,13 +136,20 @@ export interface RelevanceFactor {
   description: string;
 }
 
-// ============ 搜索统计 ============
+// ============ 搜索统计与分析 =============
 
-export interface SearchStats {
+// 用于单次搜索性能的统计
+export interface SearchPerformanceStats {
   totalResults: number;
   searchTime: number;
   indexSize: number;
   cacheHitRate?: number;
+}
+
+// 用于历史行为分析的统计
+export interface SearchAnalyticsStats {
+  totalSearches: number;
+  popularTerms: Record<string, number>;
 }
 
 export interface SearchHistoryItem {
@@ -153,9 +160,10 @@ export interface SearchHistoryItem {
   resultCount: number;
   executionTime: number;
   filters?: SearchFilters;
+  error?: string;
 }
 
-// ============ 搜索建议 ============
+// ============ 搜索建议 =============
 
 export interface SearchSuggestion {
   text: string;
@@ -165,7 +173,7 @@ export interface SearchSuggestion {
   score: number;
 }
 
-// ============ 搜索索引 ============
+// ============ 搜索索引 =============
 
 export interface SearchIndex {
   documents: Map<string, IndexedDocument>;
@@ -228,7 +236,7 @@ export interface FieldStatistics {
   maxTermFrequency: number;
 }
 
-// ============ 查询解析 ============
+// ============ 查询解析 =============
 
 export interface ParsedQuery {
   originalQuery: string;
@@ -246,7 +254,7 @@ export interface QueryClause {
   fuzzyDistance?: number;
 }
 
-// ============ 搜索引擎接口 ============
+// ============ 搜索引擎接口 =============
 
 export interface ISearchEngine {
   search(query: SearchQuery): Promise<SearchResult[]>;
@@ -254,7 +262,7 @@ export interface ISearchEngine {
   buildIndex(repositories: GitHubRepository[]): Promise<void>;
   updateIndex(repository: GitHubRepository): Promise<void>;
   removeFromIndex(repositoryId: string): Promise<void>;
-  getStats(): Promise<SearchStats>;
+  getStats(): Promise<SearchPerformanceStats>;
   explain(query: SearchQuery): Promise<SearchExplanation>;
 }
 
@@ -273,7 +281,7 @@ export interface ExplanationStep {
   details?: Record<string, any>;
 }
 
-// ============ 错误类型 ============
+// ============ 错误类型 =============
 
 export class SearchError extends Error {
   constructor(
@@ -295,7 +303,7 @@ export enum SearchErrorCode {
   INTERNAL_ERROR = 'INTERNAL_ERROR'
 }
 
-// ============ 配置类型 ============
+// ============ 配置类型 =============
 
 export interface SearchEngineConfig {
   // 索引配置
@@ -304,7 +312,7 @@ export interface SearchEngineConfig {
     maxDocuments: number;
     fieldWeights: FieldWeights;
   };
-  
+
   // 搜索配置
   search: {
     defaultLimit: number;
@@ -312,14 +320,14 @@ export interface SearchEngineConfig {
     timeout: number;
     fuzzyThreshold: number;
   };
-  
+
   // 缓存配置
   cache: {
     enabled: boolean;
     maxSize: number;
     ttl: number;
   };
-  
+
   // 性能配置
   performance: {
     enableParallelSearch: boolean;

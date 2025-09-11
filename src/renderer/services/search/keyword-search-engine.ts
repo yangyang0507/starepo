@@ -9,15 +9,16 @@ import type {
   SearchOptions,
   SearchMatch,
   TextHighlight,
-  SearchResultMetadata,
-  RelevanceFactor,
-  SearchStats,
   SearchSuggestion,
+  SearchStats,
   SearchExplanation,
   ISearchEngine,
   ParsedQuery,
   QueryClause,
-  ExplanationStep
+  ExplanationStep,
+  SearchFilters,
+  RelevanceFactor,
+  IndexedDocument
 } from './types';
 import { SearchError, SearchErrorCode } from './types';
 import { TextAnalyzer } from './text-analyzer';
@@ -133,26 +134,26 @@ export class KeywordSearchEngine implements ISearchEngine {
     }
 
     const vocabulary = this.indexManager.getAllTerms();
-    const suggestions = this.textAnalyzer.generateSuggestions(input, vocabulary, limit);
+    const suggestions = this.textAnalyzer.generateFuzzySuggestions(input, vocabulary, 2, limit);
 
     return suggestions.map(suggestion => ({
-      text: suggestion,
+      text: suggestion.text,
       type: 'completion' as const,
-      score: this.calculateSuggestionScore(suggestion, input)
+      score: this.calculateSuggestionScore(suggestion.text, input)
     }));
   }
 
   /**
    * 获取搜索统计信息
    */
-  async getStats(): Promise<SearchStats> {
+  async getStats(): Promise<SearchPerformanceStats> {
     const indexStats = this.indexManager.getIndexStats();
-    
+
     return {
       totalResults: indexStats.totalDocuments,
       searchTime: 0, // 需要在实际搜索中计算
       indexSize: indexStats.totalTerms,
-      cacheHitRate: 0 // 未来实现缓存时添加
+      cacheHitRate: 0, // 未来实现缓存时添加
     };
   }
 
@@ -202,35 +203,59 @@ export class KeywordSearchEngine implements ISearchEngine {
   }
 
   /**
-   * 解析搜索查询
+   * 解析搜索查询 - 支持高级搜索语法
    */
   private parseQuery(queryText: string, options?: SearchOptions): ParsedQuery {
     const clauses: QueryClause[] = [];
     const caseSensitive = options?.caseSensitive || false;
     
-    // 简单的查询解析（未来可以扩展为更复杂的语法）
-    const terms = queryText.trim().split(/\s+/);
+    // 处理逻辑运算符和分组
+    const tokens = this.tokenizeAdvancedQuery(queryText);
     
-    for (const term of terms) {
-      if (term.includes(':')) {
-        // 字段搜索 (field:value)
-        const [field, value] = term.split(':', 2);
+    for (const token of tokens) {
+      if (token.startsWith('"') && token.endsWith('"')) {
+        // 精确短语搜索
+        const phrase = token.slice(1, -1);
         clauses.push({
-          type: 'field',
-          field: field.toLowerCase(),
-          value: caseSensitive ? value : value.toLowerCase(),
+          type: 'phrase',
+          value: caseSensitive ? phrase : phrase.toLowerCase(),
           operator: 'AND'
         });
-      } else if (term.includes('*')) {
+      } else if (token.includes(':')) {
+        // 字段搜索 (field:value)
+        const [field, value] = token.split(':', 2);
+        
+        // 处理范围搜索 (stars:>1000, updated:<2024)
+        if (value.match(/^[><]=?\d+$/)) {
+          clauses.push({
+            type: 'range',
+            field: field.toLowerCase(),
+            value: value,
+            operator: 'AND'
+          });
+        } else {
+          clauses.push({
+            type: 'field',
+            field: field.toLowerCase(),
+            value: caseSensitive ? value : value.toLowerCase(),
+            operator: 'AND'
+          });
+        }
+      } else if (token === 'AND' || token === 'OR' || token === 'NOT') {
+        // 设置逻辑运算符
+        if (clauses.length > 0) {
+          clauses[clauses.length - 1].operator = token;
+        }
+      } else if (token.includes('*')) {
         // 通配符搜索
         clauses.push({
           type: 'wildcard',
-          value: caseSensitive ? term : term.toLowerCase(),
+          value: caseSensitive ? token : token.toLowerCase(),
           operator: 'AND'
         });
-      } else if (term.includes('~')) {
+      } else if (token.includes('~')) {
         // 模糊搜索
-        const [value, distance] = term.split('~');
+        const [value, distance] = token.split('~');
         clauses.push({
           type: 'fuzzy',
           value: caseSensitive ? value : value.toLowerCase(),
@@ -241,7 +266,7 @@ export class KeywordSearchEngine implements ISearchEngine {
         // 普通词项
         clauses.push({
           type: 'term',
-          value: caseSensitive ? term : term.toLowerCase(),
+          value: caseSensitive ? token : token.toLowerCase(),
           operator: 'AND'
         });
       }
@@ -253,6 +278,54 @@ export class KeywordSearchEngine implements ISearchEngine {
       filters: options?.filters || {},
       options: options || {}
     };
+  }
+
+  /**
+   * 高级查询标记化
+   */
+  private tokenizeAdvancedQuery(queryText: string): string[] {
+    const tokens: string[] = [];
+    let currentToken = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < queryText.length; i++) {
+      const char = queryText[i];
+      
+      if (char === '"') {
+        if (inQuotes) {
+          // 结束引号
+          tokens.push('"' + currentToken + '"');
+          currentToken = '';
+          inQuotes = false;
+        } else {
+          // 开始引号
+          if (currentToken) {
+            tokens.push(currentToken);
+            currentToken = '';
+          }
+          inQuotes = true;
+        }
+      } else if (char === ' ' && !inQuotes) {
+        // 空格分隔符（不在引号内）
+        if (currentToken) {
+          tokens.push(currentToken);
+          currentToken = '';
+        }
+      } else {
+        currentToken += char;
+      }
+    }
+    
+    // 添加最后一个token
+    if (currentToken) {
+      if (inQuotes) {
+        tokens.push('"' + currentToken + '"');
+      } else {
+        tokens.push(currentToken);
+      }
+    }
+    
+    return tokens;
   }
 
   /**
@@ -280,6 +353,13 @@ export class KeywordSearchEngine implements ISearchEngine {
         
         const matches = this.generateMatches(docId, clause);
         matchInfo.get(docId)!.push(...matches);
+      }
+    }
+
+    // 如果没有查询子句但需要筛选，包含所有文档
+    if (parsedQuery.clauses.length === 0 && parsedQuery.filters) {
+      for (const docId of this.indexManager['index'].documents.keys()) {
+        candidateDocuments.set(docId, 1.0); // 基础分数
       }
     }
 
@@ -332,6 +412,9 @@ export class KeywordSearchEngine implements ISearchEngine {
       case 'term':
         return this.executeTermClause(clause);
       
+      case 'phrase':
+        return this.executePhraseClause(clause);
+      
       case 'field':
         return this.executeFieldClause(clause);
       
@@ -344,6 +427,50 @@ export class KeywordSearchEngine implements ISearchEngine {
       default:
         return results;
     }
+  }
+
+  /**
+   * 执行短语查询
+   */
+  private executePhraseClause(clause: QueryClause): Map<string, number> {
+    const results = new Map<string, number>();
+    const phrase = clause.value;
+    const phraseTokens = phrase.split(/\s+/);
+    
+    // 获取所有包含短语中每个词的文档
+    const documentSets: Map<string, number>[] = [];
+    
+    for (const token of phraseTokens) {
+      const tokenResults = this.executeTermClause({ ...clause, value: token, type: 'term' });
+      documentSets.push(tokenResults);
+    }
+    
+    // 找出同时包含所有词的文档
+    const commonDocuments = new Set(documentSets[0].keys());
+    
+    for (let i = 1; i < documentSets.length; i++) {
+      const currentDocs = new Set(documentSets[i].keys());
+      for (const docId of commonDocuments) {
+        if (!currentDocs.has(docId)) {
+          commonDocuments.delete(docId);
+        }
+      }
+    }
+    
+    // 计算短语匹配分数
+    for (const docId of commonDocuments) {
+      let phraseScore = 0;
+      
+      // 累加各词的分数
+      for (const docSet of documentSets) {
+        phraseScore += (docSet.get(docId) || 0);
+      }
+      
+      // 短语匹配获得额外权重
+      results.set(docId, phraseScore * 1.5 * (clause.boost || 1.0));
+    }
+
+    return results;
   }
 
   /**
@@ -360,7 +487,7 @@ export class KeywordSearchEngine implements ISearchEngine {
       
       // 应用字段权重
       let fieldBoost = 1.0;
-      for (const [field, boost] of posting.fieldBoosts.entries()) {
+      for (const [, boost] of posting.fieldBoosts.entries()) {
         fieldBoost = Math.max(fieldBoost, boost);
       }
       
@@ -421,15 +548,28 @@ export class KeywordSearchEngine implements ISearchEngine {
     const maxDistance = clause.fuzzyDistance || 2;
     
     const allTerms = this.indexManager.getAllTerms();
-    const vocabulary = allTerms.slice(0, 1000); // 限制词汇表大小以提高性能
+    const vocabulary = allTerms.slice(0, 500); // 限制词汇表大小以优化性能
     
-    const suggestions = this.textAnalyzer.generateSuggestions(clause.value, vocabulary, 10);
+    // 使用改进的模糊建议生成
+    const suggestions = this.textAnalyzer.generateFuzzySuggestions(
+      clause.value, 
+      vocabulary, 
+      maxDistance,
+      5 // 限制建议数量
+    );
     
     for (const suggestion of suggestions) {
-      const termResults = this.executeTermClause({ ...clause, value: suggestion, type: 'term' });
+      // 计算模糊匹配的相似度分数
+      const similarity = this.textAnalyzer.calculateSimilarity(clause.value, suggestion.text);
+      const similarityScore = Math.max(0.1, similarity); // 确保最小分数
+      
+      const termResults = this.executeTermClause({ ...clause, value: suggestion.text, type: 'term' });
+      
       for (const [docId, score] of termResults.entries()) {
         const currentScore = results.get(docId) || 0;
-        results.set(docId, currentScore + score * 0.7); // 模糊匹配权重较低
+        // 基于相似度的加权分数
+        const weightedScore = score * similarityScore * 0.6;
+        results.set(docId, currentScore + weightedScore);
       }
     }
 
@@ -445,15 +585,33 @@ export class KeywordSearchEngine implements ISearchEngine {
 
     const matches: SearchMatch[] = [];
     
-    for (const [field, text] of document.fields.entries()) {
-      const highlights = this.findHighlights(text, clause.value);
+    // 根据子句类型生成不同的匹配信息
+    for (const [, text] of document.fields.entries()) {
+      let highlights: TextHighlight[] = [];
+      
+      switch (clause.type) {
+        case 'phrase':
+          highlights = this.findPhraseHighlights(text, clause.value);
+          break;
+          
+        case 'fuzzy':
+          highlights = this.findHighlights(text, clause.value, true);
+          break;
+          
+        case 'term':
+        case 'field':
+        case 'wildcard':
+        default:
+          highlights = this.findHighlights(text, clause.value);
+          break;
+      }
       
       if (highlights.length > 0) {
         matches.push({
-          field,
+          field: '', // 字段将在外部设置
           value: text,
           highlights,
-          score: highlights.length * 0.1
+          score: this.calculateMatchScore(clause, highlights)
         });
       }
     }
@@ -462,22 +620,93 @@ export class KeywordSearchEngine implements ISearchEngine {
   }
 
   /**
+   * 计算匹配分数
+   */
+  private calculateMatchScore(clause: QueryClause, highlights: TextHighlight[]): number {
+    let baseScore = highlights.length * 0.1;
+    
+    // 根据匹配类型调整分数
+    switch (clause.type) {
+      case 'phrase':
+        baseScore *= 1.5; // 短语匹配权重更高
+        break;
+      case 'field':
+        baseScore *= 1.8; // 字段匹配权重最高
+        break;
+      case 'fuzzy':
+        baseScore *= 0.7; // 模糊匹配权重较低
+        break;
+    }
+    
+    // 应用boost参数
+    if (clause.boost) {
+      baseScore *= clause.boost;
+    }
+    
+    return baseScore;
+  }
+
+  /**
    * 查找文本中的高亮位置
    */
-  private findHighlights(text: string, term: string): TextHighlight[] {
+  private findHighlights(text: string, term: string, isFuzzy: boolean = false): TextHighlight[] {
     const highlights: TextHighlight[] = [];
     const lowerText = text.toLowerCase();
     const lowerTerm = term.toLowerCase();
     
+    // 精确匹配
     let index = 0;
     while ((index = lowerText.indexOf(lowerTerm, index)) !== -1) {
       highlights.push({
         start: index,
         end: index + term.length,
         text: text.substring(index, index + term.length),
-        type: 'exact'
+        type: isFuzzy ? 'fuzzy' : 'exact'
       });
       index += term.length;
+    }
+
+    // 如果找不到精确匹配，尝试模糊匹配
+    if (highlights.length === 0 && isFuzzy) {
+      const words = text.split(/\s+/);
+      let position = 0;
+      
+      for (const word of words) {
+        if (this.textAnalyzer.calculateSimilarity(term, word) > 0.6) {
+          const wordIndex = text.indexOf(word, position);
+          if (wordIndex !== -1) {
+            highlights.push({
+              start: wordIndex,
+              end: wordIndex + word.length,
+              text: word,
+              type: 'fuzzy'
+            });
+            position = wordIndex + word.length;
+          }
+        }
+      }
+    }
+
+    return highlights;
+  }
+
+  /**
+   * 查找短语匹配
+   */
+  private findPhraseHighlights(text: string, phrase: string): TextHighlight[] {
+    const highlights: TextHighlight[] = [];
+    const lowerText = text.toLowerCase();
+    const lowerPhrase = phrase.toLowerCase();
+    
+    let index = 0;
+    while ((index = lowerText.indexOf(lowerPhrase, index)) !== -1) {
+      highlights.push({
+        start: index,
+        end: index + phrase.length,
+        text: text.substring(index, index + phrase.length),
+        type: 'exact'
+      });
+      index += phrase.length;
     }
 
     return highlights;
@@ -486,7 +715,8 @@ export class KeywordSearchEngine implements ISearchEngine {
   /**
    * 检查是否通过筛选器
    */
-  private passesFilters(repository: GitHubRepository, filters: any): boolean {
+  private passesFilters(repository: GitHubRepository, filters: SearchFilters): boolean {
+    // 基础筛选器
     if (filters.language && repository.language !== filters.language) {
       return false;
     }
@@ -511,7 +741,7 @@ export class KeywordSearchEngine implements ISearchEngine {
     if (filters.dateRange) {
       const { field, start, end } = filters.dateRange;
       let targetDate: Date;
-      
+
       if (field === 'created') {
         targetDate = new Date(repository.created_at);
       } else if (field === 'updated') {
@@ -533,9 +763,74 @@ export class KeywordSearchEngine implements ISearchEngine {
   }
 
   /**
+   * 获取字段值
+   */
+  private getFieldValue(repository: GitHubRepository, field: string): any {
+    switch (field) {
+      case 'name':
+        return repository.name;
+      case 'description':
+        return repository.description || '';
+      case 'language':
+        return repository.language || '';
+      case 'owner':
+        return repository.owner.login;
+      case 'stars':
+        return repository.stargazers_count;
+      case 'forks':
+        return repository.forks_count;
+      case 'issues':
+        return repository.open_issues_count;
+      case 'created':
+        return new Date(repository.created_at);
+      case 'updated':
+        return new Date(repository.updated_at);
+      case 'pushed':
+        return new Date(repository.pushed_at);
+      case 'archived':
+        return repository.archived;
+      case 'fork':
+        return repository.fork;
+      default:
+        // 尝试从 topics 中查找
+        if (repository.topics?.includes(field)) {
+          return field;
+        }
+        return null;
+    }
+  }
+
+  /**
+   * 比较值（支持字符串、数字、日期）
+   */
+  private compareValues(a: any, b: any): number {
+    if (a instanceof Date && b instanceof Date) {
+      return a.getTime() - b.getTime();
+    }
+    
+    if (typeof a === 'number' && typeof b === 'number') {
+      return a - b;
+    }
+    
+    if (typeof a === 'string' && typeof b === 'string') {
+      return a.localeCompare(b);
+    }
+    
+    // 尝试转换为数字比较
+    const numA = Number(a);
+    const numB = Number(b);
+    if (!isNaN(numA) && !isNaN(numB)) {
+      return numA - numB;
+    }
+    
+    // 默认字符串比较
+    return String(a).localeCompare(String(b));
+  }
+
+  /**
    * 计算相关性因子
    */
-  private calculateRelevanceFactors(document: any, query: ParsedQuery): RelevanceFactor[] {
+  private calculateRelevanceFactors(document: IndexedDocument, query: ParsedQuery): RelevanceFactor[] {
     const factors: RelevanceFactor[] = [];
 
     // 名称匹配因子

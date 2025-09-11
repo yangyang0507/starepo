@@ -1,7 +1,14 @@
 import { create } from 'zustand';
 import { githubServices } from '@/services/github';
 import { indexedDBStorage } from '@/services/indexeddb-storage';
-import type { GitHubRepository, GitHubUser } from '@/services/github/types';
+import type {
+  GitHubRepository,
+  GitHubUser,
+  FilterOptions,
+  ViewOptions,
+} from '@/services/github/types';
+import type { FilterGroup } from '@/services/search/advanced-filters';
+import { getSearchEngine } from '@/services/search';
 
 interface CacheStatus {
   hasCache: boolean;
@@ -14,6 +21,7 @@ interface RepositoryStore {
   // State
   user: GitHubUser | null;
   repositories: GitHubRepository[];
+  displayRepositories: GitHubRepository[];
   starredRepoIds: Set<number>;
   loading: boolean;
   error: string | null;
@@ -23,6 +31,10 @@ interface RepositoryStore {
   fromCache: boolean;
   cacheStatus: CacheStatus | null;
   refreshMessage: string | null;
+  searchQuery: string;
+  filterOptions: FilterOptions;
+  viewOptions: ViewOptions;
+  currentPage: number;
 
   // Actions
   initializeData: () => Promise<void>;
@@ -34,12 +46,18 @@ interface RepositoryStore {
   clearError: () => void;
   clearRefreshMessage: () => void;
   checkAndUpdateCache: () => Promise<void>;
+  setSearchQuery: (query: string) => void;
+  setFilterOptions: (options: Partial<FilterOptions>) => void;
+  setViewOptions: (options: Partial<ViewOptions>) => void;
+  setCurrentPage: (page: number) => void;
+  applyFiltersAndSearch: () => Promise<void>;
 }
 
 export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
   // Initial state
   user: null,
   repositories: [],
+  displayRepositories: [],
   starredRepoIds: new Set(),
   loading: true,
   error: null,
@@ -49,6 +67,22 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
   fromCache: false,
   cacheStatus: null,
   refreshMessage: null,
+  searchQuery: '',
+  filterOptions: {
+    sortBy: 'updated',
+    sortOrder: 'desc',
+    showArchived: false,
+    showForks: true,
+  },
+  viewOptions: {
+    layout: 'grid',
+    itemsPerPage: 20,
+    showDescription: true,
+    showLanguage: true,
+    showStats: true,
+    showTopics: true,
+  },
+  currentPage: 1,
 
   // Actions
   initializeData: async () => {
@@ -101,6 +135,8 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
         refreshMessage: null,
       });
 
+      await get().applyFiltersAndSearch();
+
       // Start sync service
       await githubServices.sync.startIncrementalSync();
     } catch (error) {
@@ -148,6 +184,8 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
         fromCache: starredData.fromCache || false,
         refreshMessage: `刷新完成，共加载 ${repositories.length} 个仓库`,
       });
+
+      await get().applyFiltersAndSearch();
 
       // Also refresh user info
       await get().refreshUserInfo();
@@ -221,6 +259,7 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
       set({
         user: null,
         repositories: [],
+        displayRepositories: [],
         starredRepoIds: new Set(),
         loading: false,
         error: null,
@@ -286,5 +325,93 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
     } catch (error) {
       console.warn('检查缓存状态失败:', error);
     }
+  },
+
+  setSearchQuery: (query) => {
+    set({ searchQuery: query });
+    get().applyFiltersAndSearch();
+  },
+
+  setFilterOptions: (options) => {
+    set((state) => ({ filterOptions: { ...state.filterOptions, ...options } }));
+    get().applyFiltersAndSearch();
+  },
+
+  
+
+  setViewOptions: (options) => {
+    set((state) => ({ viewOptions: { ...state.viewOptions, ...options } }));
+  },
+
+  setCurrentPage: (page: number) => {
+    set({ currentPage: page });
+  },
+
+  applyFiltersAndSearch: async () => {
+    const { repositories, searchQuery, filterOptions } = get();
+
+    const isQueryEmpty = !searchQuery.trim();
+    const hasActiveSimpleFilters =
+      filterOptions.language ||
+      filterOptions.topic ||
+      filterOptions.minStars !== undefined ||
+      filterOptions.maxStars !== undefined;
+    const areFiltersEmpty = !hasActiveSimpleFilters;
+
+    if (isQueryEmpty && areFiltersEmpty) {
+      // No search or filter, just sort and display all
+      const sorted = [...repositories].sort((a, b) => {
+        let aValue: string | number, bValue: string | number;
+        switch (filterOptions.sortBy) {
+          case "name":
+            aValue = a.name.toLowerCase();
+            bValue = b.name.toLowerCase();
+            break;
+          case "stars":
+            aValue = a.stargazers_count;
+            bValue = b.stargazers_count;
+            break;
+          case "created":
+            aValue = new Date(a.created_at).getTime();
+            bValue = new Date(b.created_at).getTime();
+            break;
+          case "updated":
+          default:
+            aValue = new Date(a.updated_at).getTime();
+            bValue = new Date(b.updated_at).getTime();
+            break;
+        }
+
+        if (filterOptions.sortOrder === "asc") {
+          return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+        } else {
+          return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+        }
+      });
+      set({ displayRepositories: sorted });
+      return;
+    }
+
+    // If there is a search/filter, use the engine
+    const searchEngine = getSearchEngine();
+
+    if (!searchEngine.isReady()) {
+      await searchEngine.initialize(repositories);
+    }
+
+    const results = await searchEngine.search({
+      text: searchQuery,
+      type: "keyword",
+      options: {
+        limit: 1500, // Get more results to avoid default limit issue
+        filters: {
+          ...filterOptions,
+        },
+        sortBy: filterOptions.sortBy,
+        sortOrder: filterOptions.sortOrder,
+      },
+    });
+
+    set({ displayRepositories: results.map((r) => r.repository) });
   },
 }));

@@ -72,7 +72,7 @@ export class TextAnalyzer {
     let normalized = token.toLowerCase();
 
     // 移除特殊字符（保留字母数字和连字符）
-    normalized = normalized.replace(/[^\w\-]/g, '');
+    normalized = normalized.replace(/[^\w-]/g, '');
 
     // 处理编程语言特殊情况
     normalized = this.handleProgrammingTerms(normalized);
@@ -200,43 +200,59 @@ export class TextAnalyzer {
   }
 
   /**
-   * 生成搜索建议
+   * 生成模糊搜索建议
    */
-  generateSuggestions(input: string, vocabulary: string[], limit: number = 5): string[] {
+  generateFuzzySuggestions(input: string, vocabulary: string[], maxDistance: number = 2, limit: number = 5): Array<{ text: string; distance: number }> {
     if (!input || input.length < 2) return [];
 
+    const suggestions: Array<{ text: string; distance: number; score: number }> = [];
     const inputLower = input.toLowerCase();
-    const suggestions: Array<{ term: string; score: number }> = [];
 
     for (const term of vocabulary) {
       const termLower = term.toLowerCase();
       
-      // 前缀匹配
+      // 前缀匹配 - 最高优先级
       if (termLower.startsWith(inputLower)) {
-        suggestions.push({ term, score: 1.0 });
+        suggestions.push({ 
+          text: term, 
+          distance: 0, 
+          score: 1.0 
+        });
         continue;
       }
 
       // 包含匹配
       if (termLower.includes(inputLower)) {
-        suggestions.push({ term, score: 0.8 });
+        suggestions.push({ 
+          text: term, 
+          distance: 0, 
+          score: 0.9 
+        });
         continue;
       }
 
-      // 编辑距离匹配（简化版）
+      // 编辑距离匹配
       const distance = this.calculateEditDistance(inputLower, termLower);
-      if (distance <= 2 && termLower.length >= inputLower.length - 1) {
+      if (distance <= maxDistance) {
         const score = 1 - (distance / Math.max(inputLower.length, termLower.length));
-        if (score > 0.6) {
-          suggestions.push({ term, score });
-        }
+        suggestions.push({ 
+          text: term, 
+          distance, 
+          score 
+        });
       }
     }
 
     return suggestions
-      .sort((a, b) => b.score - a.score)
+      .sort((a, b) => {
+        // 先按距离排序，再按分数排序
+        if (a.distance !== b.distance) {
+          return a.distance - b.distance;
+        }
+        return b.score - a.score;
+      })
       .slice(0, limit)
-      .map(s => s.term);
+      .map(({ text, distance }) => ({ text, distance }));
   }
 
   /**

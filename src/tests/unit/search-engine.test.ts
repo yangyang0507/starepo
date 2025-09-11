@@ -94,9 +94,9 @@ describe('TextAnalyzer', () => {
 
   test('generate suggestions', () => {
     const vocabulary = ['react', 'redux', 'typescript', 'javascript', 'vue'];
-    const suggestions = analyzer.generateSuggestions('reac', vocabulary, 3);
+    const suggestions = analyzer.generateFuzzySuggestions('reac', vocabulary, 3);
     
-    expect(suggestions).toContain('react');
+    expect(suggestions.map(s => s.text)).toContain('react');
     expect(suggestions.length).toBeLessThanOrEqual(3);
   });
 });
