@@ -195,7 +195,6 @@ export const SEARCH_PRESETS = {
  */
 export function getRecommendedConfig(): SearchEngineConfig {
   // 在实际应用中可以根据系统资源、数据量等因素选择配置
-  const isProduction = process.env.NODE_ENV === 'production';
   const isDevelopment = process.env.NODE_ENV === 'development';
 
   if (isDevelopment) {
@@ -203,7 +202,7 @@ export function getRecommendedConfig(): SearchEngineConfig {
   }
 
   // 简单的性能检测（实际应用中可以更复杂）
-  const memoryGB = (navigator as any).deviceMemory || 4;
+  const memoryGB = (navigator as Navigator & { deviceMemory?: number }).deviceMemory || 4;
   const isHighPerformance = memoryGB >= 8;
 
   return isHighPerformance ? SEARCH_PRESETS.performance : SEARCH_PRESETS.memory;

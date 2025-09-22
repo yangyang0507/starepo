@@ -1,5 +1,6 @@
 import { octokitManager } from "./octokit-manager";
 import { indexedDBStorage } from "../storage/indexeddb";
+import { ErrorHandler } from "@/utils/error-handling";
 import type {
   GitHubRepository,
   GitHubError,
@@ -146,7 +147,7 @@ export class GitHubStarService {
         });
         return true;
       } catch (error: unknown) {
-        if (error.status === 404) {
+        if (typeof error === 'object' && error !== null && 'status' in error && (error as { status: number }).status === 404) {
           return false;
         }
         throw error;
@@ -235,7 +236,7 @@ export class GitHubStarService {
           owner,
           repo,
           success: false,
-          error: error.message || "未知错误",
+          error: error instanceof Error ? error.message : "未知错误",
         });
       }
     }
@@ -263,7 +264,7 @@ export class GitHubStarService {
           owner,
           repo,
           success: false,
-          error: error.message || "未知错误",
+          error: error instanceof Error ? error.message : "未知错误",
         });
       }
     }
@@ -774,20 +775,7 @@ export class GitHubStarService {
    * 错误处理
    */
   private handleError(error: unknown, message: string): GitHubError {
-    console.error(message, error);
-
-    if (error.response) {
-      return {
-        message: `${message}: ${error.response.data?.message || error.message}`,
-        status: error.response.status,
-        code: error.response.data?.errors?.[0]?.code,
-        documentation_url: error.response.data?.documentation_url,
-      };
-    }
-
-    return {
-      message: `${message}: ${error.message || "未知错误"}`,
-    };
+    return ErrorHandler.handle(error, message);
   }
 }
 

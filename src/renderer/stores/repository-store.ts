@@ -7,7 +7,6 @@ import type {
   FilterOptions,
   ViewOptions,
 } from '@/services/github/types';
-import type { FilterGroup } from '@/services/search/advanced-filters';
 import { getSearchEngine } from '@/services/search';
 
 interface CacheStatus {
@@ -90,7 +89,7 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
 
     try {
       // Check authentication
-      const isAuthenticated = await githubServices.auth.isAuthenticated();
+      const isAuthenticated = githubServices.auth.isAuthenticated();
       if (!isAuthenticated) {
         set({
           loading: false,

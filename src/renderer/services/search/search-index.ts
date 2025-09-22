@@ -7,9 +7,7 @@ import type {
   SearchIndex,
   IndexedDocument,
   PostingList,
-  DocumentPosting,
   Token,
-  DocumentMetadata,
   IndexMetadata,
   FieldStatistics,
   FieldWeights
@@ -321,7 +319,7 @@ export class SearchIndexManager {
     }
 
     // 从字段索引中移除
-    for (const [fieldName, fieldIndex] of this.index.fieldIndex.entries()) {
+    for (const [_fieldName, fieldIndex] of this.index.fieldIndex.entries()) {
       for (const [term, postingList] of fieldIndex.entries()) {
         postingList.postings = postingList.postings.filter(p => p.documentId !== docId);
         postingList.documentFrequency = postingList.postings.length;

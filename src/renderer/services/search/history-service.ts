@@ -166,7 +166,7 @@ export class SearchHistoryService {
    */
   private deduplicateAndSortSuggestions(
     suggestions: SearchSuggestion[],
-    input: string,
+    _input: string,
   ): SearchSuggestion[] {
     const seen = new Set<string>();
     const uniqueSuggestions: SearchSuggestion[] = [];

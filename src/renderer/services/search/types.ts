@@ -278,7 +278,7 @@ export interface ExplanationStep {
   description: string;
   time: number;
   results?: number;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 // ============ 错误类型 =============
@@ -287,7 +287,7 @@ export class SearchError extends Error {
   constructor(
     message: string,
     public code: SearchErrorCode,
-    public details?: Record<string, any>
+    public details?: Record<string, unknown>
   ) {
     super(message);
     this.name = 'SearchError';

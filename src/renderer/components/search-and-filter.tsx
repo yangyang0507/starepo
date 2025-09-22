@@ -16,7 +16,6 @@ import type {
   ViewOptions,
   SearchHistoryItem,
 } from "@/services/github/types";
-import { useRepositoryStore } from "@/stores/repository-store";
 import { getSearchEngine } from "@/services/search";
 import type { SearchSuggestion } from "@/services/search/types";
 import { SearchAnalytics } from "./search-analytics";

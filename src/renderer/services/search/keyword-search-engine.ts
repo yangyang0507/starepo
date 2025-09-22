@@ -10,7 +10,6 @@ import type {
   SearchMatch,
   TextHighlight,
   SearchSuggestion,
-  SearchStats,
   SearchExplanation,
   ISearchEngine,
   ParsedQuery,
@@ -765,7 +764,7 @@ export class KeywordSearchEngine implements ISearchEngine {
   /**
    * 获取字段值
    */
-  private getFieldValue(repository: GitHubRepository, field: string): any {
+  private getFieldValue(repository: GitHubRepository, field: string): string | number | Date {
     switch (field) {
       case 'name':
         return repository.name;
@@ -803,7 +802,7 @@ export class KeywordSearchEngine implements ISearchEngine {
   /**
    * 比较值（支持字符串、数字、日期）
    */
-  private compareValues(a: any, b: any): number {
+  private compareValues(a: string | number | Date, b: string | number | Date): number {
     if (a instanceof Date && b instanceof Date) {
       return a.getTime() - b.getTime();
     }
