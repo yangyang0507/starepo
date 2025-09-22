@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach } from 'vitest';
 import { UnifiedSearchEngine } from '@/services/search';
 import { searchHistoryService } from '@/services/search/history-service';
 import type { GitHubRepository } from '@/services/github/types';
-import { defaultStorage } from '@/services/storage/browser-storage';
+import { defaultStorage } from '@/services/storage/browser';
 
 // 测试数据
 const mockRepositories: GitHubRepository[] = [

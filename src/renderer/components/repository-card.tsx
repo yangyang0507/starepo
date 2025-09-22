@@ -10,7 +10,7 @@ import {
   Tag,
 } from "lucide-react";
 import type { GitHubRepository, ViewOptions, StarredRepository } from "@/services/github/types";
-import { indexedDBStorage } from "@/services/indexeddb-storage";
+import { indexedDBStorage } from "@/services/storage/indexeddb";
 import { octokitManager } from "@/services/github/octokit-manager";
 
 interface RepositoryCardProps {

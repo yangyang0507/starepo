@@ -15,7 +15,7 @@ interface StorageStats {
   lastModified: Date | null;
 }
 
-import type { GitHubUser } from "./github/types";
+import type { GitHubUser } from "../github/types";
 
 /**
  * 安全存储客户端类

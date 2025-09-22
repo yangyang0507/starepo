@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { githubServices } from '@/services/github';
-import { indexedDBStorage } from '@/services/indexeddb-storage';
+import { indexedDBStorage } from '@/services/storage/indexeddb';
 import type {
   GitHubRepository,
   GitHubUser,

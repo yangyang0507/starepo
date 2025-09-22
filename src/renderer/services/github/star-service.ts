@@ -1,5 +1,5 @@
 import { octokitManager } from "./octokit-manager";
-import { indexedDBStorage } from "../indexeddb-storage";
+import { indexedDBStorage } from "../storage/indexeddb";
 import type {
   GitHubRepository,
   GitHubError,

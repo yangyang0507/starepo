@@ -1,5 +1,5 @@
 import { OctokitManager, octokitManager } from "./octokit-manager";
-import { githubTokenStorageClient } from "@/services/secure-storage-client";
+import { githubTokenStorageClient } from "@/services/storage/secure";
 import type {
   AuthenticationResult,
   GitHubUser,

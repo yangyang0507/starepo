@@ -1,4 +1,4 @@
-import type { StarredRepository } from "./github/types";
+import type { StarredRepository } from "../github/types";
 
 // IndexedDB 数据库配置
 const DB_NAME = "GitHubStarTracker";

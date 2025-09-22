@@ -3,7 +3,7 @@
  * 管理用户的搜索历史记录并提供建议功能
  */
 
-import { defaultStorage } from '@/services/storage/browser-storage';
+import { defaultStorage } from '@/services/storage/browser';
 import type {
   SearchHistoryItem,
   SearchSuggestion,
