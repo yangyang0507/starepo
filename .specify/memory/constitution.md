@@ -51,4 +51,4 @@ This constitution supersedes all other development practices. Constitutional vio
 
 The development process follows structured planning via `/plan` and `/tasks` commands as defined in the specification templates. Features progress through: specification → planning → design → implementation → validation.
 
-**Version**: 1.0.0 | **Ratified**: 2025-01-22 | **Last Amended**: 2025-01-22
+**Version**: 1.0.0 | **Ratified**: 2025-09-22 | **Last Amended**: 2025-09-22
