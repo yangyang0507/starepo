@@ -23,12 +23,13 @@ vi.mock('../../../main/services/database/secure-service', () => ({
     storeTokenInfo: vi.fn(),
     getAuthState: vi.fn(),
     storeAuthState: vi.fn(),
+    saveUserInfo: vi.fn(),
     clear: vi.fn(),
   },
 }));
 
 // Import after mocking
-const { secureStorageService, githubTokenStorage } = await import('../../../main/services/database/secure-service');
+const { secureStorageService, githubTokenStorage } = await import('../../main/services/database/secure-service');
 import { AUTH_IPC_CHANNELS } from '@shared/types/auth';
 import type { GitHubUser, AuthState } from '@shared/types/auth';
 
@@ -132,7 +133,7 @@ describe('Integration Test: 应用重启状态恢复', () => {
 
     // 1. 模拟已存储的有效认证状态
     await githubTokenStorage.storeToken(testToken);
-    await githubTokenStorage.storeUserInfo(mockUser);
+    await githubTokenStorage.saveUserInfo(mockUser);
     await githubTokenStorage.updateLastValidated();
 
     // Mock GitHub API验证token仍然有效
@@ -193,7 +194,7 @@ describe('Integration Test: 应用重启状态恢复', () => {
 
     // 1. 存储过期的认证状态
     await githubTokenStorage.storeToken(testToken);
-    await githubTokenStorage.storeUserInfo(mockUser);
+    await githubTokenStorage.saveUserInfo(mockUser);
 
     // 设置过期的最后验证时间（超过24小时）
     const expiredTime = new Date(Date.now() - 25 * 60 * 60 * 1000); // 25小时前
@@ -279,7 +280,7 @@ describe('Integration Test: 应用重启状态恢复', () => {
 
     // 1. 存储有效的认证状态
     await githubTokenStorage.storeToken(testToken);
-    await githubTokenStorage.storeUserInfo(mockUser);
+    await githubTokenStorage.saveUserInfo(mockUser);
     await githubTokenStorage.updateLastValidated();
 
     // Mock网络不可用
@@ -328,7 +329,7 @@ describe('Integration Test: 应用重启状态恢复', () => {
     try {
       // 1. 存储认证状态和用户偏好
       await githubTokenStorage.storeToken(testToken);
-      await githubTokenStorage.storeUserInfo(mockUser);
+      await githubTokenStorage.saveUserInfo(mockUser);
 
       // 存储用户偏好（假设有这个功能）
       await mainWindow.webContents.executeJavaScript(`
@@ -358,7 +359,7 @@ describe('Integration Test: 应用重启状态恢复', () => {
 
     // 1. 存储认证状态
     await githubTokenStorage.storeToken(testToken);
-    await githubTokenStorage.storeUserInfo(mockUser);
+    await githubTokenStorage.saveUserInfo(mockUser);
 
     // Mock GitHub API响应
     mockOctokit.rest.users.getAuthenticated.mockResolvedValue({
@@ -398,7 +399,7 @@ describe('Integration Test: 应用重启状态恢复', () => {
 
     // 1. 存储较老但仍有效的Token（12小时前验证）
     await githubTokenStorage.storeToken(testToken);
-    await githubTokenStorage.storeUserInfo(mockUser);
+    await githubTokenStorage.saveUserInfo(mockUser);
 
     const oldValidationTime = new Date(Date.now() - 12 * 60 * 60 * 1000); // 12小时前
     await githubTokenStorage.updateLastValidated(oldValidationTime);

@@ -23,12 +23,13 @@ vi.mock('../../../main/services/database/secure-service', () => ({
     storeTokenInfo: vi.fn(),
     getAuthState: vi.fn(),
     storeAuthState: vi.fn(),
+    saveUserInfo: vi.fn(),
     clear: vi.fn(),
   },
 }));
 
 // Import after mocking
-const { secureStorageService, githubTokenStorage } = await import('../../../main/services/database/secure-service');
+const { secureStorageService, githubTokenStorage } = await import('../../main/services/database/secure-service');
 import { AUTH_IPC_CHANNELS } from '@shared/types/auth';
 
 // Mock Electron
@@ -234,6 +235,8 @@ describe('Integration Test: Token配置流程', () => {
       id: 12345,
       login: 'testuser',
       avatar_url: 'https://example.com/avatar.png',
+      name: 'Test User',
+      email: 'test@example.com',
       public_repos: 10,
       followers: 5,
       following: 8,
@@ -322,6 +325,8 @@ describe('Integration Test: Token配置流程', () => {
       id: 12345,
       login: 'testuser',
       avatar_url: 'https://example.com/avatar.png',
+      name: 'Test User',
+      email: 'test@example.com',
       public_repos: 10,
       followers: 5,
       following: 8,

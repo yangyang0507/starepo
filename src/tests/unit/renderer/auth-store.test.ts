@@ -13,20 +13,23 @@ import type {
   TokenInfo
 } from '@shared/types/auth';
 
-// Mock the github API
-const mockGithubAPI = {
-  authenticateWithToken: vi.fn(),
-  getAuthState: vi.fn(),
-  refreshAuth: vi.fn(),
-  clearAuth: vi.fn(),
-};
-
+// Mock the enhanced auth API
 vi.mock('@/api', () => ({
-  githubAPI: mockGithubAPI,
+  enhancedAuthAPI: {
+    authenticateWithToken: vi.fn(),
+    getAuthState: vi.fn(),
+    refreshAuth: vi.fn(),
+    clearAuth: vi.fn(),
+    initializeAuth: vi.fn(),
+  },
 }));
 
-// 这个import应该失败，因为优化后的auth-store还没有实现
-let useAuthStore: () => AuthStore;
+// Import the actual auth store
+import { useAuthStore } from '@/stores/auth-store';
+
+// Import the mocked API to access mock functions
+import { enhancedAuthAPI } from '@/api';
+const mockEnhancedAuthAPI = vi.mocked(enhancedAuthAPI);
 
 describe('Zustand Auth Store', () => {
   beforeEach(() => {
@@ -83,8 +86,8 @@ describe('Zustand Auth Store', () => {
       lastValidated: new Date(),
     };
 
-    mockGithubAPI.authenticateWithToken.mockResolvedValue(undefined);
-    mockGithubAPI.getAuthState.mockResolvedValue(mockAuthState);
+    mockEnhancedAuthAPI.authenticateWithToken.mockResolvedValue(undefined);
+    mockEnhancedAuthAPI.getAuthState.mockResolvedValue(mockAuthState);
 
     // 这个测试应该失败，因为store还没有实现
     try {
@@ -107,7 +110,7 @@ describe('Zustand Auth Store', () => {
 
   it('should handle failed login with error message', async () => {
     // Mock失败的登录响应
-    mockGithubAPI.authenticateWithToken.mockRejectedValue(
+    mockEnhancedAuthAPI.authenticateWithToken.mockRejectedValue(
       new Error('Invalid token')
     );
 
@@ -131,7 +134,7 @@ describe('Zustand Auth Store', () => {
 
   it('should handle logout flow', async () => {
     // Mock成功的登出响应
-    mockGithubAPI.clearAuth.mockResolvedValue(undefined);
+    mockEnhancedAuthAPI.clearAuth.mockResolvedValue(undefined);
 
     try {
       const { result } = renderHook(() => useAuthStore());
@@ -158,8 +161,8 @@ describe('Zustand Auth Store', () => {
       lastValidated: new Date(),
     };
 
-    mockGithubAPI.refreshAuth.mockResolvedValue(true);
-    mockGithubAPI.getAuthState.mockResolvedValue(mockRefreshedState);
+    mockEnhancedAuthAPI.refreshAuth.mockResolvedValue(true);
+    mockEnhancedAuthAPI.getAuthState.mockResolvedValue(mockRefreshedState);
 
     try {
       const { result } = renderHook(() => useAuthStore());
@@ -180,7 +183,7 @@ describe('Zustand Auth Store', () => {
 
   it('should handle auth refresh failure', async () => {
     // Mock失败的刷新响应
-    mockGithubAPI.refreshAuth.mockResolvedValue(false);
+    mockEnhancedAuthAPI.refreshAuth.mockResolvedValue(false);
 
     try {
       const { result } = renderHook(() => useAuthStore());
@@ -234,6 +237,8 @@ describe('Zustand Auth Store', () => {
         id: 12345,
         login: 'testuser',
         avatar_url: 'https://example.com/avatar.png',
+        name: 'Test User',
+        email: 'test@example.com',
         public_repos: 10,
         followers: 5,
         following: 8,
@@ -241,8 +246,8 @@ describe('Zustand Auth Store', () => {
       lastValidated: new Date(Date.now() - 60000), // 1分钟前
     };
 
-    mockGithubAPI.getAuthState.mockResolvedValue(mockStoredState);
-    mockGithubAPI.refreshAuth.mockResolvedValue(true);
+    mockEnhancedAuthAPI.getAuthState.mockResolvedValue(mockStoredState);
+    mockEnhancedAuthAPI.refreshAuth.mockResolvedValue(true);
 
     try {
       const { result } = renderHook(() => useAuthStore());
@@ -253,7 +258,7 @@ describe('Zustand Auth Store', () => {
 
       expect(result.current.authState.isAuthenticated).toBe(true);
       expect(result.current.isLoading).toBe(false);
-      expect(mockGithubAPI.refreshAuth).toHaveBeenCalled();
+      expect(mockEnhancedAuthAPI.refreshAuth).toHaveBeenCalled();
     } catch (error) {
       // 预期会失败
       expect(error).toBeDefined();
@@ -262,7 +267,7 @@ describe('Zustand Auth Store', () => {
 
   it('should handle network errors gracefully', async () => {
     // Mock网络错误
-    mockGithubAPI.authenticateWithToken.mockRejectedValue(
+    mockEnhancedAuthAPI.authenticateWithToken.mockRejectedValue(
       new Error('Network error: ECONNREFUSED')
     );
 
@@ -304,10 +309,10 @@ describe('Zustand Auth Store', () => {
 
   it('should handle concurrent operations safely', async () => {
     // Mock并发操作
-    mockGithubAPI.authenticateWithToken.mockImplementation(
+    mockEnhancedAuthAPI.authenticateWithToken.mockImplementation(
       () => new Promise(resolve => setTimeout(resolve, 100))
     );
-    mockGithubAPI.getAuthState.mockResolvedValue({
+    mockEnhancedAuthAPI.getAuthState.mockResolvedValue({
       isAuthenticated: true,
       lastValidated: new Date(),
     });

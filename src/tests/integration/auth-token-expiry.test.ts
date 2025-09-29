@@ -23,12 +23,13 @@ vi.mock('../../../main/services/database/secure-service', () => ({
     storeTokenInfo: vi.fn(),
     getAuthState: vi.fn(),
     storeAuthState: vi.fn(),
+    saveUserInfo: vi.fn(),
     clear: vi.fn(),
   },
 }));
 
 // Import after mocking
-const { secureStorageService, githubTokenStorage } = await import('../../../main/services/database/secure-service');
+const { secureStorageService, githubTokenStorage } = await import('../../main/services/database/secure-service');
 import { AUTH_IPC_CHANNELS } from '@shared/types/auth';
 import type { GitHubUser, AuthState } from '@shared/types/auth';
 
@@ -135,7 +136,7 @@ describe('Integration Test: Token失效处理', () => {
 
     // 1. 设置初始有效状态
     await githubTokenStorage.storeToken(testToken);
-    await githubTokenStorage.storeUserInfo(mockUser);
+    await githubTokenStorage.saveUserInfo(mockUser);
     await githubTokenStorage.updateLastValidated();
 
     // 初始API调用成功
@@ -198,7 +199,7 @@ describe('Integration Test: Token失效处理', () => {
 
     // 1. 设置初始状态
     await githubTokenStorage.storeToken(testToken);
-    await githubTokenStorage.storeUserInfo(mockUser);
+    await githubTokenStorage.saveUserInfo(mockUser);
 
     // 2. 模拟Token被用户撤销
     mockOctokit.rest.users.getAuthenticated.mockRejectedValue({
@@ -245,7 +246,7 @@ describe('Integration Test: Token失效处理', () => {
 
     // 1. 设置具有完整权限的Token
     await githubTokenStorage.storeToken(testToken);
-    await githubTokenStorage.storeUserInfo(mockUser);
+    await githubTokenStorage.saveUserInfo(mockUser);
 
     const fullScopeTokenInfo = {
       scopes: ['repo', 'user', 'admin:org'],
@@ -314,7 +315,7 @@ describe('Integration Test: Token失效处理', () => {
 
     // 1. 设置有效认证状态
     await githubTokenStorage.storeToken(testToken);
-    await githubTokenStorage.storeUserInfo(mockUser);
+    await githubTokenStorage.saveUserInfo(mockUser);
 
     // 2. 模拟速率限制超出
     const rateLimitError = {
@@ -370,7 +371,7 @@ describe('Integration Test: Token失效处理', () => {
 
     // 1. 设置有效认证状态
     await githubTokenStorage.storeToken(testToken);
-    await githubTokenStorage.storeUserInfo(mockUser);
+    await githubTokenStorage.saveUserInfo(mockUser);
 
     // 2. 模拟网络连接问题
     const networkErrors = [
@@ -415,7 +416,7 @@ describe('Integration Test: Token失效处理', () => {
 
     // 1. 设置接近过期的Token（但仍有效）
     await githubTokenStorage.storeToken(testToken);
-    await githubTokenStorage.storeUserInfo(mockUser);
+    await githubTokenStorage.saveUserInfo(mockUser);
 
     // 设置过期警告时间（6小时前验证）
     const warningTime = new Date(Date.now() - 6 * 60 * 60 * 1000);
@@ -462,7 +463,7 @@ describe('Integration Test: Token失效处理', () => {
 
     // 1. 设置有效认证状态
     await githubTokenStorage.storeToken(testToken);
-    await githubTokenStorage.storeUserInfo(mockUser);
+    await githubTokenStorage.saveUserInfo(mockUser);
 
     // 2. 模拟Token被GitHub管理员删除
     mockOctokit.rest.users.getAuthenticated.mockRejectedValue({
@@ -517,7 +518,7 @@ describe('Integration Test: Token失效处理', () => {
 
     // 1. 设置有效认证状态
     await githubTokenStorage.storeToken(testToken);
-    await githubTokenStorage.storeUserInfo(mockUser);
+    await githubTokenStorage.saveUserInfo(mockUser);
 
     // 2. Mock延迟的API响应
     mockOctokit.rest.users.getAuthenticated.mockImplementation(

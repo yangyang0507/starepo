@@ -8,6 +8,19 @@ import { test, expect } from '@playwright/test';
 import { ElectronApplication, Page, _electron as electron } from 'playwright';
 import path from 'path';
 
+// Type definitions for E2E test responses
+interface AuthStateResponse {
+  success: boolean;
+  data?: {
+    isAuthenticated: boolean;
+    user?: unknown;
+    tokenInfo?: unknown;
+    lastValidated?: Date;
+    expiresAt?: Date;
+  };
+  error?: string;
+}
+
 let electronApp: ElectronApplication;
 let page: Page;
 
@@ -166,8 +179,8 @@ test.describe('E2E: 完整认证流程', () => {
       // 验证认证成功
       const authState = await page.evaluate(() => {
         return window.electronAPI?.github?.getAuthState?.();
-      });
-      expect(authState?.isAuthenticated).toBe(true);
+      }) as AuthStateResponse;
+      expect(authState?.data?.isAuthenticated).toBe(true);
 
       // 2. 重启应用
       await electronApp.close();
@@ -187,9 +200,9 @@ test.describe('E2E: 完整认证流程', () => {
       // 3. 验证认证状态被恢复
       const restoredAuthState = await page.evaluate(() => {
         return window.electronAPI?.github?.getAuthState?.();
-      });
+      }) as AuthStateResponse;
 
-      expect(restoredAuthState?.isAuthenticated).toBe(true);
+      expect(restoredAuthState?.data?.isAuthenticated).toBe(true);
 
       // 4. 验证用户界面直接显示主界面（不需要重新登录）
       const userInfo = page.locator('[data-testid="user-info"], .user-avatar');
