@@ -1,103 +1,153 @@
 # Copilot Instructions for Starepo
 
-## Overview
-Starepo is a GitHub Star management tool built with Electron, React, and TypeScript. It features a security-focused architecture with complete process separation and will integrate AI-powered repository search capabilities.
+## Common Development Commands
 
-## Architecture & Process Separation
+### Development
 
-### Electron Process Architecture
-- **Main Process** (`src/main/`): Core app logic, GitHub API, secure storage, IPC handlers
-- **Renderer Process** (`src/renderer/`): React UI with TanStack Router and Zustand stores
-- **Preload Scripts** (`src/preload/`): Security bridge exposing `window.electronAPI`
-- **Shared Code** (`src/shared/`): Types, constants, and utilities
+- `npm run start` - Start development mode with hot reload
+- `npm run package` - Package the Electron application
+- `npm run make` - Generate platform-specific installers
 
-### Security Model
-- Context Isolation enabled - renderer cannot access Node.js APIs directly
-- All main process functionality exposed through typed preload scripts
-- IPC channels defined in `src/shared/constants/ipc-channels.ts` with TypeScript safety
+### Code Quality
 
-## Key Development Patterns
+- `npm run lint` - Run ESLint code checks
+- `npm run format` - Check code formatting (read-only)
+- `npm run format:write` - Apply Prettier formatting
+
+### Testing
+
+- `npm test` or `npm run test` - Run unit tests (Vitest)
+- `npm run test:watch` - Run tests in watch mode
+- `npm run test:e2e` - Run end-to-end tests (Playwright)
+- `npm run test:all` - Run both unit and e2e tests
+
+### Single Test Commands
+
+- `npm run test:unit -- --run --reporter=verbose filename.test.ts` - Run specific unit test
+- `npx playwright test example.test.ts` - Run specific e2e test
+
+## Architecture Overview
+
+This is an Electron application using a modern, security-focused architecture with complete process separation:
+
+### Process Architecture
+
+- **Main Process** (`src/main/`): Core application logic, GitHub API integration, LanceDB vector database, secure storage, search services, IPC handlers
+- **Renderer Process** (`src/renderer/`): React UI, components, pages, client-side services
+- **Preload Scripts** (`src/preload/`): Security bridge between main and renderer processes
+- **Shared Code** (`src/shared/`): Type definitions, constants, utilities used across processes
+
+### Key Technologies
+
+- **Electron 37.2.5** with Context Isolation enabled for security
+- **React 19.1.1** with React Compiler enabled
+- **TypeScript 5.8.3** with strict type checking
+- **Vite 7.0.6** for fast development and building
+- **TailwindCSS 4.1.11** with Shadcn UI components
+- **TanStack Router** for client-side routing
+- **LanceDB** for vector database and semantic search
+- **Vitest** for unit testing, **Playwright** for e2e testing
+
+### Project Structure
+
+- `src/main/` - Main process: window management, IPC handlers, services
+  - `services/database/` - Data persistence layer (LanceDB, secure storage)
+  - `services/github/` - GitHub API integration layer
+  - `services/search/` - Search functionality layer
+  - `ipc/` - Inter-process communication handlers
+- `src/renderer/` - React UI: components, pages, hooks, API wrappers
+- `src/preload/` - Security bridge for IPC communication
+- `src/shared/` - Shared types, constants, utilities
+- `src/assets/` - Static assets (fonts, icons)
 
 ### IPC Communication
-All inter-process communication uses type-safe channels:
-```typescript
-// Define channels in src/shared/constants/ipc-channels.ts
-// Expose in src/preload/preload.ts via contextBridge
-// Access in renderer via window.electronAPI.theme.setTheme()
-```
 
-### Path Aliases (use consistently)
-- `@/` → `src/renderer/`
-- `@shared/` → `src/shared/`
-- `@assets/` → `src/assets/`
-- `@main/` → `src/main/` (main process only)
-- `@preload/` → `src/preload/`
+All inter-process communication uses type-safe channels defined in `src/shared/constants/ipc-channels.ts`. Current channels include:
 
-### State Management
-- **Zustand stores** in `src/renderer/stores/` for client state
-- **Auth state**: `useAuthStore` handles GitHub authentication
-- **Theme/UI state**: Separate stores for theme, UI, and repository data
+- `WINDOW`: Window management (minimize, maximize, close, fullscreen)
+- `THEME`: Theme switching (dark/light/system)
+- `LANGUAGE`: i18n language switching
+- `GITHUB`: GitHub API integration (authentication, repositories, stars)
+- `SEARCH`: Repository search and suggestions
+- `DATABASE`: Local data storage (planned)
+- `AI`: AI chat functionality (planned)
 
-### Component Architecture
-- **Shadcn UI** components in `src/renderer/components/ui/`
-- **Custom components** use CVA (class-variance-authority) for variants
-- **Layout components** in `src/renderer/components/layout/`
+### Path Aliases
 
-## Essential Commands
+- `@/` - Points to `src/renderer/`
+- `@shared/` - Points to `src/shared/`
+- `@assets/` - Points to `src/assets/`
 
-```bash
-# Development
-npm run start          # Start with hot reload
-npm run package        # Package Electron app
-npm run make          # Generate installers
+### Data Storage & Search Architecture
 
-# Code Quality
-npm run lint          # ESLint checks
-npm run format:write  # Apply Prettier formatting
+The application uses a modern data persistence and search architecture:
 
-# Testing
-npm test             # Unit tests (Vitest)
-npm run test:e2e     # E2E tests (Playwright)
-npm run test:all     # Run all tests
-```
+#### LanceDB Vector Database (`~/.starepo/lancedb/`)
+- **Vector storage**: Repository embeddings for semantic search
+- **Full-text search**: Built-in search capabilities
+- **Schema**: Structured tables for repositories and users
+- **Performance**: Optimized for large-scale data retrieval
 
-## GitHub Integration
+#### Secure Storage (`~/.starepo/secure-storage/`)
+- **Encryption**: Uses Electron's safeStorage API
+- **GitHub tokens**: Secure credential management
+- **User data**: Encrypted personal information storage
+- **Expiration**: Automatic token expiry handling
 
-### Authentication Flow
-- Uses Personal Access Token authentication (no OAuth)
-- Secure storage via Electron's `safeStorage` API
-- Token validation and scope checking before API calls
-- Service layer in `src/renderer/services/github/`
+#### Search Features
+- **Semantic search**: Vector similarity for repository discovery
+- **Keyword search**: Traditional text-based search
+- **Filters**: Language, stars, dates, topics
+- **Suggestions**: Auto-complete and popular terms
+- **Analytics**: Search statistics and insights
 
-### Key Service Classes
-- `GitHubAuthService`: Authentication and token management
-- `OctokitManager`: GitHub API client wrapper with rate limiting
-- Storage clients in `src/renderer/services/` for persistence
+### GitHub Integration
 
-## Development Guidelines
+The application includes a comprehensive GitHub integration system:
 
-### Adding New IPC Channels
-1. Define channel in `src/shared/constants/ipc-channels.ts`
-2. Add handler in `src/main/ipc/handlers/`
-3. Expose via preload script in `src/preload/preload.ts`
-4. Create service in renderer to use the API
+- **Authentication**: Personal Access Token with secure storage
+- **API Integration**: Full Octokit.js integration in main process
+- **Repository Management**: Star/unstar operations with local sync
+- **Data Sync**: Background synchronization with LanceDB
+- **Rate Limiting**: Intelligent API usage management
+- **Offline Support**: Local data persistence for offline browsing
 
-### Adding New UI Components
-- Use Shadcn UI components as base when possible
-- Implement custom variants with CVA
-- Follow existing patterns in `src/renderer/components/ui/`
+### Development Notes
 
-### State Management
-- Use Zustand for client state
-- Follow service layer pattern for external API calls
-- Keep stores focused and domain-specific
+- Context Isolation is enabled for security - renderer process cannot directly access Node.js APIs
+- All main process functionality must be exposed through preload scripts
+- React Compiler is enabled by default for performance optimization
+- Custom window title bar with drag region implementation
+- Comprehensive error handling and type safety throughout
 
-## Testing Patterns
-- **Unit tests**: Component logic and utility functions
-- **Integration tests**: Service layer and IPC communication  
-- **E2E tests**: Full user workflows with Playwright
+#### Service Architecture
+- **Layered approach**: Database → GitHub → Search services
+- **Unified naming**: All service files follow `*-service.ts` convention
+- **Modular exports**: Each service directory has `index.ts` for clean imports
+- **Type safety**: Comprehensive TypeScript definitions across all layers
 
-## Future Features (Planned)
-- AI/vector search integration with ChromaDB
-- Semantic repository search capabilities
-- Enhanced GitHub API features
+#### Data Flow
+1. **Main Process**: Handles all business logic and external API calls
+2. **IPC Layer**: Type-safe communication between processes
+3. **Renderer Process**: Pure UI layer with API wrappers
+4. **Local Storage**: Unified `.starepo` directory for all application data
+
+#### Native Modules
+- **LanceDB**: Configured with AutoUnpackNativesPlugin for Electron packaging
+- **Vite Config**: Excludes native modules from bundling
+- **Build Process**: Handles .node files correctly in production builds
+
+## Important Notes for Development
+
+### Application Data Location
+All application data is stored in `~/.starepo/` directory:
+- **Database**: `~/.starepo/lancedb/` (LanceDB vector database files)
+- **Secure Storage**: `~/.starepo/secure-storage/` (Encrypted user credentials)
+
+### Service Dependencies
+- **GitHub services** depend on secure storage for authentication
+- **Search services** depend on LanceDB for data persistence
+- **All services** must be initialized before use
+
+### Architecture Migration
+This application has been migrated from ChromaDB to LanceDB for better performance and native integration. The search functionality now uses LanceDB's built-in full-text search capabilities combined with vector similarity search.

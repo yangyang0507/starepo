@@ -34,7 +34,7 @@ This is an Electron application using a modern, security-focused architecture wi
 
 ### Process Architecture
 
-- **Main Process** (`src/main/`): Core application logic, GitHub API integration, secure storage, IPC handlers
+- **Main Process** (`src/main/`): Core application logic, GitHub API integration, LanceDB vector database, secure storage, search services, IPC handlers
 - **Renderer Process** (`src/renderer/`): React UI, components, pages, client-side services
 - **Preload Scripts** (`src/preload/`): Security bridge between main and renderer processes
 - **Shared Code** (`src/shared/`): Type definitions, constants, utilities used across processes
@@ -47,12 +47,17 @@ This is an Electron application using a modern, security-focused architecture wi
 - **Vite 7.0.6** for fast development and building
 - **TailwindCSS 4.1.11** with Shadcn UI components
 - **TanStack Router** for client-side routing
+- **LanceDB** for vector database and semantic search
 - **Vitest** for unit testing, **Playwright** for e2e testing
 
 ### Project Structure
 
 - `src/main/` - Main process: window management, IPC handlers, services
-- `src/renderer/` - React UI: components, pages, hooks, services
+  - `services/database/` - Data persistence layer (LanceDB, secure storage)
+  - `services/github/` - GitHub API integration layer
+  - `services/search/` - Search functionality layer
+  - `ipc/` - Inter-process communication handlers
+- `src/renderer/` - React UI: components, pages, hooks, API wrappers
 - `src/preload/` - Security bridge for IPC communication
 - `src/shared/` - Shared types, constants, utilities
 - `src/assets/` - Static assets (fonts, icons)
@@ -64,7 +69,8 @@ All inter-process communication uses type-safe channels defined in `src/shared/c
 - `WINDOW`: Window management (minimize, maximize, close, fullscreen)
 - `THEME`: Theme switching (dark/light/system)
 - `LANGUAGE`: i18n language switching
-- `GITHUB`: GitHub API integration (planned)
+- `GITHUB`: GitHub API integration (authentication, repositories, stars)
+- `SEARCH`: Repository search and suggestions
 - `DATABASE`: Local data storage (planned)
 - `AI`: AI chat functionality (planned)
 
@@ -74,15 +80,39 @@ All inter-process communication uses type-safe channels defined in `src/shared/c
 - `@shared/` - Points to `src/shared/`
 - `@assets/` - Points to `src/assets/`
 
+### Data Storage & Search Architecture
+
+The application uses a modern data persistence and search architecture:
+
+#### LanceDB Vector Database (`~/.starepo/lancedb/`)
+- **Vector storage**: Repository embeddings for semantic search
+- **Full-text search**: Built-in search capabilities
+- **Schema**: Structured tables for repositories and users
+- **Performance**: Optimized for large-scale data retrieval
+
+#### Secure Storage (`~/.starepo/secure-storage/`)
+- **Encryption**: Uses Electron's safeStorage API
+- **GitHub tokens**: Secure credential management
+- **User data**: Encrypted personal information storage
+- **Expiration**: Automatic token expiry handling
+
+#### Search Features
+- **Semantic search**: Vector similarity for repository discovery
+- **Keyword search**: Traditional text-based search
+- **Filters**: Language, stars, dates, topics
+- **Suggestions**: Auto-complete and popular terms
+- **Analytics**: Search statistics and insights
+
 ### GitHub Integration
 
-The application includes a sophisticated GitHub authentication system in `src/renderer/services/github/`:
+The application includes a comprehensive GitHub integration system:
 
-- Personal Access Token authentication
-- Secure token storage using Electron's safeStorage API
-- Comprehensive GitHub API integration via Octokit.js
-- Rate limiting and caching mechanisms
-- Token validation and scope checking
+- **Authentication**: Personal Access Token with secure storage
+- **API Integration**: Full Octokit.js integration in main process
+- **Repository Management**: Star/unstar operations with local sync
+- **Data Sync**: Background synchronization with LanceDB
+- **Rate Limiting**: Intelligent API usage management
+- **Offline Support**: Local data persistence for offline browsing
 
 ### Development Notes
 
@@ -91,3 +121,35 @@ The application includes a sophisticated GitHub authentication system in `src/re
 - React Compiler is enabled by default for performance optimization
 - Custom window title bar with drag region implementation
 - Comprehensive error handling and type safety throughout
+
+#### Service Architecture
+- **Layered approach**: Database → GitHub → Search services
+- **Unified naming**: All service files follow `*-service.ts` convention
+- **Modular exports**: Each service directory has `index.ts` for clean imports
+- **Type safety**: Comprehensive TypeScript definitions across all layers
+
+#### Data Flow
+1. **Main Process**: Handles all business logic and external API calls
+2. **IPC Layer**: Type-safe communication between processes
+3. **Renderer Process**: Pure UI layer with API wrappers
+4. **Local Storage**: Unified `.starepo` directory for all application data
+
+#### Native Modules
+- **LanceDB**: Configured with AutoUnpackNativesPlugin for Electron packaging
+- **Vite Config**: Excludes native modules from bundling
+- **Build Process**: Handles .node files correctly in production builds
+
+## Important Notes for Development
+
+### Application Data Location
+All application data is stored in `~/.starepo/` directory:
+- **Database**: `~/.starepo/lancedb/` (LanceDB vector database files)
+- **Secure Storage**: `~/.starepo/secure-storage/` (Encrypted user credentials)
+
+### Service Dependencies
+- **GitHub services** depend on secure storage for authentication
+- **Search services** depend on LanceDB for data persistence
+- **All services** must be initialized before use
+
+### Architecture Migration
+This application has been migrated from ChromaDB to LanceDB for better performance and native integration. The search functionality now uses LanceDB's built-in full-text search capabilities combined with vector similarity search.

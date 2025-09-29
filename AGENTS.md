@@ -1,26 +1,153 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
-Starepo is an Electron Forge + Vite desktop app.
-- `src/main/` contains the Electron entry point plus services for GitHub, AI, database, and IPC handlers.
-- `src/preload/` owns the secured bridge exported from `preload.ts` and typed in `types.ts`.
-- `src/renderer/` holds the React UI (routes, pages, components, hooks, stores) using aliases like `@/components` and `@shared/constants`.
-- `src/shared/` exposes cross-process types and constants; `src/assets/` keeps fonts/icons; tests live in `src/tests/{unit,integration,e2e}`.
+## Common Development Commands
 
-## Build, Test, and Development Commands
-- `npm run start` spins up Electron Forge with hot reload.
-- `npm run lint`, `npm run format`, and `npm run format:write` enforce ESLint + Prettier.
-- `npm run test`, `npm run test:unit`, and `npm run test:all` execute Vitest; `npm run test:e2e` runs Playwright (package first via `npm run package`).
-- `npm run make` creates platform builds when you need installable artifacts.
+### Development
 
-## Coding Style & Naming Conventions
-Write TypeScript everywhere. Prettier sets 2-space indentation, double quotes, trailing commas, and semicolons—run it instead of manual formatting. Components use PascalCase names, hooks follow the `useCamelCase` pattern, modules in `shared` export UPPER_SNAKE_CASE constants, and let Tailwind ordering come from the Prettier plugin. Run `npm run lint` before opening a PR to satisfy React Compiler, TypeScript, and globals rules.
+- `npm run start` - Start development mode with hot reload
+- `npm run package` - Package the Electron application
+- `npm run make` - Generate platform-specific installers
 
-## Testing Guidelines
-Name spec files `*.test.ts(x)` or `*.spec.ts(x)` to match the Vitest glob. Keep unit tests close to their subject and mock IPC boundaries; integration suites can exercise shared services. Generate coverage with `npm run test -- --coverage` and avoid regressing existing totals. When running end-to-end tests from `src/tests/e2e`, ensure a packaged build exists and install Playwright browsers if prompted (`npx playwright install`).
+### Code Quality
 
-## Commit & Pull Request Guidelines
-Follow the Conventional Commit format seen in history (`feat(search): …`, `fix: …`). Use informative scopes, write imperative English subjects, and combine multi-step refactors into coherent commits. Pull requests should describe intent, link issues, note test commands executed, and attach UI screenshots or recordings when visuals change. Move drafts to "Ready for review" only after scripts above succeed.
+- `npm run lint` - Run ESLint code checks
+- `npm run format` - Check code formatting (read-only)
+- `npm run format:write` - Apply Prettier formatting
 
-## Environment & Secrets
-Store secrets in `.env` (`CHROMA_DB_PATH`, `OPENAI_API_KEY`, GitHub tokens). The app persists credentials through Electron `safeStorage`; do not bypass it. Keep paths in `forge.config.ts` relative so packaged builds stay portable.
+### Testing
+
+- `npm test` or `npm run test` - Run unit tests (Vitest)
+- `npm run test:watch` - Run tests in watch mode
+- `npm run test:e2e` - Run end-to-end tests (Playwright)
+- `npm run test:all` - Run both unit and e2e tests
+
+### Single Test Commands
+
+- `npm run test:unit -- --run --reporter=verbose filename.test.ts` - Run specific unit test
+- `npx playwright test example.test.ts` - Run specific e2e test
+
+## Architecture Overview
+
+This is an Electron application using a modern, security-focused architecture with complete process separation:
+
+### Process Architecture
+
+- **Main Process** (`src/main/`): Core application logic, GitHub API integration, LanceDB vector database, secure storage, search services, IPC handlers
+- **Renderer Process** (`src/renderer/`): React UI, components, pages, client-side services
+- **Preload Scripts** (`src/preload/`): Security bridge between main and renderer processes
+- **Shared Code** (`src/shared/`): Type definitions, constants, utilities used across processes
+
+### Key Technologies
+
+- **Electron 37.2.5** with Context Isolation enabled for security
+- **React 19.1.1** with React Compiler enabled
+- **TypeScript 5.8.3** with strict type checking
+- **Vite 7.0.6** for fast development and building
+- **TailwindCSS 4.1.11** with Shadcn UI components
+- **TanStack Router** for client-side routing
+- **LanceDB** for vector database and semantic search
+- **Vitest** for unit testing, **Playwright** for e2e testing
+
+### Project Structure
+
+- `src/main/` - Main process: window management, IPC handlers, services
+  - `services/database/` - Data persistence layer (LanceDB, secure storage)
+  - `services/github/` - GitHub API integration layer
+  - `services/search/` - Search functionality layer
+  - `ipc/` - Inter-process communication handlers
+- `src/renderer/` - React UI: components, pages, hooks, API wrappers
+- `src/preload/` - Security bridge for IPC communication
+- `src/shared/` - Shared types, constants, utilities
+- `src/assets/` - Static assets (fonts, icons)
+
+### IPC Communication
+
+All inter-process communication uses type-safe channels defined in `src/shared/constants/ipc-channels.ts`. Current channels include:
+
+- `WINDOW`: Window management (minimize, maximize, close, fullscreen)
+- `THEME`: Theme switching (dark/light/system)
+- `LANGUAGE`: i18n language switching
+- `GITHUB`: GitHub API integration (authentication, repositories, stars)
+- `SEARCH`: Repository search and suggestions
+- `DATABASE`: Local data storage (planned)
+- `AI`: AI chat functionality (planned)
+
+### Path Aliases
+
+- `@/` - Points to `src/renderer/`
+- `@shared/` - Points to `src/shared/`
+- `@assets/` - Points to `src/assets/`
+
+### Data Storage & Search Architecture
+
+The application uses a modern data persistence and search architecture:
+
+#### LanceDB Vector Database (`~/.starepo/lancedb/`)
+- **Vector storage**: Repository embeddings for semantic search
+- **Full-text search**: Built-in search capabilities
+- **Schema**: Structured tables for repositories and users
+- **Performance**: Optimized for large-scale data retrieval
+
+#### Secure Storage (`~/.starepo/secure-storage/`)
+- **Encryption**: Uses Electron's safeStorage API
+- **GitHub tokens**: Secure credential management
+- **User data**: Encrypted personal information storage
+- **Expiration**: Automatic token expiry handling
+
+#### Search Features
+- **Semantic search**: Vector similarity for repository discovery
+- **Keyword search**: Traditional text-based search
+- **Filters**: Language, stars, dates, topics
+- **Suggestions**: Auto-complete and popular terms
+- **Analytics**: Search statistics and insights
+
+### GitHub Integration
+
+The application includes a comprehensive GitHub integration system:
+
+- **Authentication**: Personal Access Token with secure storage
+- **API Integration**: Full Octokit.js integration in main process
+- **Repository Management**: Star/unstar operations with local sync
+- **Data Sync**: Background synchronization with LanceDB
+- **Rate Limiting**: Intelligent API usage management
+- **Offline Support**: Local data persistence for offline browsing
+
+### Development Notes
+
+- Context Isolation is enabled for security - renderer process cannot directly access Node.js APIs
+- All main process functionality must be exposed through preload scripts
+- React Compiler is enabled by default for performance optimization
+- Custom window title bar with drag region implementation
+- Comprehensive error handling and type safety throughout
+
+#### Service Architecture
+- **Layered approach**: Database → GitHub → Search services
+- **Unified naming**: All service files follow `*-service.ts` convention
+- **Modular exports**: Each service directory has `index.ts` for clean imports
+- **Type safety**: Comprehensive TypeScript definitions across all layers
+
+#### Data Flow
+1. **Main Process**: Handles all business logic and external API calls
+2. **IPC Layer**: Type-safe communication between processes
+3. **Renderer Process**: Pure UI layer with API wrappers
+4. **Local Storage**: Unified `.starepo` directory for all application data
+
+#### Native Modules
+- **LanceDB**: Configured with AutoUnpackNativesPlugin for Electron packaging
+- **Vite Config**: Excludes native modules from bundling
+- **Build Process**: Handles .node files correctly in production builds
+
+## Important Notes for Development
+
+### Application Data Location
+All application data is stored in `~/.starepo/` directory:
+- **Database**: `~/.starepo/lancedb/` (LanceDB vector database files)
+- **Secure Storage**: `~/.starepo/secure-storage/` (Encrypted user credentials)
+
+### Service Dependencies
+- **GitHub services** depend on secure storage for authentication
+- **Search services** depend on LanceDB for data persistence
+- **All services** must be initialized before use
+
+### Architecture Migration
+This application has been migrated from ChromaDB to LanceDB for better performance and native integration. The search functionality now uses LanceDB's built-in full-text search capabilities combined with vector similarity search.
