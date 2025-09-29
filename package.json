@@ -82,7 +82,7 @@
     "@tailwindcss/vite": "^4.1.11",
     "@tanstack/react-query": "^5.84.1",
     "@tanstack/react-router": "^1.130.12",
-    "@tanstack/router-devtools": "^1.130.13",
+    "@tanstack/router-devtools": "^1.132.23",
     "@vitejs/plugin-react": "^4.7.0",
     "apache-arrow": "^18.1.0",
     "babel-plugin-react-compiler": "^19.0.0-beta-e993439-20250328",
