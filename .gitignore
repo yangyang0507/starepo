@@ -100,12 +100,10 @@ out/
 /blob-report/
 /playwright/.cache/
 
-# IDE
+# IDE and AI support files
 .idea/
 .vscode/
 .trae/
-
-# Local project configuration files
 .claude/
 .specify/
 specs/
