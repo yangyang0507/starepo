@@ -34,11 +34,7 @@ ipcMain.handle(SEARCH_CHANNELS.SEARCH_REPOSITORIES, async (_, options: {
     console.error('搜索仓库失败:', error);
     return {
       success: false,
-      error: {
-        code: 'SEARCH_FAILED',
-        message: error instanceof Error ? error.message : '搜索失败',
-        details: error
-      }
+      error: error instanceof Error ? error.message : '搜索失败'
     };
   }
 });
@@ -62,11 +58,7 @@ ipcMain.handle(SEARCH_CHANNELS.GET_SEARCH_SUGGESTIONS, async (_, input: string, 
     console.error('获取搜索建议失败:', error);
     return {
       success: false,
-      error: {
-        code: 'SEARCH_SUGGESTIONS_FAILED',
-        message: error instanceof Error ? error.message : '获取搜索建议失败',
-        details: error
-      }
+      error: error instanceof Error ? error.message : '获取搜索建议失败'
     };
   }
 });
@@ -89,11 +81,7 @@ ipcMain.handle(SEARCH_CHANNELS.GET_POPULAR_SEARCH_TERMS, async (_, limit: number
     console.error('获取热门搜索词失败:', error);
     return {
       success: false,
-      error: {
-        code: 'POPULAR_TERMS_FAILED',
-        message: error instanceof Error ? error.message : '获取热门搜索词失败',
-        details: error
-      }
+      error: error instanceof Error ? error.message : '获取热门搜索词失败'
     };
   }
 });
@@ -117,11 +105,7 @@ ipcMain.handle(SEARCH_CHANNELS.GET_SEARCH_STATS, async (): Promise<APIResponse<{
     console.error('获取搜索统计失败:', error);
     return {
       success: false,
-      error: {
-        code: 'SEARCH_STATS_FAILED',
-        message: error instanceof Error ? error.message : '获取搜索统计失败',
-        details: error
-      }
+      error: error instanceof Error ? error.message : '获取搜索统计失败'
     };
   }
 });

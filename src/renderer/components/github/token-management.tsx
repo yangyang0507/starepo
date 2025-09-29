@@ -15,8 +15,8 @@ import {
   AlertCircle
 } from "lucide-react";
 import { cn } from "@/utils/tailwind";
-import { githubAPI } from "@/api";
-import type { AuthState, TokenValidationResult } from "@shared/types";
+import { enhancedAuthAPI } from "@/api";
+import type { AuthState, TokenValidationResult } from "@shared/types/auth";
 
 interface TokenManagementProps {
   onBack: () => void;
@@ -50,7 +50,7 @@ export default function TokenManagement({
 
     setIsValidating(true);
     try {
-      const result = await githubAPI.validateToken(tokenValue);
+      const result = await enhancedAuthAPI.validateToken(tokenValue);
       setValidationResult(result);
     } catch (error) {
       console.error("Token 验证失败:", error);
@@ -88,8 +88,12 @@ export default function TokenManagement({
     setError("");
 
     try {
-      await githubAPI.authenticateWithToken(token.trim());
-      onSuccess?.();
+      const result = await enhancedAuthAPI.authenticateWithToken(token.trim());
+      if (result.success) {
+        onSuccess?.();
+      } else {
+        throw new Error(result.error || '认证失败');
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "认证过程中发生错误";
       setError(errorMessage);
@@ -137,7 +141,7 @@ export default function TokenManagement({
                 <div className="space-y-1">
                   <div className="text-xs text-muted-foreground">权限范围:</div>
                   <div className="flex flex-wrap gap-1">
-                    {validationResult.scopes.map((scope) => (
+                    {validationResult.scopes.map((scope: string) => (
                       <Badge key={scope} variant="secondary" className="text-xs">
                         {scope}
                       </Badge>

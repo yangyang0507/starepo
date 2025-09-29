@@ -28,7 +28,7 @@ interface SearchAnalyticsData {
 }
 
 export const SearchAnalytics: React.FC = () => {
-  const [analytics, setAnalytics] = useState<SearchAnalyticsData>({ stats: null, popular: [] });
+  const [analytics, setAnalytics] = useState<SearchAnalyticsData>({ stats: null, popular: null });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

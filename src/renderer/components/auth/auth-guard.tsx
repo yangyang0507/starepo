@@ -50,7 +50,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
           <h2 className="text-destructive text-xl font-semibold">
             认证检查失败
           </h2>
-          <p className="text-muted-foreground text-sm">{error}</p>
+          <p className="text-muted-foreground text-sm">{error?.message}</p>
           <button
             onClick={retryAuth}
             className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-4 py-2 transition-colors"

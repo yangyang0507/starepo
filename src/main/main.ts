@@ -2,6 +2,7 @@ import { app } from "electron";
 import { WindowManager } from "./window";
 import { registerIpcHandlers } from "./ipc/handlers";
 import { installExtensions } from "./utils/dev-tools";
+import { enhancedGitHubAuthService } from "./services/github/enhanced-auth-service";
 
 const isDevelopment = process.env.NODE_ENV === "development";
 
@@ -9,6 +10,14 @@ const isDevelopment = process.env.NODE_ENV === "development";
 app.setName("Starepo");
 
 async function createApplication(): Promise<void> {
+  // 初始化认证服务，尝试从存储恢复认证状态
+  try {
+    await enhancedGitHubAuthService.initialize();
+    console.log("认证服务初始化完成");
+  } catch (error) {
+    console.warn("认证服务初始化失败，但不影响应用启动:", error);
+  }
+
   // 注册 IPC 处理器
   registerIpcHandlers();
 

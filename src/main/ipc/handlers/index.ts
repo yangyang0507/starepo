@@ -4,6 +4,7 @@ import { IPC_CHANNELS } from "../../../shared/constants/ipc-channels";
 import { setupSecureStorageHandlers } from "../secure-storage-handler";
 import { setupShellHandlers } from "./shell-handler";
 import { registerGitHubHandlers } from "../github-handlers";
+import { registerAuthIPCHandlers } from "../auth-ipc-handlers";
 // 导入搜索处理器
 import "../search-handlers";
 
@@ -17,6 +18,7 @@ export function registerIpcHandlers(): void {
   setupSecureStorageHandlers();
   setupShellHandlers();
   registerGitHubHandlers();
+  registerAuthIPCHandlers(); // 新的认证IPC处理器
   // 未来可以在这里添加更多处理器
   // registerDatabaseHandlers();
   // registerAIHandlers();

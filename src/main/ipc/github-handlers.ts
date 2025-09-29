@@ -113,12 +113,15 @@ export function registerGitHubHandlers(): void {
     IPC_CHANNELS.GITHUB.GET_CURRENT_USER,
     async (): Promise<APIResponse> => {
       try {
-        const user = authService.getCurrentUser();
+        console.log('[主进程] 开始获取当前用户信息...');
+        const user = authService.getCurrentUserSync();
+        console.log('[主进程] 获取到的用户信息:', user ? `${user.login} (${user.name})` : 'null/undefined');
         return {
           success: true,
           data: user,
         };
       } catch (error) {
+        console.error('[主进程] 获取用户信息失败:', error);
         return {
           success: false,
           error: error instanceof Error ? error.message : "获取用户信息失败",
@@ -227,7 +230,9 @@ export function registerGitHubHandlers(): void {
     IPC_CHANNELS.GITHUB.GET_ALL_STARRED_REPOSITORIES,
     async (_, options: any): Promise<APIResponse> => {
       try {
-        const result = await starService.getAllStarredRepositories(options);
+        // 过滤掉不可序列化的回调函数，避免 "An object could not be cloned" 错误
+        const { onProgress, ...safeOptions } = options || {};
+        const result = await starService.getAllStarredRepositories(safeOptions);
         return {
           success: true,
           data: result,

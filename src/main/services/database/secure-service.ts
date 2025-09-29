@@ -344,6 +344,9 @@ export class GitHubTokenStorage {
   private static readonly TOKEN_KEY = "github_access_token";
   private static readonly USER_KEY = "github_user_info";
   private static readonly AUTH_METHOD_KEY = "github_auth_method";
+  private static readonly TOKEN_INFO_KEY = "github_token_info";
+  private static readonly LAST_VALIDATED_KEY = "github_last_validated";
+  private static readonly AUTH_STATE_KEY = "github_auth_state";
   private static readonly TOKEN_EXPIRY = 90 * 24 * 60 * 60 * 1000; // 90天
 
   private secureStorage: SecureStorageService;
@@ -352,17 +355,9 @@ export class GitHubTokenStorage {
     this.secureStorage = SecureStorageService.getInstance();
   }
 
-  // 保存 GitHub Token
-  async saveToken(token: string, authMethod: "token"): Promise<void> {
-    await this.secureStorage.setItem(
-      GitHubTokenStorage.TOKEN_KEY,
-      token,
-      GitHubTokenStorage.TOKEN_EXPIRY,
-    );
-    await this.secureStorage.setItem(
-      GitHubTokenStorage.AUTH_METHOD_KEY,
-      authMethod,
-    );
+// 保存 GitHub Token（保持向后兼容）
+  async saveToken(token: string, _authMethod: "token"): Promise<void> {
+    await this.storeToken(token);
   }
 
   // 获取 GitHub Token
@@ -371,7 +366,7 @@ export class GitHubTokenStorage {
   }
 
   // 保存用户信息
-  async saveUserInfo(userInfo: import("@shared/types").GitHubUser): Promise<void> {
+  async saveUserInfo(userInfo: import("@shared/types/auth").GitHubUser): Promise<void> {
     await this.secureStorage.setItem(
       GitHubTokenStorage.USER_KEY,
       JSON.stringify(userInfo),
@@ -379,7 +374,7 @@ export class GitHubTokenStorage {
   }
 
   // 获取用户信息
-  async getUserInfo(): Promise<import("@shared/types").GitHubUser | null> {
+  async getUserInfo(): Promise<import("@shared/types/auth").GitHubUser | null> {
     const userInfoStr = await this.secureStorage.getItem(
       GitHubTokenStorage.USER_KEY,
     );
@@ -399,11 +394,98 @@ export class GitHubTokenStorage {
     return token !== null;
   }
 
+  // 保存Token信息
+  async storeTokenInfo(tokenInfo: import("@shared/types/auth").TokenInfo): Promise<void> {
+    await this.secureStorage.setItem(
+      GitHubTokenStorage.TOKEN_INFO_KEY,
+      JSON.stringify(tokenInfo),
+    );
+  }
+
+  // 获取Token信息
+  async getTokenInfo(): Promise<import("@shared/types/auth").TokenInfo | null> {
+    const tokenInfoStr = await this.secureStorage.getItem(
+      GitHubTokenStorage.TOKEN_INFO_KEY,
+    );
+    return tokenInfoStr ? JSON.parse(tokenInfoStr) : null;
+  }
+
+  // 更新最后验证时间
+  async updateLastValidated(timestamp?: Date): Promise<void> {
+    const validatedTime = timestamp || new Date();
+    await this.secureStorage.setItem(
+      GitHubTokenStorage.LAST_VALIDATED_KEY,
+      validatedTime.toISOString(),
+    );
+  }
+
+  // 获取最后验证时间
+  async getLastValidated(): Promise<Date | null> {
+    const timeStr = await this.secureStorage.getItem(
+      GitHubTokenStorage.LAST_VALIDATED_KEY,
+    );
+    return timeStr ? new Date(timeStr) : null;
+  }
+
+  // 存储完整的AuthState
+  async storeAuthState(authState: import("@shared/types/auth").AuthState): Promise<void> {
+    await this.secureStorage.setItem(
+      GitHubTokenStorage.AUTH_STATE_KEY,
+      JSON.stringify(authState),
+    );
+  }
+
+  // 获取完整的AuthState
+  async getAuthState(): Promise<import("@shared/types/auth").AuthState | null> {
+    const authStateStr = await this.secureStorage.getItem(
+      GitHubTokenStorage.AUTH_STATE_KEY,
+    );
+    return authStateStr ? JSON.parse(authStateStr) : null;
+  }
+
+  // 便捷方法：保存Token和用户信息
+  async storeToken(token: string): Promise<void> {
+    await this.secureStorage.setItem(
+      GitHubTokenStorage.TOKEN_KEY,
+      token,
+      GitHubTokenStorage.TOKEN_EXPIRY,
+    );
+    await this.secureStorage.setItem(
+      GitHubTokenStorage.AUTH_METHOD_KEY,
+      "token",
+    );
+  }
+
+  // 检查Token是否需要刷新（超过6小时）
+  async needsRefresh(): Promise<boolean> {
+    const lastValidated = await this.getLastValidated();
+    if (!lastValidated) {
+      return true;
+    }
+
+    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    return lastValidated < sixHoursAgo;
+  }
+
+  // 检查Token是否过期（超过24小时未验证）
+  async isExpired(): Promise<boolean> {
+    const lastValidated = await this.getLastValidated();
+    if (!lastValidated) {
+      return true;
+    }
+
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    return lastValidated < twentyFourHoursAgo;
+  }
+
   // 清除所有认证信息
   async clearAuth(): Promise<void> {
     await this.secureStorage.removeItem(GitHubTokenStorage.TOKEN_KEY);
     await this.secureStorage.removeItem(GitHubTokenStorage.USER_KEY);
     await this.secureStorage.removeItem(GitHubTokenStorage.AUTH_METHOD_KEY);
+    await this.secureStorage.removeItem(GitHubTokenStorage.TOKEN_INFO_KEY);
+    await this.secureStorage.removeItem(GitHubTokenStorage.LAST_VALIDATED_KEY);
+    await this.secureStorage.removeItem(GitHubTokenStorage.AUTH_STATE_KEY);
   }
 }
 

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useRepositoryStore } from "@/stores/repository-store";
+import { useAuthStore } from "@/stores/auth-store";
 import type { FilterOptions, ViewOptions } from "@shared/types"
 import {
   AlertCircle,
@@ -24,6 +25,7 @@ import {
 import React, { useEffect, useCallback, useMemo } from "react";
 
 const GitHubRepositoriesPage: React.FC = () => {
+  const { authState } = useAuthStore();
   const {
     user,
     repositories,
@@ -55,10 +57,16 @@ const GitHubRepositoriesPage: React.FC = () => {
   const handleUnstar = unstarRepository;
   const handleLogout = logout;
 
-  // 初始化
+  // 初始化 - 只有当全局认证状态确认已认证时才执行
   useEffect(() => {
-    initializeData();
-  }, [initializeData]);
+    console.log('全局认证状态:', authState);
+    if (authState?.isAuthenticated && authState.user) {
+      console.log('认证状态确认，开始初始化数据...');
+      initializeData(authState.user as any);
+    } else {
+      console.log('认证状态未确认，跳过数据初始化');
+    }
+  }, [initializeData, authState?.isAuthenticated, authState?.user]);
 
   // 数据加载完成后检查缓存状态
   useEffect(() => {
@@ -195,7 +203,7 @@ const GitHubRepositoriesPage: React.FC = () => {
   };
 
   // 如果未认证，显示认证提示
-  if (!user && !loading) {
+  if (!authState?.isAuthenticated) {
     return (
       <AppLayout title="GitHub 仓库管理">
         <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">

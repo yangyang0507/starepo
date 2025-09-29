@@ -289,6 +289,11 @@ const shellAPI = {
     ipcRenderer.invoke("shell:showItemInFolder", fullPath),
 };
 
+// 通用的IPC调用方法（用于新的认证API）
+const invoke = (channel: string, ...args: any[]) => {
+  return ipcRenderer.invoke(channel, ...args);
+};
+
 // 合并所有 API
 const electronAPI = {
   window: windowAPI,
@@ -300,6 +305,8 @@ const electronAPI = {
   ai: aiAPI,
   secureStorage: secureStorageAPI,
   shell: shellAPI,
+  // 添加通用invoke方法以支持新的IPC通道
+  invoke,
 };
 
 // 将 API 暴露给渲染进程

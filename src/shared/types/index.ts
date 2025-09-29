@@ -69,12 +69,9 @@ export interface AuthState {
   expiresAt?: Date;
 }
 
-export interface TokenValidationResult {
-  valid: boolean;
-  user?: GitHubUser;
-  scopes?: string[];
-  error?: string;
-}
+// 认证步骤类型
+export type AuthStep = "selector" | "token" | "success";
+
 
 // 安全存储相关类型
 export interface SecureStorageItem {

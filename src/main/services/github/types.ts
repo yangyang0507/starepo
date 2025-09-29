@@ -1,4 +1,5 @@
 // GitHub API 相关类型定义
+import type { AuthStep } from '@shared/types';
 
 export interface GitHubUser {
   id: number;
@@ -208,21 +209,10 @@ export interface AuthGuardState {
 }
 
 // 引导流程状态接口
-export type AuthStep = "selector" | "token" | "success";
-
 export interface OnboardingState {
   currentStep: AuthStep;
   completedSteps: AuthStep[];
   canProceed: boolean;
-}
-
-// UI 相关类型
-export interface AuthMethodOption {
-  id: "token";
-  title: string;
-  description: string;
-  icon: string;
-  recommended?: boolean;
 }
 
 export interface RepositoryListItem extends GitHubRepository {
