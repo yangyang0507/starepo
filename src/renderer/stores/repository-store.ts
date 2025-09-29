@@ -35,7 +35,7 @@ interface RepositoryStore {
   currentPage: number;
 
   // Actions
-  initializeData: () => Promise<void>;
+  initializeData: (globalUser?: GitHubUser) => Promise<void>;
   refreshData: () => Promise<void>;
   refreshUserInfo: () => Promise<void>;
   starRepository: (repo: GitHubRepository) => Promise<void>;
@@ -83,39 +83,46 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
   currentPage: 1,
 
   // Actions
-  initializeData: async () => {
+  initializeData: async (globalUser?: GitHubUser) => {
     set({ loading: true, error: null });
 
     try {
-      // Check authentication
-      const authState = await githubAPI.getAuthState() as AuthState;
-      if (!authState.isAuthenticated) {
-        set({
-          loading: false,
-          error: '请先进行GitHub认证',
-        });
-        return;
+      // 优先使用全局认证状态中的用户信息，避免主进程状态不同步问题
+      let user: GitHubUser;
+      if (globalUser) {
+        console.log('使用全局认证状态的用户信息:', globalUser.login);
+        user = globalUser;
+      } else {
+        console.log('从主进程获取用户信息...');
+        try {
+          user = await githubAPI.getCurrentUser() as GitHubUser;
+          console.log('成功获取到用户信息:', user?.login, '公开仓库数:', user?.public_repos);
+        } catch (userError) {
+          console.error('获取用户信息失败:', userError);
+          throw userError;
+        }
       }
 
-      // Get user info
-      const user = await githubAPI.getCurrentUser() as GitHubUser;
-
       // Get all starred repositories
-      const starredData = await githubAPI.getAllStarredRepositories({
-        batchSize: 100,
-        onProgress: (loaded: number, total: number) => {
-          const progress = total ? Math.round((loaded / total) * 100) : null;
-          set({
-            loadingProgress: progress,
-            totalLoaded: loaded,
-          });
-        },
-      });
+      console.log('开始获取 starred 仓库数据...');
+      let starredData: any;
+      try {
+        starredData = await githubAPI.getAllStarredRepositories({
+          batchSize: 100,
+          // 移除 onProgress 回调，因为无法通过 IPC 序列化传输
+        });
+        console.log('成功获取到 starred 数据:', starredData);
+      } catch (starredError) {
+        console.error('获取 starred 数据失败:', starredError);
+        throw starredError;
+      }
 
-      const repositories = (starredData as any).repositories.map((starredRepo: any) => ({
+      const repositories = starredData.repositories.map((starredRepo: any) => ({
         ...starredRepo,
         starred_at: undefined,
       })) as GitHubRepository[];
+
+      console.log('处理后的仓库列表长度:', repositories.length);
 
       const starredRepoIds = new Set(repositories.map((repo) => repo.id));
 
@@ -157,13 +164,7 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
       const starredData = await githubAPI.getAllStarredRepositories({
         batchSize: 100,
         forceRefresh: true,
-        onProgress: (loaded: number, total: number) => {
-          const progress = total ? Math.round((loaded / total) * 100) : null;
-          set({
-            loadingProgress: progress,
-            totalLoaded: loaded,
-          });
-        },
+        // 移除 onProgress 回调，因为无法通过 IPC 序列化传输
       });
 
       const repositories = (starredData as any).repositories.map((starredRepo: any) => ({

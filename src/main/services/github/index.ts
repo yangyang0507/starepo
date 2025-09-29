@@ -1,11 +1,11 @@
 // GitHub 服务主入口文件
 
 import { octokitManager } from "./octokit-manager";
-import { githubAuthService } from "./auth-service";
+import { enhancedGitHubAuthService } from "./enhanced-auth-service";
 import { githubStarService } from "./star-service";
 
 export { octokitManager, OctokitManager } from "./octokit-manager";
-export { githubAuthService, GitHubAuthService } from "./auth-service";
+export { enhancedGitHubAuthService, EnhancedGitHubAuthService } from "./enhanced-auth-service";
 export { githubStarService, GitHubStarService } from "./star-service";
 
 // 导出类型
@@ -28,7 +28,7 @@ export class GitHubServiceManager {
    * 获取认证服务
    */
   getAuthService() {
-    return githubAuthService;
+    return enhancedGitHubAuthService;
   }
 
   /**
@@ -57,7 +57,7 @@ export class GitHubServiceManager {
    */
   async cleanup() {
     octokitManager.reset();
-    await githubAuthService.clearAuth();
+    await enhancedGitHubAuthService.clearAuth();
     console.log("GitHub 服务管理器已清理");
   }
 }

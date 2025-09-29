@@ -1,5 +1,6 @@
 import { Octokit } from 'octokit';
 import { githubTokenStorage } from '../database/secure-service';
+import { octokitManager } from './octokit-manager';
 import type {
   AuthState,
   GitHubUser,
@@ -67,6 +68,20 @@ export class EnhancedGitHubAuthService {
       }
 
       this.notifyAuthListeners();
+
+      // 初始化旧系统的 octokitManager，确保认证状态同步
+      try {
+        await octokitManager.initialize({
+          authMethod: 'token',
+          token: storedToken,
+          userAgent: 'Starepo/1.0.0',
+          timeout: 10000,
+        });
+        console.log('octokitManager 已从存储恢复认证状态');
+      } catch (octokitError) {
+        console.warn('octokitManager 恢复失败，但不影响主认证流程:', octokitError);
+      }
+
       return true;
     } catch (error) {
       console.error('认证服务初始化失败:', error);
@@ -133,9 +148,22 @@ export class EnhancedGitHubAuthService {
       this.currentAuthState = authState;
       this.notifyAuthListeners();
 
+      // 初始化旧系统的 octokitManager，确保认证状态同步
+      try {
+        await octokitManager.initialize({
+          authMethod: 'token',
+          token: token,
+          userAgent: 'Starepo/1.0.0',
+          timeout: 10000,
+        });
+        console.log('octokitManager 已同步认证状态');
+      } catch (octokitError) {
+        console.warn('octokitManager 初始化失败，但不影响主认证流程:', octokitError);
+      }
+
       return {
         success: true,
-        user,
+        user: user as any, // 类型断言，避免不同 GitHubUser 定义的冲突
       };
     } catch (error) {
       console.error('Token认证失败:', error);
@@ -237,7 +265,7 @@ export class EnhancedGitHubAuthService {
   /**
    * 验证Token
    */
-  private async validateToken(token: string): Promise<TokenValidationResult & { user?: GitHubUser; scopes?: string[]; rateLimit?: TokenInfo['rateLimit'] }> {
+  async validateToken(token: string): Promise<TokenValidationResult & { user?: GitHubUser; scopes?: string[]; rateLimit?: TokenInfo['rateLimit'] }> {
     try {
       const octokit = new Octokit({ auth: token });
 
@@ -396,6 +424,13 @@ export class EnhancedGitHubAuthService {
   async getCurrentUser(): Promise<GitHubUser | null> {
     const authState = await this.getAuthState();
     return authState.user || null;
+  }
+
+  /**
+   * 获取当前用户信息 (同步版本，兼容旧API)
+   */
+  getCurrentUserSync(): GitHubUser | undefined {
+    return this.currentAuthState.user;
   }
 
   /**
