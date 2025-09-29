@@ -1,18 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import { BarChart, TrendingUp } from 'lucide-react';
 
-import { getSearchEngine } from '@/services/search';
-import type {
-  SearchAnalyticsStats,
-  SearchSuggestion,
-} from '@/services/search/types';
+import { searchAPI } from '@/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
+interface SearchStats {
+  totalRepositories: number;
+  totalUsers: number;
+  indexSize: number;
+}
+
+interface PopularTerm {
+  name: string;
+  count: number;
+}
+
+interface PopularTerms {
+  languages: PopularTerm[];
+  topics: PopularTerm[];
+}
+
 interface SearchAnalyticsData {
-  stats: SearchAnalyticsStats | null;
-  popular: SearchSuggestion[];
+  stats: SearchStats | null;
+  popular: PopularTerms | null;
 }
 
 export const SearchAnalytics: React.FC = () => {
@@ -23,15 +35,14 @@ export const SearchAnalytics: React.FC = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const searchEngine = getSearchEngine();
         const [stats, popular] = await Promise.all([
-          searchEngine.getSearchStatistics(),
-          searchEngine.getPopularSearches(10),
+          searchAPI.getSearchStats(),
+          searchAPI.getPopularSearchTerms(10),
         ]);
         setAnalytics({ stats, popular });
       } catch (error) {
-        console.error("Failed to fetch search analytics:", error);
-        setAnalytics({ stats: null, popular: [] });
+        console.error("获取搜索分析数据失败:", error);
+        setAnalytics({ stats: null, popular: null });
       } finally {
         setLoading(false);
       }
@@ -49,7 +60,7 @@ export const SearchAnalytics: React.FC = () => {
     );
   }
 
-  if (!analytics.stats || analytics.stats.totalSearches === 0) {
+  if (!analytics.stats || analytics.stats.totalRepositories === 0) {
     return (
       <div className="p-4 text-center text-sm text-gray-500">
         暂无搜索分析数据。
@@ -57,9 +68,10 @@ export const SearchAnalytics: React.FC = () => {
     );
   }
 
-  const popularTerms = Object.entries(analytics.stats.popularTerms || {})
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 10);
+  const popularTerms = [
+    ...(analytics.popular?.languages || []),
+    ...(analytics.popular?.topics || [])
+  ].sort((a, b) => b.count - a.count).slice(0, 10);
 
   return (
     <div className="space-y-4 p-4">
@@ -71,8 +83,11 @@ export const SearchAnalytics: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{analytics.stats.totalSearches}</div>
-          <p className="text-xs text-gray-500">总搜索次数</p>
+          <div className="text-2xl font-bold">{analytics.stats.totalRepositories}</div>
+          <p className="text-xs text-gray-500">仓库总数</p>
+          <div className="mt-2 text-sm text-gray-600">
+            索引大小: {(analytics.stats.indexSize / 1024 / 1024).toFixed(2)} MB
+          </div>
         </CardContent>
       </Card>
       <Card>
@@ -85,11 +100,11 @@ export const SearchAnalytics: React.FC = () => {
         <CardContent>
           {popularTerms.length > 0 ? (
             <div className="flex flex-wrap gap-2">
-              {popularTerms.map(([term, freq]) => (
-                <Badge key={term} variant="secondary" className="text-sm">
-                  {term}
+              {popularTerms.map((term) => (
+                <Badge key={term.name} variant="secondary" className="text-sm">
+                  {term.name}
                   <span className="ml-2 rounded-full bg-gray-300 px-2 text-xs text-gray-600 dark:bg-gray-600 dark:text-gray-200">
-                    {freq}
+                    {term.count}
                   </span>
                 </Badge>
               ))}

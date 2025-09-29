@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useRepositoryStore } from "@/stores/repository-store";
-import type { FilterOptions, ViewOptions } from "@/services/github/types";
+import type { FilterOptions, ViewOptions } from "@shared/types"
 import {
   AlertCircle,
   CheckCircle,

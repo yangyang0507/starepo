@@ -1,4 +1,4 @@
-import type { GitHubError } from '@/services/github/types';
+import type { GitHubError } from '@shared/types';
 
 /**
  * 检查一个值是否为 Error 对象

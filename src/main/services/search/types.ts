@@ -3,7 +3,7 @@
  * 支持关键词搜索，为未来向量搜索和对话搜索预留接口
  */
 
-import type { GitHubRepository } from '@/services/github/types';
+import type { GitHubRepository } from '../github/types';
 
 // ============ 基础搜索类型 =============
 

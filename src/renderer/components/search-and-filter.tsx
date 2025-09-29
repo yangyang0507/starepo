@@ -15,9 +15,15 @@ import type {
   FilterOptions,
   ViewOptions,
   SearchHistoryItem,
-} from "@/services/github/types";
-import { getSearchEngine } from "@/services/search";
-import type { SearchSuggestion } from "@/services/search/types";
+} from "@shared/types";
+import { searchAPI } from "@/api";
+
+// 搜索建议类型定义
+interface SearchSuggestion {
+  text: string;
+  type: 'term' | 'language' | 'topic';
+  count?: number;
+}
 import { SearchAnalytics } from "./search-analytics";
 
 interface SearchAndFilterProps {
@@ -99,11 +105,21 @@ export const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
       setSuggestions([]);
       return;
     }
-    const searchEngine = getSearchEngine();
-    const results = await searchEngine.suggest(query);
-    setSuggestions(results);
-    if (results.length > 0) {
-      setIsSuggestionsVisible(true);
+    try {
+      const result = await searchAPI.getSearchSuggestions(query, 10);
+      // 将新的 API 结果转换为组件期望的格式
+      const suggestions: SearchSuggestion[] = [
+        ...result.terms.map(term => ({ text: term, type: 'term' as const })),
+        ...result.languages.map(lang => ({ text: lang, type: 'language' as const })),
+        ...result.topics.map(topic => ({ text: topic, type: 'topic' as const }))
+      ];
+      setSuggestions(suggestions);
+      if (suggestions.length > 0) {
+        setIsSuggestionsVisible(true);
+      }
+    } catch (error) {
+      console.error('获取搜索建议失败:', error);
+      setSuggestions([]);
     }
   }, []);
 
@@ -145,13 +161,23 @@ export const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
 
   const toggleHistory = async () => {
     if (!isHistoryVisible) {
-      const searchEngine = getSearchEngine();
-      const [recent, popular] = await Promise.all([
-        searchEngine.getSearchHistory(5),
-        searchEngine.getPopularSearches(5),
-      ]);
-      setRecentSearches(recent);
-      setPopularSearches(popular);
+      try {
+        // 获取热门搜索词
+        const popular = await searchAPI.getPopularSearchTerms(5);
+        // 转换为组件期望的格式
+        const popularSuggestions: SearchSuggestion[] = [
+          ...popular.languages.map(item => ({ text: item.name, type: 'language' as const, count: item.count })),
+          ...popular.topics.map(item => ({ text: item.name, type: 'topic' as const, count: item.count }))
+        ];
+
+        // TODO: 实现搜索历史功能 - 暂时使用空数组
+        setRecentSearches([]);
+        setPopularSearches(popularSuggestions);
+      } catch (error) {
+        console.error('获取搜索历史失败:', error);
+        setRecentSearches([]);
+        setPopularSearches([]);
+      }
       setIsAnalyticsVisible(false);
       setIsSuggestionsVisible(false);
     }

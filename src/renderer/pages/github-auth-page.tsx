@@ -4,7 +4,7 @@ import TokenInput from "@/components/github/token-input";
 import OnboardingWrapper from "@/components/auth/onboarding-wrapper";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/auth-store";
-import type { AuthStep } from "@/services/github/types";
+import type { AuthStep } from "@shared/types"
 
 interface GitHubAuthPageProps {
   onAuthSuccess?: () => void;

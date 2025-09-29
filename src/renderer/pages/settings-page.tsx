@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTheme } from "@/hooks/use-theme";
-import { githubAuthService } from "@/services/github/auth-service";
-import type { AuthState } from "@/services/github/types";
+import { githubAPI } from "@/api";
+import type { AuthState } from "@shared/types"
 import { setAppLanguage } from "@/utils/language-helpers";
 import type { ThemeMode } from "@shared/types";
 import {
@@ -44,7 +44,7 @@ export default function SettingsPage() {
     // 获取当前认证状态
     const loadAuthState = async () => {
       try {
-        const state = githubAuthService.getAuthState();
+        const state = await githubAPI.getAuthState();
         setAuthState(state);
       } catch (error) {
         console.error("加载认证状态失败:", error);
@@ -53,20 +53,21 @@ export default function SettingsPage() {
 
     loadAuthState();
 
-    // 监听认证状态变化
-    const unsubscribe = githubAuthService.addAuthListener((state) => {
-      setAuthState(state);
-    });
+    // TODO: 监听认证状态变化 (需要在 main 进程实现)
+    // const unsubscribe = githubAPI.addAuthListener((state) => {
+    //   setAuthState(state);
+    // });
 
-    return () => {
-      unsubscribe();
-    };
+    // TODO: 返回清理函数
+    // return () => {
+    //   unsubscribe();
+    // };
   }, []);
 
   const handleRefreshAuth = async () => {
     setIsLoading(true);
     try {
-      await githubAuthService.refreshAuth();
+      await githubAPI.refreshAuth();
     } catch (error) {
       console.error("刷新认证失败:", error);
     } finally {
@@ -77,7 +78,7 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     setIsLoading(true);
     try {
-      await githubAuthService.clearAuth();
+      await githubAPI.clearAuth();
     } catch (error) {
       console.error("登出失败:", error);
     } finally {

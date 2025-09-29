@@ -60,6 +60,22 @@ export interface GitHubAuthInfo {
   expiresAt?: number;
 }
 
+export interface AuthState {
+  isAuthenticated: boolean;
+  authMethod?: "token";
+  user?: GitHubUser;
+  token?: string;
+  scopes?: string[];
+  expiresAt?: Date;
+}
+
+export interface TokenValidationResult {
+  valid: boolean;
+  user?: GitHubUser;
+  scopes?: string[];
+  error?: string;
+}
+
 // 安全存储相关类型
 export interface SecureStorageItem {
   key: string;
@@ -86,6 +102,42 @@ export interface GitHubRepo {
   topics: string[];
   updated_at: string;
   created_at: string;
+}
+
+export interface GitHubRepository {
+  id: number;
+  name: string;
+  full_name: string;
+  description: string | null;
+  html_url: string;
+  clone_url: string;
+  ssh_url: string;
+  language: string | null;
+  stargazers_count: number;
+  watchers_count: number;
+  forks_count: number;
+  open_issues_count: number;
+  created_at: string;
+  updated_at: string;
+  pushed_at: string;
+  size: number;
+  default_branch: string;
+  topics: string[];
+  archived: boolean;
+  disabled: boolean;
+  private: boolean;
+  fork: boolean;
+  owner: {
+    id: number;
+    login: string;
+    avatar_url: string;
+  };
+  license?: {
+    key: string;
+    name: string;
+    spdx_id: string;
+    url: string;
+  };
 }
 
 // 数据库相关类型 (未来功能)
@@ -126,4 +178,40 @@ export interface AppError {
   code: string;
   message: string;
   details?: Record<string, unknown>;
+}
+
+export interface GitHubError {
+  message: string;
+  status?: number;
+  code?: string;
+  documentation_url?: string;
+}
+
+// UI 相关类型
+export interface FilterOptions {
+  search?: string;
+  language?: string;
+  topic?: string;
+  minStars?: number;
+  maxStars?: number;
+  sortBy?: "name" | "stars" | "updated" | "created";
+  sortOrder?: "asc" | "desc";
+  showArchived?: boolean;
+  showForks?: boolean;
+}
+
+export interface ViewOptions {
+  layout: "grid" | "list";
+  itemsPerPage: number;
+  showDescription: boolean;
+  showLanguage: boolean;
+  showStats: boolean;
+  showTopics: boolean;
+}
+
+export interface SearchHistoryItem {
+  id: string;
+  query: string;
+  timestamp: number;
+  resultsCount: number;
 }

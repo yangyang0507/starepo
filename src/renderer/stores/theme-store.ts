@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { themeAPI } from '@/services/api';
+import { themeAPI } from '@/api';
 import type { ThemeMode } from '@shared/types';
 
 interface ThemeStore {

@@ -15,8 +15,8 @@ import {
   AlertCircle
 } from "lucide-react";
 import { cn } from "@/utils/tailwind";
-import { githubAuthService } from "@/services/github/auth-service";
-import type { AuthState } from "@/services/github/types";
+import { githubAPI } from "@/api";
+import type { AuthState, TokenValidationResult } from "@shared/types";
 
 interface TokenManagementProps {
   onBack: () => void;
@@ -34,12 +34,7 @@ export default function TokenManagement({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [isValidating, setIsValidating] = useState(false);
-  const [validationResult, setValidationResult] = useState<{
-    valid: boolean;
-    user?: Record<string, unknown>;
-    scopes?: string[];
-    error?: string;
-  } | null>(null);
+  const [validationResult, setValidationResult] = useState<TokenValidationResult | null>(null);
 
   // Token 格式验证
   const isValidTokenFormat = (token: string) => {
@@ -55,7 +50,7 @@ export default function TokenManagement({
 
     setIsValidating(true);
     try {
-      const result = await githubAuthService.validateToken(tokenValue);
+      const result = await githubAPI.validateToken(tokenValue);
       setValidationResult(result);
     } catch (error) {
       console.error("Token 验证失败:", error);
@@ -93,13 +88,8 @@ export default function TokenManagement({
     setError("");
 
     try {
-      const result = await githubAuthService.authenticateWithToken(token.trim());
-      
-      if (result.success) {
-        onSuccess?.();
-      } else {
-        setError(result.error || "认证失败，请检查Token是否正确");
-      }
+      await githubAPI.authenticateWithToken(token.trim());
+      onSuccess?.();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "认证过程中发生错误";
       setError(errorMessage);
@@ -141,7 +131,7 @@ export default function TokenManagement({
           {validationResult.user && (
             <div className="bg-green-50 dark:bg-green-950/20 rounded-lg p-3 space-y-2">
               <div className="text-sm font-medium">
-                用户: {validationResult.user.name || validationResult.user.login}
+                用户: {(validationResult.user as any)?.name || (validationResult.user as any)?.login}
               </div>
               {validationResult.scopes && validationResult.scopes.length > 0 && (
                 <div className="space-y-1">

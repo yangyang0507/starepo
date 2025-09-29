@@ -1,0 +1,24 @@
+// 数据库相关类型定义
+
+export interface LanceDBMetadata {
+  [key: string]: string | number | boolean | null;
+}
+
+export interface SearchResult<T> {
+  items: T[];
+  scores: number[];
+  totalCount: number;
+}
+
+export interface DatabaseStats {
+  repositoriesCount: number;
+  usersCount: number;
+  tablesCount: number;
+}
+
+export interface LanceDBQueryOptions {
+  limit?: number;
+  offset?: number;
+  where?: string;
+  includeFields?: string[];
+}

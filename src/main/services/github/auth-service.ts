@@ -1,5 +1,4 @@
 import { OctokitManager, octokitManager } from "./octokit-manager";
-import { githubTokenStorageClient } from "@/services/storage/secure";
 import type {
   AuthenticationResult,
   GitHubUser,
@@ -24,41 +23,6 @@ export class GitHubAuthService {
 
   constructor() {
     this.octokitManager = octokitManager;
-    this.initializeAuth();
-  }
-
-  /**
-   * 初始化认证状态
-   */
-  private async initializeAuth(): Promise<void> {
-    try {
-      const hasAuth = await githubTokenStorageClient.hasValidAuth();
-      if (hasAuth) {
-        const token = await githubTokenStorageClient.getToken();
-        const authMethod = await githubTokenStorageClient.getAuthMethod();
-        const user = await githubTokenStorageClient.getUserInfo();
-
-        if (token && authMethod) {
-          this.authState = {
-            isAuthenticated: true,
-            authMethod,
-            user: user || undefined,
-            token,
-          };
-
-          // 初始化 Octokit 客户端
-          const config: GitHubClientConfig = {
-            authMethod: authMethod || "token",
-            token,
-          };
-          await this.octokitManager.initialize(config);
-          this.notifyAuthListeners();
-        }
-      }
-    } catch (error) {
-      console.error("初始化认证状态失败:", error);
-      await this.clearAuth();
-    }
   }
 
   /**
@@ -119,10 +83,6 @@ export class GitHubAuthService {
         };
       }
 
-      // 保存认证信息
-      await githubTokenStorageClient.saveToken(token, "token");
-      await githubTokenStorageClient.saveUserInfo(user);
-
       // 更新认证状态
       this.authState = {
         isAuthenticated: true,
@@ -146,7 +106,6 @@ export class GitHubAuthService {
     }
   }
 
-  
   /**
    * 验证 GitHub Token
    */
@@ -254,7 +213,6 @@ export class GitHubAuthService {
       // 更新用户信息
       if (validation.user) {
         this.authState.user = validation.user;
-        await githubTokenStorageClient.saveUserInfo(validation.user);
         this.notifyAuthListeners();
       }
 
@@ -271,7 +229,6 @@ export class GitHubAuthService {
    */
   async clearAuth(): Promise<void> {
     try {
-      await githubTokenStorageClient.clearAuth();
       this.authState = {
         isAuthenticated: false,
         authMethod: undefined,

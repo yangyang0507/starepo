@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { windowAPI } from "@/services/api";
+import { windowAPI } from "@/api";
 
 /**
  * 窗口控制 Hook

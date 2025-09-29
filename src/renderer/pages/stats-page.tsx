@@ -14,8 +14,8 @@ import { AppLayout } from "@/components/layout/app-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, BarChart3, Calendar, Github, RefreshCw, TrendingUp } from "lucide-react";
-import { githubServices } from "@/services/github";
-import type { GitHubUser, GitHubRepository } from "@/services/github/types";
+import { githubAPI } from "@/api";
+import type { GitHubUser, GitHubRepository } from "@shared/types"
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   LanguageDistributionChart,
@@ -129,7 +129,8 @@ export default function StatsPage() {
 
     try {
       // 检查认证状态
-      const isAuthenticated = await githubServices.auth.isAuthenticated();
+      const authState = await githubAPI.getAuthState();
+      const isAuthenticated = authState.isAuthenticated;
       if (!isAuthenticated) {
         setState(prev => ({
           ...prev,
@@ -140,10 +141,10 @@ export default function StatsPage() {
       }
 
       // 获取用户信息
-      const user = await githubServices.user.getCurrentUser();
+      const user = await githubAPI.getCurrentUser();
 
       // 获取扩展统计数据
-      const statsData = await githubServices.star.getExtendedStats();
+      const statsData = await githubAPI.getStarredStats();
 
       setState({
         loading: false,

@@ -9,7 +9,7 @@ import RepositoryCard from "@/components/repository-card";
 import { useRepositoryStore } from "@/stores/repository-store";
 import type {
   GitHubRepository,
-} from "@/services/github/types";
+} from "@shared/types"
 
 interface RepositoryListProps {
   repositories: GitHubRepository[];

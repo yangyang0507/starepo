@@ -1,7 +1,7 @@
 import { safeStorage } from "electron";
-import { app } from "electron";
 import * as path from "path";
 import * as fs from "fs/promises";
+import * as os from "os";
 
 export interface SecureStorageItem {
   key: string;
@@ -24,7 +24,7 @@ export class SecureStorageService {
   private isInitialized = false;
 
   private constructor() {
-    this.storageDir = path.join(app.getPath("userData"), "secure-storage");
+    this.storageDir = path.join(os.homedir(), ".starepo", "secure-storage");
     this.metadataFile = path.join(this.storageDir, "metadata.json");
   }
 
