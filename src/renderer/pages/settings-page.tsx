@@ -7,8 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTheme } from "@/hooks/use-theme";
-import { githubAPI } from "@/api";
-import type { AuthState } from "@shared/types"
+import { useAuthStore } from "@/stores/auth-store";
 import { setAppLanguage } from "@/utils/language-helpers";
 import type { ThemeMode } from "@shared/types";
 import {
@@ -28,46 +27,22 @@ import {
   Sun,
   User
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 export default function SettingsPage() {
-  const [authState, setAuthState] = useState<AuthState | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showTokenManagement, setShowTokenManagement] = useState(false);
 
-  // 主题和语言 hooks
+  // Hooks
+  const { authState, refreshAuth, logout } = useAuthStore();
   const { theme, changeTheme, isLoading: themeLoading } = useTheme();
   const { i18n } = useTranslation();
-
-  useEffect(() => {
-    // 获取当前认证状态
-    const loadAuthState = async () => {
-      try {
-        const state = await githubAPI.getAuthState();
-        setAuthState(state);
-      } catch (error) {
-        console.error("加载认证状态失败:", error);
-      }
-    };
-
-    loadAuthState();
-
-    // TODO: 监听认证状态变化 (需要在 main 进程实现)
-    // const unsubscribe = githubAPI.addAuthListener((state) => {
-    //   setAuthState(state);
-    // });
-
-    // TODO: 返回清理函数
-    // return () => {
-    //   unsubscribe();
-    // };
-  }, []);
 
   const handleRefreshAuth = async () => {
     setIsLoading(true);
     try {
-      await githubAPI.refreshAuth();
+      await refreshAuth();
     } catch (error) {
       console.error("刷新认证失败:", error);
     } finally {
@@ -78,7 +53,7 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     setIsLoading(true);
     try {
-      await githubAPI.clearAuth();
+      await logout();
     } catch (error) {
       console.error("登出失败:", error);
     } finally {

@@ -27,7 +27,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
         </Link>
 
         <Link
-          to="/second-page"
+          to="/settings"
           className="flex flex-col items-center p-2 text-gray-600 transition-colors hover:text-blue-600"
           activeProps={{ className: "text-blue-600" }}
         >

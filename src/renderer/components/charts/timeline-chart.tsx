@@ -6,7 +6,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  TooltipProps,
   Legend,
   Area,
   AreaChart,
@@ -14,8 +13,20 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp } from "lucide-react";
 
+// 自定义 Tooltip 组件的类型定义
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    value: number;
+    name?: string;
+    dataKey?: string;
+    color?: string;
+  }>;
+  label?: string;
+}
+
 // 自定义 Tooltip 组件
-const CustomTooltip: React.FC<TooltipProps<number, string>> = ({ active, payload, label }) => {
+const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
       <div className="rounded-lg border bg-background p-3 shadow-md">

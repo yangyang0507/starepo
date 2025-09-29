@@ -108,3 +108,4 @@ out/
 # Local project configuration files
 .claude/
 .specify/
+specs/

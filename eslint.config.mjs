@@ -62,6 +62,10 @@ export default [
       
       // 通用规则
       "no-case-declarations": "error",
+
+      // Zustand store规则
+      "prefer-const": "error", // Zustand store应使用const声明
+      "no-var": "error", // 禁用var，使用let/const
     },
   },
 ];

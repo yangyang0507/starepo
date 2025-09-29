@@ -1,19 +1,24 @@
 import { create } from 'zustand';
-import { githubAPI } from '@/api';
-import type { AuthState } from "@shared/types"
+import { enhancedAuthAPI } from '@/api';
+import type { AuthState, AuthError, GitHubUser } from '@shared/types/auth';
 
 interface AuthStore {
   authState: AuthState;
   isLoading: boolean;
-  error: string | null;
+  error: AuthError | null;
   login: (token: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<boolean>;
   clearError: () => void;
   initAuth: () => Promise<void>;
+  // 新增的便捷方法
+  isAuthenticated: () => boolean;
+  getCurrentUser: () => GitHubUser | undefined;
+  // 内部方法（用于测试）
+  _setError?: (error: AuthError) => void;
 }
 
-export const useAuthStore = create<AuthStore>((set) => ({
+export const useAuthStore = create<AuthStore>((set, get) => ({
   authState: { isAuthenticated: false },
   isLoading: true,
   error: null,
@@ -22,13 +27,29 @@ export const useAuthStore = create<AuthStore>((set) => ({
     try {
       set({ isLoading: true, error: null });
 
-      await githubAPI.authenticateWithToken(token);
-      const newAuthState = await githubAPI.getAuthState();
-      set({ authState: newAuthState, isLoading: false });
-      return true;
+      const result = await enhancedAuthAPI.authenticateWithToken(token);
+      if (result.success) {
+        const newAuthState = await enhancedAuthAPI.getAuthState();
+        set({ authState: newAuthState, isLoading: false });
+        return true;
+      } else {
+        const authError: AuthError = {
+          code: 'AUTHENTICATION_FAILED',
+          message: result.error || '认证失败',
+          timestamp: new Date(),
+          recoverable: true,
+        };
+        set({ error: authError, isLoading: false });
+        return false;
+      }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '登录过程中发生错误';
-      set({ error: errorMessage, isLoading: false });
+      const authError: AuthError = {
+        code: 'NETWORK_ERROR',
+        message: err instanceof Error ? err.message : '登录过程中发生未知错误',
+        timestamp: new Date(),
+        recoverable: true,
+      };
+      set({ error: authError, isLoading: false });
       return false;
     }
   },
@@ -36,25 +57,30 @@ export const useAuthStore = create<AuthStore>((set) => ({
   logout: async (): Promise<void> => {
     try {
       set({ isLoading: true });
-      await githubAPI.clearAuth();
+      await enhancedAuthAPI.clearAuth();
       set({
         authState: { isAuthenticated: false },
         error: null,
         isLoading: false
       });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '登出失败';
-      set({ error: errorMessage, isLoading: false });
+      const authError: AuthError = {
+        code: 'LOGOUT_FAILED',
+        message: err instanceof Error ? err.message : '登出失败',
+        timestamp: new Date(),
+        recoverable: true,
+      };
+      set({ error: authError, isLoading: false });
     }
   },
 
   refreshAuth: async (): Promise<boolean> => {
     try {
-      set({ isLoading: true });
-      const success = await githubAPI.refreshAuth();
+      set({ isLoading: true, error: null });
+      const success = await enhancedAuthAPI.refreshAuth();
 
       if (success) {
-        const newAuthState = await githubAPI.getAuthState();
+        const newAuthState = await enhancedAuthAPI.getAuthState();
         set({ authState: newAuthState, isLoading: false });
       } else {
         set({ authState: { isAuthenticated: false }, isLoading: false });
@@ -62,9 +88,14 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
       return success;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '刷新认证失败';
+      const authError: AuthError = {
+        code: 'REFRESH_FAILED',
+        message: err instanceof Error ? err.message : '刷新认证失败',
+        timestamp: new Date(),
+        recoverable: true,
+      };
       set({
-        error: errorMessage,
+        error: authError,
         authState: { isAuthenticated: false },
         isLoading: false
       });
@@ -76,30 +107,43 @@ export const useAuthStore = create<AuthStore>((set) => ({
     set({ error: null });
   },
 
+  // 便捷方法
+  isAuthenticated: () => {
+    return get().authState.isAuthenticated;
+  },
+
+  getCurrentUser: () => {
+    return get().authState.user;
+  },
+
+  // 内部方法（主要用于测试）
+  _setError: (error: AuthError) => {
+    set({ error });
+  },
+
   initAuth: async () => {
     try {
-      const currentState = await githubAPI.getAuthState();
+      set({ isLoading: true, error: null });
 
-      if (currentState.isAuthenticated) {
-        // 验证token是否仍然有效
-        const isValid = await githubAPI.refreshAuth();
-        if (isValid) {
-          const updatedState = await githubAPI.getAuthState();
-          set({ authState: updatedState, isLoading: false });
-        } else {
-          set({ authState: { isAuthenticated: false }, isLoading: false });
-        }
-      } else {
-        set({ authState: { isAuthenticated: false }, isLoading: false });
-      }
+      await enhancedAuthAPI.initializeAuth();
+      const authState = await enhancedAuthAPI.getAuthState();
 
-      // TODO: 实现认证状态变化监听
-      // 由于重构到 main 进程，暂时移除监听器
+      set({
+        authState,
+        isLoading: false,
+        error: null
+      });
     } catch (err) {
       console.error('初始化认证状态失败:', err);
+      const authError: AuthError = {
+        code: 'INITIALIZATION_FAILED',
+        message: err instanceof Error ? err.message : '初始化认证状态失败',
+        timestamp: new Date(),
+        recoverable: true,
+      };
       set({
         authState: { isAuthenticated: false },
-        error: '初始化认证状态失败',
+        error: authError,
         isLoading: false
       });
     }

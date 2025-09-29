@@ -33,11 +33,11 @@ export default function GitHubAuthPage({
 
   const handleTokenSubmit = async (token: string) => {
     const success = await login(token);
-    
+
     if (success) {
       setCurrentStep("success");
     } else {
-      onAuthFailure?.(error || "认证失败，请检查Token是否正确");
+      onAuthFailure?.(error?.message || "认证失败，请检查Token是否正确");
     }
   };
 
@@ -58,7 +58,7 @@ export default function GitHubAuthPage({
   const getCompletedSteps = (): AuthStep[] => {
     const completed: AuthStep[] = [];
     if (currentStep !== "selector") completed.push("selector");
-    if (currentStep === "success" && authState?.authMethod === "token") {
+    if (currentStep === "success" && authState?.isAuthenticated) {
       completed.push("token");
     }
     return completed;
@@ -80,11 +80,10 @@ export default function GitHubAuthPage({
             onTokenSubmit={handleTokenSubmit}
             onBack={handleBackToSelector}
             isLoading={isLoading}
-            error={error ?? undefined}
+            error={error?.message ?? undefined}
           />
         );
 
-      
       case "success":
         return (
           <div className="space-y-6 text-center">
@@ -174,7 +173,7 @@ export default function GitHubAuthPage({
     <OnboardingWrapper
       currentStep={currentStep}
       completedSteps={getCompletedSteps()}
-      error={error ?? undefined}
+      error={error?.message ?? undefined}
       isLoading={isLoading}
       onRetry={handleRetry}
     >
