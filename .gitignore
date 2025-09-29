@@ -103,5 +103,8 @@ out/
 # IDE
 .idea/
 .vscode/
-.qoder/
 .trae/
+
+# Local project configuration files
+.claude/
+.specify/

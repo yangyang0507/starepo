@@ -9,9 +9,7 @@ import {
   Lock,
   Tag,
 } from "lucide-react";
-import type { GitHubRepository, ViewOptions, StarredRepository } from "@/services/github/types";
-import { indexedDBStorage } from "@/services/indexeddb-storage";
-import { octokitManager } from "@/services/github/octokit-manager";
+import type { GitHubRepository, ViewOptions } from "@shared/types"
 
 interface RepositoryCardProps {
   repository: GitHubRepository;
@@ -98,79 +96,13 @@ const RepositoryCard: React.FC<RepositoryCardProps> = ({
       try {
         if (isStarred && onUnstar) {
           await onUnstar(repository);
-          // unstar 操作成功后，从 IndexedDB 中删除这条数据
-          try {
-            const octokit = octokitManager.getOctokit();
-            if (octokit) {
-              const userResponse = await octokit.rest.users.getAuthenticated();
-              const userLogin = userResponse.data.login;
-
-              // 从 IndexedDB 中删除这条仓库数据
-              const cachedData = await indexedDBStorage.loadRepositories(userLogin);
-              if (cachedData) {
-                const updatedRepositories = cachedData.repositories.filter(
-                  (repo: StarredRepository) => repo.id !== repository.id
-                );
-
-                if (updatedRepositories.length !== cachedData.repositories.length) {
-                  await indexedDBStorage.saveRepositories(userLogin, updatedRepositories);  
-                  console.log(`已从 IndexedDB 中删除仓库 ${repository.name}，unstar 操作成功`);
-                }
-              }
-            }
-          } catch (cacheError) {
-            console.warn("更新 IndexedDB 失败:", cacheError);
-          }
+          console.log(`取消收藏仓库 ${repository.name} 成功`);
         } else if (!isStarred && onStar) {
           await onStar(repository);
-          // star 操作成功后，添加到 IndexedDB 中
-          try {
-            const octokit = octokitManager.getOctokit();
-            if (octokit) {
-              const userResponse = await octokit.rest.users.getAuthenticated();
-              const userLogin = userResponse.data.login;
-
-              // 获取当前时间作为 starred_at
-              const starredAt = new Date().toISOString();
-
-              // 创建 StarredRepository 对象
-              const starredRepo: StarredRepository = {
-                ...repository,
-                starred_at: starredAt,
-              };
-
-              // 加载现有数据并添加新仓库
-              const cachedData = await indexedDBStorage.loadRepositories(userLogin);
-              let updatedRepositories: StarredRepository[] = [];
-
-              if (cachedData) {
-                // 检查是否已经存在，避免重复添加
-                const existingIndex = cachedData.repositories.findIndex(
-                  (repo: StarredRepository) => repo.id === repository.id
-                );
-
-                if (existingIndex === -1) {
-                  // 不存在，添加到列表开头（最新收藏的排在前面）
-                  updatedRepositories = [starredRepo, ...cachedData.repositories];
-                } else {
-                  // 已存在，更新 starred_at 时间
-                  updatedRepositories = [...cachedData.repositories];
-                  updatedRepositories[existingIndex] = starredRepo;
-                }
-              } else {
-                // 没有缓存数据，创建新列表
-                updatedRepositories = [starredRepo];
-              }
-
-              await indexedDBStorage.saveRepositories(userLogin, updatedRepositories);
-              console.log(`已添加到 IndexedDB 中，star 操作成功`);
-            }
-          } catch (cacheError) {
-            console.warn("更新 IndexedDB 失败:", cacheError);
-          }
+          console.log(`收藏仓库 ${repository.name} 成功`);
         }
       } catch (error) {
-        console.error("Star operation failed:", error);
+        console.error("Star 操作失败:", error);
       } finally {
         setIsStarring(false);
       }

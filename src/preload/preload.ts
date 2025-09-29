@@ -73,12 +73,122 @@ const languageAPI = {
   },
 };
 
-// 未来的 API 接口 (暂时为空实现)
+// 搜索 API
+const searchAPI = {
+  searchRepositories: (options: {
+    query?: string;
+    language?: string;
+    minStars?: number;
+    maxStars?: number;
+    limit?: number;
+    sortBy?: 'relevance' | 'stars' | 'updated' | 'created';
+    sortOrder?: 'asc' | 'desc';
+  }): Promise<APIResponse<{
+    repositories: any[];
+    totalCount: number;
+    searchTime: number;
+  }>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SEARCH.SEARCH_REPOSITORIES, options),
+
+  getSearchSuggestions: (input: string, limit?: number): Promise<APIResponse<{
+    terms: string[];
+    languages: string[];
+    topics: string[];
+  }>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SEARCH.GET_SEARCH_SUGGESTIONS, input, limit),
+
+  getPopularSearchTerms: (limit?: number): Promise<APIResponse<{
+    languages: Array<{ name: string; count: number }>;
+    topics: Array<{ name: string; count: number }>;
+  }>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SEARCH.GET_POPULAR_SEARCH_TERMS, limit),
+
+  getSearchStats: (): Promise<APIResponse<{
+    totalRepositories: number;
+    totalUsers: number;
+    indexSize: number;
+  }>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SEARCH.GET_SEARCH_STATS),
+};
+
+// GitHub API
 const githubAPI = {
-  // TODO: 实现 GitHub 相关 API
-  authenticate: () =>
-    Promise.resolve({ success: false, error: "Not implemented" }),
-  getStars: () => Promise.resolve({ success: false, error: "Not implemented" }),
+  // 认证相关
+  authenticateWithToken: (token: string): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.AUTHENTICATE_WITH_TOKEN, token),
+
+  validateToken: (token: string): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.VALIDATE_TOKEN, token),
+
+  getAuthState: (): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_AUTH_STATE),
+
+  refreshAuth: (): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.REFRESH_AUTH),
+
+  clearAuth: (): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.CLEAR_AUTH),
+
+  // 用户相关
+  getCurrentUser: (): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_CURRENT_USER),
+
+  // Star 相关
+  getStarredRepositories: (options: any): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_STARRED_REPOSITORIES, options),
+
+  getUserStarredRepositories: (username: string, options: any): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_USER_STARRED_REPOSITORIES, username, options),
+
+  checkIfStarred: (owner: string, repo: string): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.CHECK_IF_STARRED, owner, repo),
+
+  starRepository: (owner: string, repo: string): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.STAR_REPOSITORY, owner, repo),
+
+  unstarRepository: (owner: string, repo: string): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.UNSTAR_REPOSITORY, owner, repo),
+
+  getAllStarredRepositories: (options: any): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_ALL_STARRED_REPOSITORIES, options),
+
+  getStarredStats: (): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_STARRED_STATS),
+
+  searchStarredRepositories: (query: string, options: any): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.SEARCH_STARRED_REPOSITORIES, query, options),
+
+  // 批量操作
+  checkMultipleStarStatus: (repositories: Array<{ owner: string; repo: string }>): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.CHECK_MULTIPLE_STAR_STATUS, repositories),
+
+  starMultipleRepositories: (repositories: Array<{ owner: string; repo: string }>): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.STAR_MULTIPLE_REPOSITORIES, repositories),
+
+  unstarMultipleRepositories: (repositories: Array<{ owner: string; repo: string }>): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.UNSTAR_MULTIPLE_REPOSITORIES, repositories),
+
+  // 向量数据库集成
+  initializeDatabase: (): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.INITIALIZE_DATABASE),
+
+  getAllStarredRepositoriesEnhanced: (options: any): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_ALL_STARRED_REPOSITORIES_ENHANCED, options),
+
+  searchRepositoriesSemanticially: (query: string, limit?: number, filters?: any): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.SEARCH_REPOSITORIES_SEMANTICALLY, query, limit, filters),
+
+  getRepositoriesByLanguageFromDatabase: (language: string, limit?: number): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_REPOSITORIES_BY_LANGUAGE_FROM_DB, language, limit),
+
+  getRepositoriesByStarRangeFromDatabase: (minStars: number, maxStars: number, limit?: number): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_REPOSITORIES_BY_STAR_RANGE_FROM_DB, minStars, maxStars, limit),
+
+  getDatabaseStats: (): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_DATABASE_STATS),
+
+  syncRepositoriesToDatabase: (repositories: any[]): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GITHUB.SYNC_REPOSITORIES_TO_DATABASE, repositories),
 };
 
 // 安全存储通道常量
@@ -184,6 +294,7 @@ const electronAPI = {
   window: windowAPI,
   theme: themeAPI,
   language: languageAPI,
+  search: searchAPI,
   github: githubAPI,
   database: databaseAPI,
   ai: aiAPI,

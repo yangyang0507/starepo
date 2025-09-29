@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Star, GitFork, Eye, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
-import type { GitHubRepository } from "@/services/github/types";
+import type { GitHubRepository } from "@shared/types"
 
 interface RepositoriesRankingProps {
   repositories: GitHubRepository[];

@@ -1,73 +1,15 @@
 import { retry } from "@octokit/plugin-retry";
 import { throttling } from "@octokit/plugin-throttling";
 import { Octokit } from "octokit";
+import type {
+  GitHubClientConfig,
+  RateLimitInfo,
+  GitHubUser,
+  GitHubRepository,
+} from "./types";
 
 // 扩展 Octokit 功能
 const MyOctokit = Octokit.plugin(throttling, retry);
-
-export interface GitHubClientConfig {
-  authMethod: "token";
-  token?: string;
-  baseUrl?: string;
-  userAgent?: string;
-  timeout?: number;
-}
-
-export interface RateLimitInfo {
-  limit: number;
-  remaining: number;
-  reset: Date;
-  used: number;
-}
-
-export interface GitHubUser {
-  id: number;
-  login: string;
-  name: string | null;
-  email: string | null;
-  avatar_url: string;
-  html_url: string;
-  bio: string | null;
-  company: string | null;
-  location: string | null;
-  blog: string | null;
-  public_repos: number;
-  public_gists: number;
-  followers: number;
-  following: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface GitHubRepository {
-  id: number;
-  name: string;
-  full_name: string;
-  description: string | null;
-  html_url: string;
-  clone_url: string;
-  ssh_url: string;
-  language: string | null;
-  stargazers_count: number;
-  watchers_count: number;
-  forks_count: number;
-  open_issues_count: number;
-  created_at: string;
-  updated_at: string;
-  pushed_at: string;
-  size: number;
-  default_branch: string;
-  topics: string[];
-  archived: boolean;
-  disabled: boolean;
-  private: boolean;
-  fork: boolean;
-  owner: {
-    id: number;
-    login: string;
-    avatar_url: string;
-  };
-}
 
 export class OctokitManager {
   private static instance: OctokitManager;
@@ -90,14 +32,7 @@ export class OctokitManager {
     try {
       this.config = config;
 
-      const octokitConfig: {
-        userAgent: string;
-        baseUrl: string;
-        request: { timeout: number };
-        throttle: Record<string, unknown>;
-        retry?: Record<string, unknown>;
-        auth?: string;
-      } = {
+      const octokitConfig: any = {
         userAgent: config.userAgent || "Starepo/1.0.0",
         baseUrl: config.baseUrl || "https://api.github.com",
         request: {
@@ -251,7 +186,7 @@ export class OctokitManager {
       });
       await this.updateRateLimitInfo();
       return true;
-    } catch (error: unknown) {
+    } catch (error: any) {
       if (error.status === 404) {
         return false;
       }
@@ -322,10 +257,25 @@ export class OctokitManager {
     try {
       const { data: rateLimit } = await this.octokit.rest.rateLimit.get();
       this.rateLimitInfo = {
-        limit: rateLimit.rate.limit,
-        remaining: rateLimit.rate.remaining,
-        reset: new Date(rateLimit.rate.reset * 1000),
-        used: rateLimit.rate.used,
+        core: {
+          limit: rateLimit.resources.core.limit,
+          remaining: rateLimit.resources.core.remaining,
+          reset: new Date(rateLimit.resources.core.reset * 1000),
+          used: rateLimit.resources.core.used,
+        },
+        search: {
+          limit: rateLimit.resources.search.limit,
+          remaining: rateLimit.resources.search.remaining,
+          reset: new Date(rateLimit.resources.search.reset * 1000),
+          used: rateLimit.resources.search.used,
+        },
+        graphql: {
+          limit: rateLimit.resources.graphql?.limit || 0,
+          remaining: rateLimit.resources.graphql?.remaining || 0,
+          reset: new Date((rateLimit.resources.graphql?.reset || 0) * 1000),
+          used: rateLimit.resources.graphql?.used || 0,
+        },
+        lastUpdated: new Date(),
       };
     } catch (error) {
       console.warn("获取速率限制信息失败:", error);

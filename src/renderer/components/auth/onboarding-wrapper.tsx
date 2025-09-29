@@ -1,5 +1,5 @@
 import React from "react";
-import { AuthStep } from "@/services/github/types";
+import { AuthStep } from "@shared/types"
 import { IconMessage2Star } from "@tabler/icons-react";
 
 interface OnboardingWrapperProps {

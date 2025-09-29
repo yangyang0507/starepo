@@ -1,7 +1,7 @@
 import React from "react";
 import { RouterProvider } from "@tanstack/react-router";
 import { router } from "../../routes/router";
-import { AuthState } from "../../services/github/types";
+import { AuthState } from "../../api/github/types";
 
 interface MainAppProps {
   authState: AuthState;

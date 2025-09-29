@@ -1,5 +1,5 @@
 import { ThemeMode } from "@shared/types";
-import { themeAPI } from "@/services/api";
+import { themeAPI } from "@/api";
 
 const THEME_KEY = "theme";
 

@@ -64,6 +64,7 @@
   },
   "dependencies": {
     "@icons-pack/react-simple-icons": "^13.7.0",
+    "@lancedb/lancedb": "^0.22.1",
     "@octokit/auth-token": "^6.0.0",
     "@octokit/plugin-retry": "^8.0.1",
     "@octokit/plugin-throttling": "^11.0.1",
@@ -83,6 +84,7 @@
     "@tanstack/react-router": "^1.130.12",
     "@tanstack/router-devtools": "^1.130.13",
     "@vitejs/plugin-react": "^4.7.0",
+    "apache-arrow": "^18.1.0",
     "babel-plugin-react-compiler": "^19.0.0-beta-e993439-20250328",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

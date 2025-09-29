@@ -1,13 +1,12 @@
 import { octokitManager } from "./octokit-manager";
-import { indexedDBStorage } from "../indexeddb-storage";
+import { lancedbService } from "../database/lancedb-service";
 import type {
   GitHubRepository,
   GitHubError,
   PaginationInfo,
   StarredRepository,
-  GitHubAPIStarredItem,
-  GitHubAPIRepository,
 } from "./types";
+import type { SearchResult } from "../database/types";
 
 /**
  * GitHub Star 服务类
@@ -52,9 +51,9 @@ export class GitHubStarService {
           },
         });
 
-      const repositories: StarredRepository[] = data.map((item: GitHubAPIStarredItem) => ({
-        ...this.mapToGitHubRepository(item.repo),
-        starred_at: item.starred_at,
+      const repositories: StarredRepository[] = data.map((item: any) => ({
+        ...this.mapToGitHubRepository(item.repo || item),
+        starred_at: item.starred_at || new Date().toISOString(),
       }));
 
       const pagination: PaginationInfo = {
@@ -109,7 +108,7 @@ export class GitHubStarService {
         page,
       });
 
-      const repositories: GitHubRepository[] = data.map((repo: GitHubAPIRepository) =>
+      const repositories: GitHubRepository[] = data.map((repo: any) =>
         this.mapToGitHubRepository(repo),
       );
 
@@ -145,7 +144,7 @@ export class GitHubStarService {
           repo,
         });
         return true;
-      } catch (error: unknown) {
+      } catch (error: any) {
         if (error.status === 404) {
           return false;
         }
@@ -229,13 +228,13 @@ export class GitHubStarService {
       try {
         await this.starRepository(owner, repo);
         results.push({ owner, repo, success: true });
-      } catch (error: unknown) {
+      } catch (error: any) {
         console.warn(`收藏仓库 ${owner}/${repo} 失败:`, error);
         results.push({
           owner,
           repo,
           success: false,
-          error: error.message || "未知错误",
+          error: error instanceof Error ? error.message : "未知错误",
         });
       }
     }
@@ -257,13 +256,13 @@ export class GitHubStarService {
       try {
         await this.unstarRepository(owner, repo);
         results.push({ owner, repo, success: true });
-      } catch (error: unknown) {
+      } catch (error: any) {
         console.warn(`取消收藏仓库 ${owner}/${repo} 失败:`, error);
         results.push({
           owner,
           repo,
           success: false,
-          error: error.message || "未知错误",
+          error: error instanceof Error ? error.message : "未知错误",
         });
       }
     }
@@ -272,56 +271,29 @@ export class GitHubStarService {
   }
 
   /**
-   * 获取所有收藏的仓库（支持缓存）
+   * 获取所有收藏的仓库
    */
   async getAllStarredRepositories(
     options: {
       onProgress?: (loaded: number, total?: number) => void;
       batchSize?: number;
-      forceRefresh?: boolean; // 强制从API刷新
-      useCache?: boolean; // 是否使用缓存
+      forceRefresh?: boolean;
     } = {},
   ): Promise<{
     repositories: StarredRepository[];
     totalLoaded: number;
-    fromCache?: boolean;
   }> {
     const {
       onProgress,
       batchSize = 100,
-      forceRefresh = false,
-      useCache = true
     } = options;
 
     try {
-      // 获取当前用户信息
       const octokit = octokitManager.getOctokit();
       if (!octokit) {
         throw new Error("GitHub客户端未初始化，请先进行认证");
       }
 
-      // 获取当前用户信息用于缓存键
-      const userResponse = await octokit.rest.users.getAuthenticated();
-      const userLogin = userResponse.data.login;
-
-      // 检查缓存（除非强制刷新或禁用缓存）
-      if (useCache && !forceRefresh) {
-        try {
-          const cachedData = await indexedDBStorage.loadRepositories(userLogin);
-          if (cachedData && indexedDBStorage.isCacheFresh(cachedData.metadata)) {
-            console.log(`从缓存加载 ${cachedData.repositories.length} 个仓库`);
-            return {
-              repositories: cachedData.repositories,
-              totalLoaded: cachedData.repositories.length,
-              fromCache: true,
-            };
-          }
-        } catch (cacheError) {
-          console.warn("读取缓存失败，将从API获取:", cacheError);
-        }
-      }
-
-      // 从API获取数据
       console.log("从GitHub API获取仓库数据...");
       const allRepositories: StarredRepository[] = [];
       let page = 1;
@@ -374,17 +346,9 @@ export class GitHubStarService {
         }
       }
 
-      // 保存到缓存（异步，不阻塞返回）
-      if (useCache) {
-        indexedDBStorage.saveRepositories(userLogin, allRepositories)
-          .then(() => console.log(`已保存 ${allRepositories.length} 个仓库到缓存`))
-          .catch(error => console.warn("保存缓存失败:", error));
-      }
-
       return {
         repositories: allRepositories,
         totalLoaded,
-        fromCache: false,
       };
     } catch (error) {
       throw this.handleError(error, "获取所有收藏仓库失败");
@@ -447,212 +411,6 @@ export class GitHubStarService {
       };
     } catch (error) {
       throw this.handleError(error, "获取收藏仓库统计信息失败");
-    }
-  }
-
-  /**
-   * 获取时间序列统计数据
-   */
-  async getStarredTimeSeriesStats(
-    period: 'day' | 'week' | 'month' | 'year' = 'month',
-    limit: number = 12
-  ): Promise<{
-    period: string;
-    data: Array<{
-      date: string;
-      count: number;
-      cumulative: number;
-    }>;
-  }> {
-    try {
-      // 获取所有收藏的仓库数据
-      const { repositories: allStarred } = await this.getAllStarredRepositories({
-        forceRefresh: false,
-        useCache: true,
-      });
-
-      // 按收藏时间排序（最新的在前）
-      const sortedRepos = allStarred.sort((a, b) =>
-        new Date(b.starred_at).getTime() - new Date(a.starred_at).getTime()
-      );
-
-      // 生成时间序列数据
-      const timeSeries: Array<{
-        date: string;
-        count: number;
-        cumulative: number;
-      }> = [];
-
-      const now = new Date();
-      let cumulative = 0;
-
-      // 根据周期生成时间点
-      for (let i = limit - 1; i >= 0; i--) {
-        let periodStart: Date;
-        let periodEnd: Date;
-        let periodLabel: string;
-
-        switch (period) {
-          case 'day':
-            periodStart = new Date(now);
-            periodStart.setDate(now.getDate() - i);
-            periodStart.setHours(0, 0, 0, 0);
-
-            periodEnd = new Date(periodStart);
-            periodEnd.setHours(23, 59, 59, 999);
-
-            periodLabel = periodStart.toISOString().split('T')[0];
-            break;
-
-          case 'week':
-            periodStart = new Date(now);
-            periodStart.setDate(now.getDate() - (i * 7) - now.getDay());
-            periodStart.setHours(0, 0, 0, 0);
-
-            periodEnd = new Date(periodStart);
-            periodEnd.setDate(periodStart.getDate() + 6);
-            periodEnd.setHours(23, 59, 59, 999);
-
-            periodLabel = `${periodStart.getFullYear()}-W${Math.ceil((periodStart.getTime() - new Date(periodStart.getFullYear(), 0, 1).getTime()) / (7 * 24 * 60 * 60 * 1000))}`;
-            break;
-
-          case 'month':
-            periodStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-
-            periodEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
-            periodEnd.setHours(23, 59, 59, 999);
-
-            periodLabel = periodStart.toISOString().slice(0, 7);
-            break;
-
-          case 'year':
-            periodStart = new Date(now.getFullYear() - i, 0, 1);
-
-            periodEnd = new Date(now.getFullYear() - i, 11, 31);
-            periodEnd.setHours(23, 59, 59, 999);
-
-            periodLabel = periodStart.getFullYear().toString();
-            break;
-
-          default:
-            periodStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            periodEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
-            periodEnd.setHours(23, 59, 59, 999);
-            periodLabel = periodStart.toISOString().slice(0, 7);
-        }
-
-        // 统计该时间段内的收藏数量
-        const periodCount = sortedRepos.filter(repo => {
-          const starredTime = new Date(repo.starred_at);
-          return starredTime >= periodStart && starredTime <= periodEnd;
-        }).length;
-
-        cumulative += periodCount;
-
-        timeSeries.push({
-          date: periodLabel,
-          count: periodCount,
-          cumulative: cumulative,
-        });
-      }
-
-      return {
-        period,
-        data: timeSeries,
-      };
-    } catch (error) {
-      throw this.handleError(error, "获取时间序列统计数据失败");
-    }
-  }
-
-  /**
-   * 获取扩展的统计信息（包含时间序列）
-   */
-  async getExtendedStats(): Promise<{
-    basic: {
-      total_count: number;
-      languages: Record<string, number>;
-      topics: Record<string, number>;
-      most_starred: GitHubRepository | null;
-      recently_starred: GitHubRepository | null;
-    };
-    timeSeries: {
-      monthly: Array<{
-        date: string;
-        count: number;
-        cumulative: number;
-      }>;
-      weekly: Array<{
-        date: string;
-        count: number;
-        cumulative: number;
-      }>;
-    };
-    insights: {
-      avgStarsPerMonth: number;
-      mostActiveMonth: string;
-      topLanguages: Array<{ name: string; count: number; percentage: number }>;
-      topTopics: Array<{ name: string; count: number; percentage: number }>;
-    };
-  }> {
-    try {
-      // 获取基础统计
-      const basic = await this.getStarredRepositoriesStats();
-
-      // 获取时间序列数据
-      const [monthlyData, weeklyData] = await Promise.all([
-        this.getStarredTimeSeriesStats('month', 12),
-        this.getStarredTimeSeriesStats('week', 12),
-      ]);
-
-      // 计算洞察信息
-      const totalRepos = basic.total_count;
-
-      // 计算每月平均收藏数
-      const avgStarsPerMonth = monthlyData.data.length > 0
-        ? monthlyData.data.reduce((sum, item) => sum + item.count, 0) / monthlyData.data.length
-        : 0;
-
-      // 找到最活跃的月份
-      const mostActiveMonth = monthlyData.data.length > 0
-        ? monthlyData.data.reduce((max, current) => current.count > max.count ? current : max).date
-        : '';
-
-      // 计算热门语言占比
-      const topLanguages = Object.entries(basic.languages)
-        .map(([name, count]) => ({
-          name,
-          count,
-          percentage: totalRepos > 0 ? (count / totalRepos) * 100 : 0,
-        }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 10);
-
-      // 计算热门主题占比
-      const topTopics = Object.entries(basic.topics)
-        .map(([name, count]) => ({
-          name,
-          count,
-          percentage: totalRepos > 0 ? (count / totalRepos) * 100 : 0,
-        }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 10);
-
-      return {
-        basic,
-        timeSeries: {
-          monthly: monthlyData.data,
-          weekly: weeklyData.data,
-        },
-        insights: {
-          avgStarsPerMonth: Math.round(avgStarsPerMonth * 100) / 100,
-          mostActiveMonth,
-          topLanguages,
-          topTopics,
-        },
-      };
-    } catch (error) {
-      throw this.handleError(error, "获取扩展统计信息失败");
     }
   }
 
@@ -738,7 +496,7 @@ export class GitHubStarService {
   /**
    * 将API返回的仓库数据映射为GitHubRepository接口
    */
-  private mapToGitHubRepository(repo: GitHubAPIRepository): GitHubRepository {
+  private mapToGitHubRepository(repo: any): GitHubRepository {
     return {
       id: repo.id,
       name: repo.name,
@@ -774,20 +532,213 @@ export class GitHubStarService {
    * 错误处理
    */
   private handleError(error: unknown, message: string): GitHubError {
-    console.error(message, error);
+    const gitHubError: GitHubError = {
+      message: `${message}: ${error instanceof Error ? error.message : "未知错误"}`,
+    };
 
-    if (error.response) {
-      return {
-        message: `${message}: ${error.response.data?.message || error.message}`,
-        status: error.response.status,
-        code: error.response.data?.errors?.[0]?.code,
-        documentation_url: error.response.data?.documentation_url,
-      };
+    if (error && typeof error === 'object' && 'status' in error) {
+      gitHubError.status = (error as any).status;
     }
 
-    return {
-      message: `${message}: ${error.message || "未知错误"}`,
-    };
+    console.error(gitHubError.message, error);
+    return gitHubError;
+  }
+
+  /**
+   * 初始化 Chroma 数据库
+   */
+  async initializeDatabase(): Promise<void> {
+    try {
+      await lancedbService.initialize();
+      console.log('ChromaDB 数据库初始化成功');
+    } catch (error) {
+      console.error('ChromaDB 数据库初始化失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 同步仓库数据到 Chroma 数据库
+   */
+  async syncRepositoriesToDatabase(repositories: GitHubRepository[]): Promise<void> {
+    try {
+      await lancedbService.upsertRepositories(repositories);
+      console.log(`已同步 ${repositories.length} 个仓库到向量数据库`);
+    } catch (error) {
+      console.error('同步仓库到数据库失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 从数据库获取所有仓库
+   */
+  async getRepositoriesFromDatabase(limit?: number, offset?: number): Promise<GitHubRepository[]> {
+    try {
+      return await lancedbService.getAllRepositories(limit, offset);
+    } catch (error) {
+      console.error('从数据库获取仓库失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 语义搜索仓库（基于向量相似度）
+   */
+  async searchRepositoriesSemanticially(
+    query: string,
+    limit: number = 10,
+    filters?: {
+      language?: string;
+      minStars?: number;
+      maxStars?: number;
+    }
+  ): Promise<SearchResult<GitHubRepository>> {
+    try {
+      const where: any = {};
+
+      if (filters?.language) {
+        where.language = filters.language;
+      }
+
+      if (filters?.minStars !== undefined || filters?.maxStars !== undefined) {
+        where.stargazers_count = {};
+        if (filters.minStars !== undefined) {
+          where.stargazers_count["$gte"] = filters.minStars;
+        }
+        if (filters.maxStars !== undefined) {
+          where.stargazers_count["$lte"] = filters.maxStars;
+        }
+      }
+
+      return await lancedbService.searchRepositories(query, limit, where);
+    } catch (error) {
+      console.error('语义搜索仓库失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 根据编程语言获取仓库
+   */
+  async getRepositoriesByLanguageFromDatabase(language: string, limit?: number): Promise<GitHubRepository[]> {
+    try {
+      return await lancedbService.getRepositoriesByLanguage(language, limit);
+    } catch (error) {
+      console.error('从数据库按语言获取仓库失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 根据 Star 数量范围获取仓库
+   */
+  async getRepositoriesByStarRangeFromDatabase(
+    minStars: number,
+    maxStars: number,
+    limit?: number
+  ): Promise<GitHubRepository[]> {
+    try {
+      return await lancedbService.getRepositoriesByStarRange(minStars, maxStars, limit);
+    } catch (error) {
+      console.error('从数据库按 Star 范围获取仓库失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取数据库统计信息
+   */
+  async getDatabaseStats(): Promise<{
+    repositoriesCount: number;
+    usersCount: number;
+  }> {
+    try {
+      return await lancedbService.getStats();
+    } catch (error) {
+      console.error('获取数据库统计信息失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 增强版的获取所有 starred 仓库（结合 API 和数据库）
+   */
+  async getAllStarredRepositoriesEnhanced(options: {
+    forceRefresh?: boolean;
+    useDatabase?: boolean;
+    onProgress?: (loaded: number, total?: number) => void;
+    batchSize?: number;
+  } = {}): Promise<{
+    repositories: GitHubRepository[];
+    totalLoaded: number;
+    fromCache: boolean;
+    stats?: any;
+  }> {
+    const { forceRefresh = false, useDatabase = true, onProgress, batchSize = 100 } = options;
+
+    try {
+      // 初始化数据库
+      if (useDatabase) {
+        await this.initializeDatabase();
+      }
+
+      let repositories: GitHubRepository[] = [];
+      let fromCache = false;
+
+      // 如果不强制刷新且使用数据库，先尝试从数据库获取
+      if (!forceRefresh && useDatabase) {
+        try {
+          const dbRepositories = await this.getRepositoriesFromDatabase();
+          if (dbRepositories.length > 0) {
+            repositories = dbRepositories;
+            fromCache = true;
+            console.log(`从数据库加载了 ${repositories.length} 个仓库`);
+          }
+        } catch (dbError) {
+          console.warn('从数据库加载仓库失败，将从 API 获取:', dbError);
+        }
+      }
+
+      // 如果数据库中没有数据或强制刷新，从 API 获取
+      if (repositories.length === 0 || forceRefresh) {
+        const apiResult = await this.getAllStarredRepositories({
+          batchSize,
+          onProgress
+        });
+        repositories = apiResult.repositories;
+        fromCache = false;
+
+        // 同步到数据库
+        if (useDatabase && repositories.length > 0) {
+          try {
+            await this.syncRepositoriesToDatabase(repositories);
+          } catch (syncError) {
+            console.warn('同步仓库到数据库失败:', syncError);
+          }
+        }
+      }
+
+      // 获取统计信息
+      let stats;
+      if (useDatabase) {
+        try {
+          stats = await this.getDatabaseStats();
+        } catch (statsError) {
+          console.warn('获取数据库统计信息失败:', statsError);
+        }
+      }
+
+      return {
+        repositories,
+        totalLoaded: repositories.length,
+        fromCache,
+        stats
+      };
+    } catch (error) {
+      console.error('获取增强版 starred 仓库失败:', error);
+      throw error;
+    }
   }
 }
 

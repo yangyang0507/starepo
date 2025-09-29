@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/utils/tailwind";
-import type { AuthMethodOption } from "@/services/github/types";
+import type { AuthMethodOption } from "@/api";
 
 interface GitHubAuthSelectorProps {
   onAuthMethodSelect: (method: "token") => void;

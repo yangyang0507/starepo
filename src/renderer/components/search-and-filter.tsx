@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   Search,
   Filter,
@@ -7,13 +7,29 @@ import {
   Star,
   GitFork,
   Code,
+  History,
+  Flame,
+  BarChart,
 } from "lucide-react";
-import type { FilterOptions, ViewOptions } from "@/services/github/types";
+import type {
+  FilterOptions,
+  ViewOptions,
+  SearchHistoryItem,
+} from "@shared/types";
+import { searchAPI } from "@/api";
+
+// 搜索建议类型定义
+interface SearchSuggestion {
+  text: string;
+  type: 'term' | 'language' | 'topic';
+  count?: number;
+}
+import { SearchAnalytics } from "./search-analytics";
 
 interface SearchAndFilterProps {
   onSearch: (query: string) => void;
-  onFilterChange: (filters: FilterOptions) => void;
-  onViewChange: (view: ViewOptions) => void;
+  onFilterChange: (filters: Partial<FilterOptions>) => void;
+  onViewChange: (view: Partial<ViewOptions>) => void;
   loading?: boolean;
   totalCount?: number;
   className?: string;
@@ -69,11 +85,43 @@ export const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
     showStats: true,
     showTopics: true,
   });
+  const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
+  const [isSuggestionsVisible, setIsSuggestionsVisible] = useState(false);
+  const [isHistoryVisible, setIsHistoryVisible] = useState(false);
+  const [isAnalyticsVisible, setIsAnalyticsVisible] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<SearchHistoryItem[]>([]);
+  const [popularSearches, setPopularSearches] = useState<SearchSuggestion[]>([]);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   // 搜索防抖
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(
     null,
   );
+  const [suggestionTimeout, setSuggestionTimeout] =
+    useState<NodeJS.Timeout | null>(null);
+
+  const fetchSuggestions = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    try {
+      const result = await searchAPI.getSearchSuggestions(query, 10);
+      // 将新的 API 结果转换为组件期望的格式
+      const suggestions: SearchSuggestion[] = [
+        ...result.terms.map(term => ({ text: term, type: 'term' as const })),
+        ...result.languages.map(lang => ({ text: lang, type: 'language' as const })),
+        ...result.topics.map(topic => ({ text: topic, type: 'topic' as const }))
+      ];
+      setSuggestions(suggestions);
+      if (suggestions.length > 0) {
+        setIsSuggestionsVisible(true);
+      }
+    } catch (error) {
+      console.error('获取搜索建议失败:', error);
+      setSuggestions([]);
+    }
+  }, []);
 
   const handleSearchChange = useCallback(
     (value: string) => {
@@ -82,15 +130,85 @@ export const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
       if (searchTimeout) {
         clearTimeout(searchTimeout);
       }
+      if (suggestionTimeout) {
+        clearTimeout(suggestionTimeout);
+      }
 
-      const timeout = setTimeout(() => {
+      const newSearchTimeout = setTimeout(() => {
         onSearch(value);
       }, 300);
 
-      setSearchTimeout(timeout);
+      const newSuggestionTimeout = setTimeout(() => {
+        fetchSuggestions(value);
+      }, 150); // Shorter delay for suggestions
+
+      setSearchTimeout(newSearchTimeout);
+      setSuggestionTimeout(newSuggestionTimeout);
     },
-    [onSearch, searchTimeout],
+    [onSearch, searchTimeout, suggestionTimeout, fetchSuggestions],
   );
+
+  const handleSuggestionClick = (suggestion: SearchSuggestion) => {
+    handleSearchChange(suggestion.text);
+    setIsSuggestionsVisible(false);
+    setSuggestions([]);
+  };
+
+  const handleHistoryClick = (query: string) => {
+    handleSearchChange(query);
+    setIsHistoryVisible(false);
+  };
+
+  const toggleHistory = async () => {
+    if (!isHistoryVisible) {
+      try {
+        // 获取热门搜索词
+        const popular = await searchAPI.getPopularSearchTerms(5);
+        // 转换为组件期望的格式
+        const popularSuggestions: SearchSuggestion[] = [
+          ...popular.languages.map(item => ({ text: item.name, type: 'language' as const, count: item.count })),
+          ...popular.topics.map(item => ({ text: item.name, type: 'topic' as const, count: item.count }))
+        ];
+
+        // TODO: 实现搜索历史功能 - 暂时使用空数组
+        setRecentSearches([]);
+        setPopularSearches(popularSuggestions);
+      } catch (error) {
+        console.error('获取搜索历史失败:', error);
+        setRecentSearches([]);
+        setPopularSearches([]);
+      }
+      setIsAnalyticsVisible(false);
+      setIsSuggestionsVisible(false);
+    }
+    setIsHistoryVisible(!isHistoryVisible);
+  };
+
+  const toggleAnalytics = () => {
+    if (!isAnalyticsVisible) {
+      setIsHistoryVisible(false);
+      setIsSuggestionsVisible(false);
+    }
+    setIsAnalyticsVisible(!isAnalyticsVisible);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsSuggestionsVisible(false);
+        setIsHistoryVisible(false);
+        setIsAnalyticsVisible(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const handleFilterChange = useCallback(
     (newFilters: Partial<FilterOptions>) => {
@@ -126,11 +244,17 @@ export const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
       if (searchTimeout) {
         clearTimeout(searchTimeout);
       }
+      if (suggestionTimeout) {
+        clearTimeout(suggestionTimeout);
+      }
     };
-  }, [searchTimeout]);
+  }, [searchTimeout, suggestionTimeout]);
 
   const hasActiveFilters =
-    filters.language || filters.topic || filters.minStars || filters.maxStars;
+    filters.language ||
+    filters.topic ||
+    filters.minStars !== undefined ||
+    filters.maxStars !== undefined;
 
   return (
     <div
@@ -139,19 +263,106 @@ export const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
       {/* 搜索栏 */}
       <div className="p-4">
         <div className="flex items-center gap-3">
-          <div className="relative flex-1">
+          <div className="relative flex-1" ref={searchContainerRef}>
             <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
             <input
               type="text"
-              placeholder="搜索仓库..."
+              placeholder="搜索仓库... 支持高级搜索语法 (如: name:starepo lang:typescript stars:>100)"
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white py-2 pr-4 pl-10 text-gray-900 placeholder-gray-500 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
+              onFocus={() => fetchSuggestions(searchQuery)}
+              className="w-full rounded-lg border border-gray-300 bg-white py-2 pr-20 pl-10 text-gray-900 placeholder-gray-500 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
               disabled={loading}
             />
-            {loading && (
-              <div className="absolute top-1/2 right-3 -translate-y-1/2 transform">
+            <div className="absolute top-1/2 right-3 -translate-y-1/2 transform flex items-center gap-2">
+              {loading && (
                 <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-blue-500"></div>
+              )}
+              <button
+                onClick={toggleHistory}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                title="搜索历史"
+              >
+                <History className="h-4 w-4" />
+              </button>
+              <button
+                onClick={toggleAnalytics}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                title="搜索分析"
+              >
+                <BarChart className="h-4 w-4" />
+              </button>
+            </div>
+            {isSuggestionsVisible && suggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 z-10 mt-1 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-700">
+                <ul className="py-1">
+                  {suggestions.map((suggestion, index) => (
+                    <li
+                      key={index}
+                      onClick={() => handleSuggestionClick(suggestion)}
+                      className="flex cursor-pointer items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
+                    >
+                      <History className="h-4 w-4 text-gray-400" />
+                      <span>{suggestion.text}</span>
+                      <span className="ml-auto text-xs text-gray-400">
+                        {suggestion.type}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {isHistoryVisible && (
+              <div className="absolute top-full left-0 right-0 z-10 mt-1 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-700">
+                <div className="p-4 space-y-4">
+                  <div>
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                      <History className="h-4 w-4" />
+                      最近搜索
+                    </h3>
+                    {recentSearches.length > 0 ? (
+                      <ul className="space-y-1">
+                        {recentSearches.map((item) => (
+                          <li
+                            key={item.id}
+                            onClick={() => handleHistoryClick(item.query)}
+                            className="cursor-pointer text-sm text-gray-600 hover:text-blue-500 dark:text-gray-400 dark:hover:text-blue-400"
+                          >
+                            {item.query}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-gray-500">暂无最近搜索记录</p>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                      <Flame className="h-4 w-4 text-orange-500" />
+                      热门搜索
+                    </h3>
+                    {popularSearches.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {popularSearches.map((item) => (
+                          <button
+                            key={item.text}
+                            onClick={() => handleHistoryClick(item.text)}
+                            className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500"
+                          >
+                            {item.text}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">暂无热门搜索记录</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            {isAnalyticsVisible && (
+              <div className="absolute top-full left-0 right-0 z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-700 sm:w-96">
+                <SearchAnalytics />
               </div>
             )}
           </div>
@@ -168,14 +379,12 @@ export const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
             <span>筛选</span>
             {hasActiveFilters && (
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-xs text-white">
-                {
-                  [
-                    filters.language,
-                    filters.topic,
-                    filters.minStars,
-                    filters.maxStars,
-                  ].filter(Boolean).length
-                }
+                {[
+                  filters.language,
+                  filters.topic,
+                  filters.minStars,
+                  filters.maxStars,
+                ].filter(Boolean).length}
               </span>
             )}
             <ChevronDown
@@ -219,148 +428,162 @@ export const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
       {/* 筛选面板 */}
       {showFilters && (
         <div className="border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/50">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {/* 编程语言 */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                <Code className="mr-1 inline h-4 w-4" />
-                编程语言
-              </label>
-              <select
-                value={filters.language || ""}
-                onChange={(e) =>
-                  handleFilterChange({ language: e.target.value || undefined })
-                }
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          <div className="flex justify-end mb-4">
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 transition-colors hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
               >
-                <option value="">所有语言</option>
-                {LANGUAGES.map((lang) => (
-                  <option key={lang} value={lang}>
-                    {lang}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <X className="h-4 w-4" />
+                清除筛选
+              </button>
+            )}
+          </div>
 
-            {/* 主题 */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                主题
-              </label>
-              <input
-                type="text"
-                placeholder="输入主题..."
-                value={filters.topic || ""}
-                onChange={(e) =>
-                  handleFilterChange({ topic: e.target.value || undefined })
-                }
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder-gray-500 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
-              />
-            </div>
-
-            {/* 星标数范围 */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                <Star className="mr-1 inline h-4 w-4" />
-                星标数
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  placeholder="最小"
-                  value={filters.minStars || ""}
-                  onChange={(e) =>
-                    handleFilterChange({
-                      minStars: e.target.value
-                        ? parseInt(e.target.value)
-                        : undefined,
-                    })
-                  }
-                  className="flex-1 rounded-lg border border-gray-300 bg-white px-2 py-2 text-gray-900 placeholder-gray-500 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
-                />
-                <input
-                  type="number"
-                  placeholder="最大"
-                  value={filters.maxStars || ""}
-                  onChange={(e) =>
-                    handleFilterChange({
-                      maxStars: e.target.value
-                        ? parseInt(e.target.value)
-                        : undefined,
-                    })
-                  }
-                  className="flex-1 rounded-lg border border-gray-300 bg-white px-2 py-2 text-gray-900 placeholder-gray-500 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
-                />
-              </div>
-            </div>
-
-            {/* 排序 */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                排序方式
-              </label>
-              <div className="flex gap-2">
+          <div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {/* 编程语言 */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <Code className="mr-1 inline h-4 w-4" />
+                  编程语言
+                </label>
                 <select
-                  value={filters.sortBy || "updated"}
+                  value={filters.language || ""}
                   onChange={(e) =>
-                    handleFilterChange({
-                      sortBy: e.target.value as FilterOptions["sortBy"],
-                    })
+                    handleFilterChange({ language: e.target.value || undefined })
                   }
-                  className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                 >
-                  {SORT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
+                  <option value="">所有语言</option>
+                  {LANGUAGES.map((lang) => (
+                    <option key={lang} value={lang}>
+                      {lang}
                     </option>
                   ))}
                 </select>
-                <select
-                  value={filters.sortOrder || "desc"}
+              </div>
+
+              {/* 主题 */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  主题
+                </label>
+                <input
+                  type="text"
+                  placeholder="输入主题..."
+                  value={filters.topic || ""}
                   onChange={(e) =>
-                    handleFilterChange({
-                      sortOrder: e.target.value as "asc" | "desc",
-                    })
+                    handleFilterChange({ topic: e.target.value || undefined })
                   }
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="desc">降序</option>
-                  <option value="asc">升序</option>
-                </select>
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder-gray-500 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
+                />
+              </div>
+
+              {/* 星标数范围 */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <Star className="mr-1 inline h-4 w-4" />
+                  星标数
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    placeholder="最小"
+                    value={filters.minStars || ""}
+                    onChange={(e) =>
+                      handleFilterChange({
+                        minStars: e.target.value
+                          ? parseInt(e.target.value)
+                          : undefined,
+                      })
+                    }
+                    className="flex-1 rounded-lg border border-gray-300 bg-white px-2 py-2 text-gray-900 placeholder-gray-500 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
+                  />
+                  <input
+                    type="number"
+                    placeholder="最大"
+                    value={filters.maxStars || ""}
+                    onChange={(e) =>
+                      handleFilterChange({
+                        maxStars: e.target.value
+                          ? parseInt(e.target.value)
+                          : undefined,
+                      })
+                    }
+                    className="flex-1 rounded-lg border border-gray-300 bg-white px-2 py-2 text-gray-900 placeholder-gray-500 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
+                  />
+                </div>
+              </div>
+
+              {/* 排序 */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  排序方式
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={filters.sortBy || "updated"}
+                    onChange={(e) =>
+                      handleFilterChange({
+                        sortBy: e.target.value as FilterOptions["sortBy"],
+                      })
+                    }
+                    className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  >
+                    {SORT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={filters.sortOrder || "desc"}
+                    onChange={(e) =>
+                      handleFilterChange({
+                        sortOrder: e.target.value as "asc" | "desc",
+                      })
+                    }
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="desc">降序</option>
+                    <option value="asc">升序</option>
+                  </select>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* 选项开关 */}
-          <div className="mt-4 flex flex-wrap gap-4">
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={filters.showArchived || false}
-                onChange={(e) =>
-                  handleFilterChange({ showArchived: e.target.checked })
-                }
-                className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600"
-              />
-              <span className="text-sm text-gray-700 dark:text-gray-300">
-                显示已归档
-              </span>
-            </label>
+            {/* 选项开关 */}
+            <div className="mt-4 flex flex-wrap gap-4">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={filters.showArchived || false}
+                  onChange={(e) =>
+                    handleFilterChange({ showArchived: e.target.checked })
+                  }
+                  className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  显示已归档
+                </span>
+              </label>
 
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={filters.showForks !== false}
-                onChange={(e) =>
-                  handleFilterChange({ showForks: e.target.checked })
-                }
-                className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600"
-              />
-              <span className="text-sm text-gray-700 dark:text-gray-300">
-                <GitFork className="mr-1 inline h-4 w-4" />
-                显示Fork
-              </span>
-            </label>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={filters.showForks !== false}
+                  onChange={(e) =>
+                    handleFilterChange({ showForks: e.target.checked })
+                  }
+                  className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  <GitFork className="mr-1 inline h-4 w-4" />
+                  显示Fork
+                </span>
+              </label>
+            </div>
           </div>
 
           {/* 视图选项 */}
@@ -443,19 +666,6 @@ export const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
               />
             </div>
           </div>
-
-          {/* 操作按钮 */}
-          {hasActiveFilters && (
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={clearFilters}
-                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 transition-colors hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <X className="h-4 w-4" />
-                清除筛选
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>

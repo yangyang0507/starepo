@@ -5,8 +5,8 @@ import React, {
   useState,
   useCallback,
 } from "react";
-import { githubAuthService } from "@/services/github/auth-service";
-import type { AuthState } from "@/services/github/types";
+import { githubAPI } from "@/api";
+import type { AuthState } from "@shared/types";
 
 interface AuthContextType {
   authState: AuthState;
@@ -36,16 +36,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsLoading(true);
       setError(null);
 
-      const result = await githubAuthService.authenticateWithToken(token);
-
-      if (result.success) {
-        const newAuthState = githubAuthService.getAuthState();
-        setAuthState(newAuthState);
-        return true;
-      } else {
-        setError(result.error || "登录失败");
-        return false;
-      }
+      await githubAPI.authenticateWithToken(token);
+      const newAuthState = await githubAPI.getAuthState();
+      setAuthState(newAuthState);
+      return true;
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "登录过程中发生错误";
@@ -59,7 +53,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = useCallback(async (): Promise<void> => {
     try {
       setIsLoading(true);
-      await githubAuthService.clearAuth();
+      await githubAPI.clearAuth();
       setAuthState({ isAuthenticated: false });
       setError(null);
     } catch (err) {
@@ -73,15 +67,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const refreshAuth = useCallback(async (): Promise<boolean> => {
     try {
       setIsLoading(true);
-      const success = await githubAuthService.refreshAuth();
-
+      const success = await githubAPI.refreshAuth();
       if (success) {
-        const newAuthState = githubAuthService.getAuthState();
+        const newAuthState = await githubAPI.getAuthState();
         setAuthState(newAuthState);
       } else {
         setAuthState({ isAuthenticated: false });
       }
-
       return success;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "刷新认证失败";
@@ -101,13 +93,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // 初始化认证状态
     const initAuth = async () => {
       try {
-        const currentState = githubAuthService.getAuthState();
-
+        const currentState = await githubAPI.getAuthState();
         if (currentState.isAuthenticated) {
           // 验证token是否仍然有效
-          const isValid = await githubAuthService.refreshAuth();
+          const isValid = await githubAPI.refreshAuth();
           if (isValid) {
-            const updatedState = githubAuthService.getAuthState();
+            const updatedState = await githubAPI.getAuthState();
             setAuthState(updatedState);
           } else {
             setAuthState({ isAuthenticated: false });
@@ -126,14 +117,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     initAuth();
 
-    // 监听认证状态变化
-    const unsubscribe = githubAuthService.addAuthListener((newAuthState) => {
-      setAuthState(newAuthState);
-    });
-
-    return () => {
-      unsubscribe();
-    };
+    // TODO: 实现认证状态变化监听
+    // 由于重构到 main 进程，暂时移除监听器
   }, []);
 
   const contextValue: AuthContextType = {

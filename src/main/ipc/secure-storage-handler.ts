@@ -2,7 +2,7 @@ import { ipcMain } from "electron";
 import {
   secureStorageService,
   githubTokenStorage,
-} from "../services/secure-storage";
+} from "../services/database/secure-service";
 
 // 安全存储相关的 IPC 通道
 export const SECURE_STORAGE_CHANNELS = {

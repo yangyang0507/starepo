@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { FilterOptions, ViewOptions } from '@/services/github/types';
+import type { FilterOptions, ViewOptions } from "@shared/types"
 
 interface UIStore {
   // Search and filter state

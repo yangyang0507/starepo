@@ -323,7 +323,7 @@ export interface RateLimitEvent extends GitHubEvent {
 // GitHub API 响应类型
 export interface GitHubAPIStarredItem {
   starred_at: string;
-  repo: GitHubRepository;
+  repo: GitHubAPIRepository;
 }
 
 export interface GitHubAPIUser {
@@ -350,13 +350,17 @@ export interface GitHubAPIRepository {
   full_name: string;
   description: string | null;
   html_url: string;
+  clone_url: string;
+  ssh_url: string;
   stargazers_count: number;
   language: string | null;
-  topics: string[];
+  topics: string[] | undefined;
   updated_at: string;
   created_at: string;
+  pushed_at: string;
   forks_count: number;
   watchers_count: number;
+  open_issues_count: number;
   size: number;
   default_branch: string;
   archived: boolean;
