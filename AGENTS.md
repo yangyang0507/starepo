@@ -2,6 +2,8 @@
 
 ## Common Development Commands
 
+- Use Chinese to response.
+
 ### Development
 
 - `npm run start` - Start development mode with hot reload

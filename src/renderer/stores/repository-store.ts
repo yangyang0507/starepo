@@ -107,14 +107,16 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
       console.log('开始获取 starred 仓库数据...');
       let starredData: any;
       try {
+        starredData = await githubAPI.getAllStarredRepositoriesEnhanced({
+          batchSize: 100,
+          useDatabase: true,
+        });
+        console.log('成功获取到增强版 starred 数据:', starredData);
+      } catch (starredError) {
+        console.error('获取增强版 starred 数据失败，尝试回退到基础接口:', starredError);
         starredData = await githubAPI.getAllStarredRepositories({
           batchSize: 100,
-          // 移除 onProgress 回调，因为无法通过 IPC 序列化传输
         });
-        console.log('成功获取到 starred 数据:', starredData);
-      } catch (starredError) {
-        console.error('获取 starred 数据失败:', starredError);
-        throw starredError;
       }
 
       const repositories = starredData.repositories.map((starredRepo: any) => ({
@@ -161,11 +163,20 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
 
     try {
       // Force refresh all data
-      const starredData = await githubAPI.getAllStarredRepositories({
-        batchSize: 100,
-        forceRefresh: true,
-        // 移除 onProgress 回调，因为无法通过 IPC 序列化传输
-      });
+      let starredData;
+      try {
+        starredData = await githubAPI.getAllStarredRepositoriesEnhanced({
+          batchSize: 100,
+          useDatabase: true,
+          forceRefresh: true,
+        });
+      } catch (error) {
+        console.warn('增强版刷新失败，回退到基础接口:', error);
+        starredData = await githubAPI.getAllStarredRepositories({
+          batchSize: 100,
+          forceRefresh: true,
+        });
+      }
 
       const repositories = (starredData as any).repositories.map((starredRepo: any) => ({
         ...starredRepo,
