@@ -311,8 +311,6 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
     get().applyFiltersAndSearch();
   },
 
-  
-
   setViewOptions: (options) => {
     set((state) => ({ viewOptions: { ...state.viewOptions, ...options } }));
   },
@@ -322,134 +320,49 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
   },
 
   applyFiltersAndSearch: async () => {
-    const { repositories, searchQuery, filterOptions } = get();
+    const { repositories, searchQuery } = get();
+    const query = searchQuery.trim();
 
-    const isQueryEmpty = !searchQuery.trim();
-    const hasActiveSimpleFilters =
-      filterOptions.language ||
-      filterOptions.topic ||
-      filterOptions.minStars !== undefined ||
-      filterOptions.maxStars !== undefined;
-    const areFiltersEmpty = !hasActiveSimpleFilters;
-
-    if (isQueryEmpty && areFiltersEmpty) {
-      // No search or filter, just sort and display all
-      const sorted = [...repositories].sort((a, b) => {
-        let aValue: string | number, bValue: string | number;
-        switch (filterOptions.sortBy) {
-          case "name":
-            aValue = a.name.toLowerCase();
-            bValue = b.name.toLowerCase();
-            break;
-          case "stars":
-            aValue = a.stargazers_count;
-            bValue = b.stargazers_count;
-            break;
-          case "created":
-            aValue = new Date(a.created_at).getTime();
-            bValue = new Date(b.created_at).getTime();
-            break;
-          case "updated":
-          default:
-            aValue = new Date(a.updated_at).getTime();
-            bValue = new Date(b.updated_at).getTime();
-            break;
-        }
-
-        if (filterOptions.sortOrder === "asc") {
-          return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
-        } else {
-          return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
-        }
-      });
+    if (!query) {
+      const sorted = [...repositories].sort(
+        (a, b) =>
+          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+      );
       set({ displayRepositories: sorted });
       return;
     }
 
-    // Use the new LanceDB search API
     try {
       const searchResult = await searchAPI.searchRepositories({
-        query: searchQuery.trim() || undefined,
-        language: filterOptions.language,
-        minStars: filterOptions.minStars,
-        maxStars: filterOptions.maxStars,
+        query,
         limit: 1500,
-        sortBy: filterOptions.sortBy === 'name' ? 'relevance' : filterOptions.sortBy,
-        sortOrder: filterOptions.sortOrder,
+        sortBy: 'relevance',
+        sortOrder: 'desc',
       });
 
-      set({ displayRepositories: searchResult?.repositories || [] });
+      const uniqueRepositories = Array.from(
+        new Map(
+          (searchResult?.repositories || []).map(repo => [repo.id, repo]),
+        ).values(),
+      );
+
+      set({ displayRepositories: uniqueRepositories });
     } catch (error) {
       console.error('搜索失败:', error);
-      // 搜索失败时，使用本地过滤作为后备
-      const filtered = repositories.filter(repo => {
-        let matches = true;
 
-        // 搜索查询过滤
-        if (searchQuery.trim()) {
-          const query = searchQuery.toLowerCase();
-          matches = matches && (
-            repo.name.toLowerCase().includes(query) ||
-            repo.description?.toLowerCase().includes(query) ||
-            repo.owner.login.toLowerCase().includes(query)
-          );
-        }
+      const fallbackQuery = query.toLowerCase();
+      const fallbackResults = repositories
+        .filter(repo =>
+          repo.name.toLowerCase().includes(fallbackQuery) ||
+          repo.description?.toLowerCase().includes(fallbackQuery) ||
+          repo.owner.login.toLowerCase().includes(fallbackQuery),
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+        );
 
-        // 语言过滤
-        if (filterOptions.language) {
-          matches = matches && repo.language === filterOptions.language;
-        }
-
-        // 星标数过滤
-        if (filterOptions.minStars !== undefined) {
-          matches = matches && repo.stargazers_count >= filterOptions.minStars;
-        }
-        if (filterOptions.maxStars !== undefined) {
-          matches = matches && repo.stargazers_count <= filterOptions.maxStars;
-        }
-
-        // 其他过滤条件
-        if (!filterOptions.showArchived && repo.archived) {
-          matches = false;
-        }
-        if (!filterOptions.showForks && repo.fork) {
-          matches = false;
-        }
-
-        return matches;
-      });
-
-      // 排序
-      const sorted = [...filtered].sort((a, b) => {
-        let aValue: string | number, bValue: string | number;
-        switch (filterOptions.sortBy) {
-          case "name":
-            aValue = a.name.toLowerCase();
-            bValue = b.name.toLowerCase();
-            break;
-          case "stars":
-            aValue = a.stargazers_count;
-            bValue = b.stargazers_count;
-            break;
-          case "created":
-            aValue = new Date(a.created_at).getTime();
-            bValue = new Date(b.created_at).getTime();
-            break;
-          case "updated":
-          default:
-            aValue = new Date(a.updated_at).getTime();
-            bValue = new Date(b.updated_at).getTime();
-            break;
-        }
-
-        if (filterOptions.sortOrder === "asc") {
-          return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
-        } else {
-          return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
-        }
-      });
-
-      set({ displayRepositories: sorted });
+      set({ displayRepositories: fallbackResults });
     }
   },
 }));

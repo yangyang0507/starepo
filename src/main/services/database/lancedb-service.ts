@@ -159,8 +159,15 @@ export class LanceDBService {
       return;
     }
 
+    // 先去重，避免重复写入
+    const uniqueRepositories = this.deduplicateRepositories(repositories);
+
+    // 删除已存在的记录，模拟 upsert 行为
+    const ids = uniqueRepositories.map(repo => repo.id);
+    await this.deleteRepositoriesByIds(ids);
+
     // 准备数据
-    const data = repositories.map(repo => ({
+    const data = uniqueRepositories.map(repo => ({
       id: repo.id,
       name: repo.name,
       full_name: repo.full_name,
@@ -180,7 +187,7 @@ export class LanceDBService {
 
     // 直接插入数据数组
     await this.repositoriesTable!.add(data);
-    console.log(`已存储 ${repositories.length} 个仓库到 LanceDB`);
+    console.log(`已存储 ${uniqueRepositories.length} 个仓库到 LanceDB`);
   }
 
   /**
@@ -215,7 +222,7 @@ export class LanceDBService {
     }
 
     const result = await query.toArray();
-    return result.map((record: any) => this.parseRepositoryFromRecord(record));
+    return this.parseRepositoryRecords(result);
   }
 
   /**
@@ -248,11 +255,11 @@ export class LanceDBService {
     }
 
     const result = await searchQuery.toArray();
-    const repositories = result.map((record: any) => this.parseRepositoryFromRecord(record));
+    const repositories = this.parseRepositoryRecords(result);
 
     return {
       items: repositories,
-      scores: new Array(repositories.length).fill(1.0), // 临时评分
+      scores: new Array(repositories.length).fill(1.0),
       totalCount: repositories.length
     };
   }
@@ -272,7 +279,7 @@ export class LanceDBService {
     }
 
     const result = await query.toArray();
-    return result.map((record: any) => this.parseRepositoryFromRecord(record));
+    return this.parseRepositoryRecords(result);
   }
 
   /**
@@ -294,7 +301,7 @@ export class LanceDBService {
     }
 
     const result = await query.toArray();
-    return result.map((record: any) => this.parseRepositoryFromRecord(record));
+    return this.parseRepositoryRecords(result);
   }
 
   /**
@@ -495,6 +502,52 @@ export class LanceDBService {
       this.initialized = false;
       console.log('LanceDB 连接已关闭');
     }
+  }
+
+  /**
+   * 批量删除指定 ID 的仓库
+   */
+  private async deleteRepositoriesByIds(ids: number[]): Promise<void> {
+    if (!ids.length) {
+      return;
+    }
+
+    const chunkSize = 500;
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      const whereClause = `id IN (${chunk.join(',')})`;
+      await this.repositoriesTable!.delete(whereClause);
+    }
+  }
+
+  /**
+   * 去重仓库列表
+   */
+  private deduplicateRepositories(repositories: GitHubRepository[]): GitHubRepository[] {
+    const map = new Map<number, GitHubRepository>();
+
+    repositories.forEach(repo => {
+      if (!map.has(repo.id)) {
+        map.set(repo.id, repo);
+      }
+    });
+
+    return Array.from(map.values());
+  }
+
+  /**
+   * 解析数据库记录并按 ID 去重
+   */
+  private parseRepositoryRecords(records: any[]): GitHubRepository[] {
+    const map = new Map<number, GitHubRepository>();
+
+    records.forEach(record => {
+      if (record && typeof record.id === 'number' && !map.has(record.id)) {
+        map.set(record.id, this.parseRepositoryFromRecord(record));
+      }
+    });
+
+    return Array.from(map.values());
   }
 }
 
