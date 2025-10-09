@@ -33,6 +33,14 @@ export const settingsAPI = {
     }
     return result.data as AppSettings;
   },
+
+  clearCache: async (): Promise<void> => {
+    ensureElectronAPI();
+    const result = await window.electronAPI.settings.clearCache();
+    if (!result.success) {
+      throw new Error(result.error || "清理缓存失败");
+    }
+  },
 };
 
 export const logLevelLabels: Record<LogLevel, string> = {

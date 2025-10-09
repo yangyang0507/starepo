@@ -30,6 +30,8 @@ export interface AppSettings {
   language: Language;
   developerMode: boolean;
   logLevel: LogLevel;
+  autoSyncEnabled: boolean;
+  autoSyncIntervalMinutes: number;
   updatedAt: string;
 }
 

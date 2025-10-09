@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTheme } from "@/hooks/use-theme";
 import { useAuthStore } from "@/stores/auth-store";
+import { useRepositoryStore } from "@/stores/repository-store";
 import { setAppLanguage } from "@/utils/language-helpers";
 import type { ThemeMode, LogLevel } from "@shared/types";
 import {
@@ -35,9 +36,10 @@ import {
   Sun,
   User
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { settingsAPI, logLevelLabels } from "@/api/settings";
+import { configureAutoSync, triggerAutoSyncNow } from "@/hooks/use-auto-sync";
 
 export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -48,11 +50,44 @@ export default function SettingsPage() {
   const [devModeUpdating, setDevModeUpdating] = useState(false);
   const [logLevelUpdating, setLogLevelUpdating] = useState(false);
   const [advancedError, setAdvancedError] = useState<string | null>(null);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
+  const [autoSyncInterval, setAutoSyncInterval] = useState(15);
+  const [autoSyncUpdating, setAutoSyncUpdating] = useState(false);
+  const [cacheClearing, setCacheClearing] = useState(false);
+  const [cacheMessage, setCacheMessage] = useState<string | null>(null);
+  const [appSettingsError, setAppSettingsError] = useState<string | null>(null);
+  const messageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSyncOptions = [5, 15, 30, 60];
 
   // Hooks
   const { authState, refreshAuth, logout } = useAuthStore();
   const { theme, changeTheme, isLoading: themeLoading } = useTheme();
   const { i18n } = useTranslation();
+
+  const clearAppMessage = () => {
+    if (messageTimeoutRef.current) {
+      clearTimeout(messageTimeoutRef.current);
+      messageTimeoutRef.current = null;
+    }
+    setCacheMessage(null);
+  };
+
+  const showAppMessage = (message: string) => {
+    clearAppMessage();
+    setCacheMessage(message);
+    messageTimeoutRef.current = setTimeout(() => {
+      setCacheMessage(null);
+      messageTimeoutRef.current = null;
+    }, 3000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (messageTimeoutRef.current) {
+        clearTimeout(messageTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -63,12 +98,17 @@ export default function SettingsPage() {
         if (!mounted) return;
         setDeveloperMode(currentSettings.developerMode);
         setLogLevelState(currentSettings.logLevel);
+        setAutoSyncEnabled(currentSettings.autoSyncEnabled);
+        setAutoSyncInterval(currentSettings.autoSyncIntervalMinutes);
         setAdvancedError(null);
+        setAppSettingsError(null);
+        clearAppMessage();
       } catch (error) {
         if (!mounted) return;
         const message =
           error instanceof Error ? error.message : "加载高级设置失败";
         setAdvancedError(message);
+        setAppSettingsError(message);
       } finally {
         if (mounted) {
           setAdvancedLoading(false);
@@ -120,6 +160,107 @@ export default function SettingsPage() {
       await setAppLanguage(newLanguage, i18n);
     } catch (error) {
       console.error("语言切换失败:", error);
+    }
+  };
+
+  const handleToggleAutoSync = async () => {
+    if (advancedLoading || autoSyncUpdating) {
+      return;
+    }
+
+    const nextEnabled = !autoSyncEnabled;
+    setAutoSyncUpdating(true);
+    setAppSettingsError(null);
+    try {
+      const updated = await settingsAPI.updateSettings({
+        autoSyncEnabled: nextEnabled,
+        autoSyncIntervalMinutes: autoSyncInterval,
+      });
+      setAutoSyncEnabled(updated.autoSyncEnabled);
+      setAutoSyncInterval(updated.autoSyncIntervalMinutes);
+      await configureAutoSync(
+        {
+          enabled: updated.autoSyncEnabled,
+          intervalMinutes: updated.autoSyncIntervalMinutes,
+        },
+        { immediate: updated.autoSyncEnabled },
+      );
+      showAppMessage(
+        updated.autoSyncEnabled
+          ? `自动同步已开启，每 ${updated.autoSyncIntervalMinutes} 分钟刷新`
+          : "自动同步已关闭",
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "更新自动同步设置失败";
+      setAppSettingsError(message);
+    } finally {
+      setAutoSyncUpdating(false);
+    }
+  };
+
+  const handleAutoSyncIntervalChange = async (value: string) => {
+    if (advancedLoading || autoSyncUpdating) {
+      return;
+    }
+
+    const minutes = Number(value);
+    if (!Number.isFinite(minutes) || minutes === autoSyncInterval) {
+      return;
+    }
+
+    setAutoSyncUpdating(true);
+    setAppSettingsError(null);
+    try {
+      const updated = await settingsAPI.updateSettings({
+        autoSyncIntervalMinutes: minutes,
+      });
+      setAutoSyncEnabled(updated.autoSyncEnabled);
+      setAutoSyncInterval(updated.autoSyncIntervalMinutes);
+      await configureAutoSync(
+        {
+          enabled: updated.autoSyncEnabled,
+          intervalMinutes: updated.autoSyncIntervalMinutes,
+        },
+        { immediate: updated.autoSyncEnabled },
+      );
+      showAppMessage(
+        updated.autoSyncEnabled
+          ? `自动同步间隔已调整为 ${updated.autoSyncIntervalMinutes} 分钟`
+          : `已更新自动同步间隔为 ${updated.autoSyncIntervalMinutes} 分钟`,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "更新自动同步间隔失败";
+      setAppSettingsError(message);
+    } finally {
+      setAutoSyncUpdating(false);
+    }
+  };
+
+  const handleClearCache = async () => {
+    if (cacheClearing) {
+      return;
+    }
+    setCacheClearing(true);
+    setAppSettingsError(null);
+    clearAppMessage();
+
+    try {
+      await settingsAPI.clearCache();
+      const { refreshData, user } = useRepositoryStore.getState();
+      if (user) {
+        await refreshData();
+      } else if (autoSyncEnabled) {
+        await triggerAutoSyncNow();
+      }
+      showAppMessage("缓存已清理，数据将重新同步");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "清理缓存失败";
+      setAppSettingsError(message);
+    } finally {
+      setCacheClearing(false);
     }
   };
 
@@ -527,30 +668,97 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h4 className="font-medium">自动同步</h4>
                   <p className="text-sm text-muted-foreground">
                     自动同步 GitHub Star 项目
                   </p>
                 </div>
-                <Button variant="outline" size="sm">
-                  启用
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={autoSyncEnabled ? "outline" : "secondary"}>
+                    {advancedLoading
+                      ? "加载中..."
+                      : autoSyncEnabled
+                        ? `每 ${autoSyncInterval} 分钟`
+                        : "已关闭"}
+                  </Badge>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-2"
+                        disabled={advancedLoading || autoSyncUpdating}
+                      >
+                        {autoSyncUpdating ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : null}
+                        间隔
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[160px]">
+                      <DropdownMenuRadioGroup
+                        value={String(autoSyncInterval)}
+                        onValueChange={handleAutoSyncIntervalChange}
+                      >
+                        {autoSyncOptions.map((option) => (
+                          <DropdownMenuRadioItem
+                            key={option}
+                            value={String(option)}
+                            disabled={autoSyncUpdating}
+                          >
+                            每 {option} 分钟
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button
+                    variant={autoSyncEnabled ? "destructive" : "outline"}
+                    size="sm"
+                    className="flex items-center gap-2"
+                    onClick={handleToggleAutoSync}
+                    disabled={advancedLoading || autoSyncUpdating}
+                  >
+                    {autoSyncUpdating ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : null}
+                    {autoSyncEnabled ? "关闭" : "开启"}
+                  </Button>
+                </div>
               </div>
               <Separator />
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h4 className="font-medium">缓存管理</h4>
                   <p className="text-sm text-muted-foreground">
                     清理本地缓存数据
                   </p>
                 </div>
-                <Button variant="outline" size="sm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                  onClick={handleClearCache}
+                  disabled={cacheClearing}
+                >
+                  {cacheClearing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : null}
                   清理缓存
                 </Button>
               </div>
             </div>
+            {appSettingsError && (
+              <div className="flex items-center gap-2 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4" />
+                <span>{appSettingsError}</span>
+              </div>
+            )}
+            {cacheMessage && (
+              <div className="text-sm text-muted-foreground">{cacheMessage}</div>
+            )}
           </CardContent>
         </Card>
 

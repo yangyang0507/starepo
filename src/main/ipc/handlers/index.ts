@@ -6,6 +6,7 @@ import { setupShellHandlers } from "./shell-handler";
 import { registerGitHubHandlers } from "../github-handlers";
 import { registerAuthIPCHandlers } from "../auth-ipc-handlers";
 import { settingsService } from "../../services/settings";
+import { githubStarService } from "../../services/github";
 import type { ThemeMode, Language, AppSettings } from "../../../shared/types/index.js";
 import { getLogger } from "../../utils/logger";
 // 导入搜索处理器
@@ -229,6 +230,16 @@ function registerSettingsHandlers(): void {
     } catch (error) {
       settingsLogger.error("重置应用设置失败", error);
       return { success: false, error: "重置应用设置失败" };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SETTINGS.CLEAR_CACHE, async () => {
+    try {
+      await githubStarService.clearCache();
+      return { success: true };
+    } catch (error) {
+      settingsLogger.error("清理缓存失败", error);
+      return { success: false, error: "清理缓存失败" };
     }
   });
 }

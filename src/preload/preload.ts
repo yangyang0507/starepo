@@ -83,6 +83,9 @@ const settingsAPI = {
 
   resetSettings: (): Promise<APIResponse<AppSettings>> =>
     ipcRenderer.invoke(IPC_CHANNELS.SETTINGS.RESET_SETTINGS),
+
+  clearCache: (): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SETTINGS.CLEAR_CACHE),
 };
 
 // 搜索 API

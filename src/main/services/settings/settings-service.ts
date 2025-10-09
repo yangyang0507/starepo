@@ -9,6 +9,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   language: 'en',
   developerMode: false,
   logLevel: getCurrentLogLevel(),
+  autoSyncEnabled: false,
+  autoSyncIntervalMinutes: 15,
   updatedAt: new Date(0).toISOString()
 };
 
@@ -107,9 +109,31 @@ export class SettingsService {
 
   private async applyUpdate(update: Partial<AppSettings>): Promise<AppSettings> {
     const current = await this.getSettings();
+    const sanitizedUpdate: Partial<AppSettings> = { ...update };
+
+    if (Object.prototype.hasOwnProperty.call(update, 'developerMode')) {
+      sanitizedUpdate.developerMode = Boolean(update.developerMode);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(update, 'logLevel')) {
+      sanitizedUpdate.logLevel = this.isValidLogLevel(update.logLevel)
+        ? update.logLevel!
+        : current.logLevel;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(update, 'autoSyncEnabled')) {
+      sanitizedUpdate.autoSyncEnabled = Boolean(update.autoSyncEnabled);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(update, 'autoSyncIntervalMinutes')) {
+      sanitizedUpdate.autoSyncIntervalMinutes = this.normalizeAutoSyncInterval(
+        update.autoSyncIntervalMinutes,
+      );
+    }
+
     const merged: AppSettings = {
       ...current,
-      ...update,
+      ...sanitizedUpdate,
       updatedAt: new Date().toISOString()
     };
 
@@ -138,12 +162,16 @@ export class SettingsService {
     const language = this.isValidLanguage(settings.language) ? settings.language! : DEFAULT_SETTINGS.language;
     const developerMode = typeof settings.developerMode === 'boolean' ? settings.developerMode : DEFAULT_SETTINGS.developerMode;
     const logLevel = this.isValidLogLevel(settings.logLevel) ? settings.logLevel! : DEFAULT_SETTINGS.logLevel;
+    const autoSyncEnabled = typeof settings.autoSyncEnabled === 'boolean' ? settings.autoSyncEnabled : DEFAULT_SETTINGS.autoSyncEnabled;
+    const autoSyncIntervalMinutes = this.normalizeAutoSyncInterval(settings.autoSyncIntervalMinutes);
 
     return {
       theme,
       language,
       developerMode,
       logLevel,
+      autoSyncEnabled,
+      autoSyncIntervalMinutes,
       updatedAt: settings.updatedAt ?? new Date().toISOString()
     };
   }
@@ -158,6 +186,14 @@ export class SettingsService {
 
   private isValidLogLevel(level?: string): level is LogLevel {
     return level === 'debug' || level === 'info' || level === 'warn' || level === 'error';
+  }
+
+  private normalizeAutoSyncInterval(interval?: number): number {
+    if (typeof interval !== 'number' || !Number.isFinite(interval)) {
+      return DEFAULT_SETTINGS.autoSyncIntervalMinutes;
+    }
+    const clamped = Math.max(1, Math.min(1440, Math.floor(interval)));
+    return clamped;
   }
 
   private applyRuntimeSettings(settings: AppSettings): void {
