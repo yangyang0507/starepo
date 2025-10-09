@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ import {
 import { cn } from "@/utils/tailwind";
 import { enhancedAuthAPI } from "@/api";
 import type { AuthState, TokenValidationResult } from "@shared/types/auth";
+import { TitleBar } from "@/components/layout/title-bar";
 
 interface TokenManagementProps {
   onBack: () => void;
@@ -35,6 +36,7 @@ export default function TokenManagement({
   const [error, setError] = useState("");
   const [isValidating, setIsValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<TokenValidationResult | null>(null);
+  const validationTimeoutRef = useRef<number | null>(null);
 
   // Token 格式验证
   const isValidTokenFormat = (token: string) => {
@@ -68,14 +70,23 @@ export default function TokenManagement({
     const newToken = e.target.value;
     setToken(newToken);
     setError("");
-    
-    // 防抖验证
-    const timeoutId = setTimeout(() => {
+
+    if (validationTimeoutRef.current) {
+      window.clearTimeout(validationTimeoutRef.current);
+    }
+
+    validationTimeoutRef.current = window.setTimeout(() => {
       validateTokenLive(newToken);
     }, 500);
-
-    return () => clearTimeout(timeoutId);
   };
+
+  useEffect(() => {
+    return () => {
+      if (validationTimeoutRef.current) {
+        window.clearTimeout(validationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // 提交新 Token
   const handleSubmit = async (e: React.FormEvent) => {
@@ -168,151 +179,168 @@ export default function TokenManagement({
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-2xl">
-      <div className="space-y-6">
-        {/* 页面标题 */}
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={onBack}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="space-y-1">
-            <h1 className="text-2xl font-bold">GitHub Token 管理</h1>
-            <p className="text-muted-foreground">
-              {existingAuth?.isAuthenticated ? "更换" : "添加"} Personal Access Token
-            </p>
+    <div className="bg-background flex h-screen flex-col">
+      <TitleBar title="Starepo" />
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6 sm:px-6">
+          {/* 页面标题 */}
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={onBack}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="space-y-1">
+              <h1 className="text-2xl font-bold">GitHub Token 管理</h1>
+              <p className="text-muted-foreground">
+                {existingAuth?.isAuthenticated ? "更换" : "添加"} Personal Access Token
+              </p>
+            </div>
           </div>
-        </div>
 
-        {/* 当前状态 */}
-        {existingAuth?.isAuthenticated && (
+          {/* 当前状态 */}
+          {existingAuth?.isAuthenticated && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Shield className="h-5 w-5" />
+                  当前连接状态
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="font-medium">
+                      {existingAuth.user?.name || existingAuth.user?.login}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      @{existingAuth.user?.login}
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="border-green-600 text-green-600">
+                    <CheckCircle className="mr-1 h-3 w-3" />
+                    已连接
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  更换 Token 将会断开当前连接并使用新的 Token 重新认证
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Token 输入表单 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Key className="h-5 w-5" />
+                {existingAuth?.isAuthenticated ? "新的" : ""} Personal Access Token
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Token 输入框 */}
+                <div className="space-y-2">
+                  <label htmlFor="token" className="text-sm font-medium">
+                    Token
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="token"
+                      type={showToken ? "text" : "password"}
+                      value={token}
+                      onChange={handleTokenChange}
+                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      className={cn(
+                        "bg-background w-full rounded-md border px-3 py-2 pr-10 text-sm",
+                        "focus:ring-primary focus:border-transparent focus:ring-2 focus:outline-none",
+                        "placeholder:text-muted-foreground",
+                        error ? "border-destructive" : "border-border",
+                        validationResult?.valid && "border-green-500"
+                      )}
+                      disabled={isLoading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowToken(!showToken)}
+                      className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2"
+                      disabled={isLoading}
+                    >
+                      {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+
+                  {/* 验证状态显示 */}
+                  {renderValidationStatus()}
+
+                  {/* 错误信息 */}
+                  {error && (
+                    <div className="flex items-center gap-2 text-sm text-red-600">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span>{error}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* 提交按钮 */}
+                <Button
+                  type="submit"
+                  disabled={!validationResult?.valid || isLoading || isValidating}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isLoading ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      {existingAuth?.isAuthenticated ? "更换中..." : "验证中..."}
+                    </>
+                  ) : (
+                    <>
+                      <Key className="mr-2 h-4 w-4" />
+                      {existingAuth?.isAuthenticated ? "更换 Token" : "添加 Token"}
+                    </>
+                  )}
+                </Button>
+              </form>
+
+              <Separator />
+
+              {/* 帮助信息 */}
+              <div className="space-y-4">
+                <h3 className="font-medium">如何获取 Personal Access Token：</h3>
+                <ol className="list-inside list-decimal space-y-2 text-sm text-muted-foreground">
+                  <li>访问 GitHub Settings → Developer settings → Personal access tokens</li>
+                  <li>点击 &quot;Generate new token&quot; → &quot;Generate new token (classic)&quot;</li>
+                  <li>设置过期时间和必要的权限范围</li>
+                  <li>复制生成的 Token 并粘贴到上方输入框</li>
+                </ol>
+
+                <div className="bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 p-4 dark:border-amber-800">
+                  <h4 className="mb-2 font-medium text-amber-800 dark:text-amber-200">
+                    所需权限范围：
+                  </h4>
+                  <div className="space-y-1 text-sm text-amber-700 dark:text-amber-300">
+                    <div><strong>user</strong> - 读取用户基本信息</div>
+                    <div><strong>public_repo</strong> - 访问公共仓库（获取 Star 列表）</div>
+                    <div><strong>repo</strong> - 访问私有仓库（可选，如果需要私有仓库的 Star）</div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 安全提示 */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Shield className="h-5 w-5" />
-                当前连接状态
+                安全提示
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <div className="font-medium">
-                    {existingAuth.user?.name || existingAuth.user?.login}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    @{existingAuth.user?.login}
-                  </div>
-                </div>
-                <Badge variant="outline" className="text-green-600 border-green-600">
-                  <CheckCircle className="mr-1 h-3 w-3" />
-                  已连接
-                </Badge>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                更换 Token 将会断开当前连接并使用新的 Token 重新认证
-              </p>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <p>Token 仅存储于本地设备的安全存储中，我们不会将其上传到云端。</p>
+              <p>请妥善保管您的 Token，避免在公共环境中展示或分享。</p>
             </CardContent>
           </Card>
-        )}
-
-        {/* Token 输入表单 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Key className="h-5 w-5" />
-              {existingAuth?.isAuthenticated ? "新的" : ""} Personal Access Token
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Token 输入框 */}
-              <div className="space-y-2">
-                <label htmlFor="token" className="text-sm font-medium">
-                  Token
-                </label>
-                <div className="relative">
-                  <input
-                    id="token"
-                    type={showToken ? "text" : "password"}
-                    value={token}
-                    onChange={handleTokenChange}
-                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                    className={cn(
-                      "bg-background w-full rounded-md border px-3 py-2 pr-10 text-sm",
-                      "focus:ring-primary focus:border-transparent focus:ring-2 focus:outline-none",
-                      "placeholder:text-muted-foreground",
-                      error ? "border-destructive" : "border-border",
-                      validationResult?.valid && "border-green-500"
-                    )}
-                    disabled={isLoading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowToken(!showToken)}
-                    className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2"
-                    disabled={isLoading}
-                  >
-                    {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-
-                {/* 验证状态显示 */}
-                {renderValidationStatus()}
-
-                {/* 错误信息 */}
-                {error && (
-                  <div className="flex items-center gap-2 text-sm text-red-600">
-                    <AlertTriangle className="h-4 w-4" />
-                    <span>{error}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* 提交按钮 */}
-              <Button
-                type="submit"
-                disabled={!validationResult?.valid || isLoading || isValidating}
-                className="w-full"
-                size="lg"
-              >
-                {isLoading ? (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    {existingAuth?.isAuthenticated ? "更换中..." : "验证中..."}
-                  </>
-                ) : (
-                  <>
-                    <Key className="mr-2 h-4 w-4" />
-                    {existingAuth?.isAuthenticated ? "更换 Token" : "添加 Token"}
-                  </>
-                )}
-              </Button>
-            </form>
-
-            <Separator />
-
-            {/* 帮助信息 */}
-            <div className="space-y-4">
-              <h3 className="font-medium">如何获取 Personal Access Token：</h3>
-              <ol className="list-inside list-decimal space-y-2 text-sm text-muted-foreground">
-                <li>访问 GitHub Settings → Developer settings → Personal access tokens</li>
-                <li>点击 &quot;Generate new token&quot; → &quot;Generate new token (classic)&quot;</li>
-                <li>设置过期时间和必要的权限范围</li>
-                <li>复制生成的 Token 并粘贴到上方输入框</li>
-              </ol>
-
-              <div className="bg-amber-50 dark:bg-amber-950/20 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
-                <h4 className="font-medium text-amber-800 dark:text-amber-200 mb-2">
-                  所需权限范围：
-                </h4>
-                <div className="space-y-1 text-sm text-amber-700 dark:text-amber-300">
-                  <div><strong>user</strong> - 读取用户基本信息</div>
-                  <div><strong>public_repo</strong> - 访问公共仓库（获取 Star 列表）</div>
-                  <div><strong>repo</strong> - 访问私有仓库（可选，如果需要私有仓库的 Star）</div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        </div>
       </div>
     </div>
   );
