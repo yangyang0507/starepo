@@ -9,7 +9,7 @@
 - **GitHub 集成**: 自动同步你的 GitHub Star 项目信息
 - **智能向量化**: 使用 Embedding 技术对项目进行语义理解
 - **AI 对话检索**: 通过自然语言快速找到相关项目
-- **本地存储**: 使用 ChromaDB 进行本地向量数据库存储
+- **本地存储**: 使用 LanceDB 进行本地向量数据库存储
 - **离线使用**: 数据完全本地化，保护隐私
 - **实时同步**: 支持增量同步最新的 Star 项目
 
@@ -24,7 +24,7 @@
 
 ### AI & 数据处理 🤖
 
-- [ChromaDB](https://www.trychroma.com/) - 本地向量数据库
+- [LanceDB](https://lancedb.github.io/lancedb/) - 本地向量数据库
 - [AI SDK V5](https://ai-sdk.dev/) - 统一的 AI 接口，支持多种 AI 提供商
 - [GitHub API](https://docs.github.com/en/rest) - GitHub 数据获取
 
@@ -81,7 +81,7 @@
   - [ ] 标签和主题过滤
 
 ### Phase 2: 智能化升级
-- [ ] ChromaDB 本地向量数据库集成
+- [x] LanceDB 本地向量数据库集成
 - [ ] OpenAI Embedding API 集成
 - [ ] 项目描述和 README 向量化
 - [ ] 基础的语义搜索功能
@@ -105,7 +105,7 @@
 ```mermaid
 graph LR
     Frontend[前端界面<br/>• React UI<br/>• Chat 界面<br/>• 项目列表<br/>• 搜索功能]
-    MainProcess[主进程<br/>• GitHub API<br/>• ChromaDB<br/>• 数据处理<br/>• IPC 通信]
+    MainProcess[主进程<br/>• GitHub API<br/>• LanceDB<br/>• 数据处理<br/>• IPC 通信]
     ExternalServices[外部服务<br/>• GitHub API<br/>• OpenAI API]
     
     Frontend <--> MainProcess
@@ -115,7 +115,7 @@ graph LR
 ### 数据流程
 1. **数据获取**: GitHub API → 项目基础信息
 2. **数据处理**: README/描述 → AI SDK Embedding → 向量数据
-3. **数据存储**: ChromaDB 本地向量数据库
+3. **数据存储**: LanceDB 本地向量数据库
 4. **智能检索**: 用户查询 → 向量相似度搜索 → 结果排序
 5. **对话交互**: 自然语言 → 意图识别 → 精准搜索
 
@@ -218,7 +218,7 @@ graph LR
 #### 🔧 主进程 (`main/`)
 - **`services/`**: 核心业务逻辑层
   - `github/`: GitHub API 集成，处理 Token 认证和数据获取
-  - `database/`: ChromaDB 数据库操作
+  - `database/`: LanceDB 数据库操作
   - `ai/`: AI 对话和自然语言处理
   - `file/`: 文件系统操作和管理
 - **`ipc/`**: IPC 通信处理器
@@ -322,7 +322,7 @@ npm run <script>
 - `test:watch`: 监听模式运行测试
 
 ### 未来功能脚本
-- `db:setup`: 初始化 ChromaDB
+- `db:setup`: 初始化 LanceDB
 - `db:reset`: 重置数据库
 - `db:migrate`: 数据库迁移
 - `sync:github`: 手动同步 GitHub Stars
@@ -455,8 +455,8 @@ npm install
 创建 `.env` 文件并配置必要的环境变量：
 
 ```bash
-# ChromaDB 配置
-CHROMA_DB_PATH=./data/chroma
+# LanceDB 配置
+LANCEDB_PATH=./data/lancedb
 
 # AI 服务配置（可选）
 OPENAI_API_KEY=your_openai_api_key
@@ -529,7 +529,7 @@ npm run start
 - 基于 [electron-shadcn](https://github.com/LuanRoger/electron-shadcn) 模板构建
 - 感谢 Vercel 团队提供的 AI SDK V5
 - 支持多种 AI 提供商：OpenAI、Anthropic、Google AI 等
-- 感谢 ChromaDB 团队提供的优秀向量数据库
+- 感谢 LanceDB 团队提供的优秀向量数据库
 
 ## 📝 更新日志
 
@@ -553,7 +553,7 @@ npm run start
 
 ### 下一步计划
 1. **GitHub Token 认证集成** - 完善认证流程和 API 访问
-2. **数据层实现** - 集成 ChromaDB 向量数据库
+2. **数据层实现** - 集成 LanceDB 向量数据库
 3. **AI 功能开发** - 实现语义搜索和对话系统
 4. **UI/UX 完善** - 设计和实现用户界面
 

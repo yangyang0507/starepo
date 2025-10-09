@@ -55,12 +55,42 @@ export function registerGitHubHandlers(): void {
     IPC_CHANNELS.GITHUB.GET_AUTH_STATE,
     async (): Promise<APIResponse> => {
       try {
-        const authState = authService.getAuthState();
+        const authState = await authService.getAuthState();
+        console.log('[主进程] 获取到的原始认证状态:', authState);
+        console.log('[主进程] 获取认证状态:', {
+          isAuthenticated: authState.isAuthenticated,
+          user: authState.user?.login,
+          hasTokenInfo: !!authState.tokenInfo,
+        });
+        
+        // 安全地序列化所有日期字段，统一为字符串格式
+        console.log('[主进程] 开始序列化认证状态...');
+        console.log('[主进程] tokenInfo.createdAt 类型:', typeof authState.tokenInfo?.createdAt);
+        console.log('[主进程] tokenInfo.createdAt 是否为Date:', authState.tokenInfo?.createdAt instanceof Date);
+        
+        const serializedAuthState = {
+          ...authState,
+          lastValidated: authState.lastValidated instanceof Date ? authState.lastValidated.toISOString() : authState.lastValidated,
+          expiresAt: authState.expiresAt instanceof Date ? authState.expiresAt.toISOString() : authState.expiresAt,
+          tokenInfo: authState.tokenInfo ? {
+            ...authState.tokenInfo,
+            createdAt: authState.tokenInfo.createdAt instanceof Date ? authState.tokenInfo.createdAt.toISOString() : authState.tokenInfo.createdAt,
+            lastUsed: authState.tokenInfo.lastUsed instanceof Date ? authState.tokenInfo.lastUsed.toISOString() : authState.tokenInfo.lastUsed,
+            rateLimit: authState.tokenInfo.rateLimit ? {
+              ...authState.tokenInfo.rateLimit,
+              reset: authState.tokenInfo.rateLimit.reset instanceof Date ? authState.tokenInfo.rateLimit.reset.toISOString() : authState.tokenInfo.rateLimit.reset,
+            } : undefined,
+          } : undefined,
+        };
+
+        console.log('[主进程] 序列化完成，未发生错误');
+
         return {
           success: true,
-          data: authState,
+          data: serializedAuthState,
         };
       } catch (error) {
+        console.error('[主进程] 获取认证状态失败:', error);
         return {
           success: false,
           error: error instanceof Error ? error.message : "获取认证状态失败",
@@ -231,7 +261,7 @@ export function registerGitHubHandlers(): void {
     async (_, options: any): Promise<APIResponse> => {
       try {
         // 过滤掉不可序列化的回调函数，避免 "An object could not be cloned" 错误
-        const { onProgress, ...safeOptions } = options || {};
+        const { onProgress: _onProgress, ...safeOptions } = options || {};
         const result = await starService.getAllStarredRepositories(safeOptions);
         return {
           success: true,

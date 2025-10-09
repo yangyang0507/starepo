@@ -359,23 +359,78 @@ export class GitHubStarService {
    * 获取收藏仓库的统计信息
    */
   async getStarredRepositoriesStats(): Promise<{
-    total_count: number;
-    languages: Record<string, number>;
-    topics: Record<string, number>;
-    most_starred: GitHubRepository | null;
-    recently_starred: GitHubRepository | null;
+    basic: {
+      total_count: number;
+      languages: Record<string, number>;
+      topics: Record<string, number>;
+      most_starred: GitHubRepository | null;
+      recently_starred: GitHubRepository | null;
+    };
+    timeSeries: {
+      monthly: Array<{date: string; count: number; cumulative: number}>;
+      weekly: Array<{date: string; count: number; cumulative: number}>;
+    };
+    insights: {
+      avgStarsPerMonth: number;
+      mostActiveMonth: string;
+      topLanguages: Array<{name: string; count: number; percentage: number}>;
+      topTopics: Array<{name: string; count: number; percentage: number}>;
+    };
   }> {
     try {
-      // 获取第一页数据来计算统计信息
-      const { repositories } = await this.getStarredRepositories({
-        per_page: 100,
-        page: 1,
-      });
+      console.log('[统计服务] 开始获取所有收藏仓库数据进行统计...');
+      
+      // 优先从数据库获取所有数据，这样更高效
+      let repositories: GitHubRepository[];
+      try {
+        // 首先尝试从数据库获取
+        repositories = await this.getRepositoriesFromDatabase();
+        console.log(`[统计服务] 从数据库获取到 ${repositories.length} 个仓库`);
+        
+        // 如果数据库中数据较少，尝试从API获取全部数据
+        if (repositories.length < 1000) {
+          console.log('[统计服务] 数据库数据较少，从API获取完整数据...');
+          const apiResult = await this.getAllStarredRepositories({
+            batchSize: 100,
+          });
+          repositories = apiResult.repositories as GitHubRepository[];
+          
+          // 同步到数据库以便后续使用
+          try {
+            await this.syncRepositoriesToDatabase(repositories);
+            console.log(`[统计服务] 已将 ${repositories.length} 个仓库同步到数据库`);
+          } catch (syncError) {
+            console.warn('[统计服务] 同步到数据库失败:', syncError);
+          }
+        }
+      } catch (dbError) {
+        console.warn('[统计服务] 从数据库获取失败，尝试从API获取:', dbError);
+        // 如果数据库失败，则从API获取所有数据
+        const apiResult = await this.getAllStarredRepositories({
+          batchSize: 100,
+        });
+        repositories = apiResult.repositories as GitHubRepository[];
+        console.log(`[统计服务] 从API获取到 ${repositories.length} 个仓库`);
+        
+        // 尝试将API数据同步到数据库
+        try {
+          await this.initializeDatabase();
+          await this.syncRepositoriesToDatabase(repositories);
+          console.log(`[统计服务] 已将 ${repositories.length} 个仓库同步到数据库`);
+        } catch (syncError) {
+          console.warn('[统计服务] 同步到数据库失败:', syncError);
+        }
+      }
 
       const languages: Record<string, number> = {};
       const topics: Record<string, number> = {};
       let mostStarred: GitHubRepository | null = null;
       let recentlyStarred: GitHubRepository | null = null;
+
+      // 按月份统计
+      const monthlyStars: Record<string, number> = {};
+      let cumulative = 0;
+      const monthlyData: Array<{date: string; count: number; cumulative: number}> = [];
 
       repositories.forEach((repo) => {
         // 统计语言
@@ -384,15 +439,14 @@ export class GitHubStarService {
         }
 
         // 统计主题
-        repo.topics.forEach((topic: string) => {
-          topics[topic] = (topics[topic] || 0) + 1;
-        });
+        if (repo.topics && Array.isArray(repo.topics)) {
+          repo.topics.forEach((topic: string) => {
+            topics[topic] = (topics[topic] || 0) + 1;
+          });
+        }
 
         // 找到最多星标的仓库
-        if (
-          !mostStarred ||
-          repo.stargazers_count > mostStarred.stargazers_count
-        ) {
+        if (!mostStarred || repo.stargazers_count > mostStarred.stargazers_count) {
           mostStarred = repo;
         }
 
@@ -400,14 +454,73 @@ export class GitHubStarService {
         if (!recentlyStarred) {
           recentlyStarred = repo;
         }
+
+        // 按月份统计（使用 starred_at 或 created_at）
+        const starredAt = (repo as any).starred_at || repo.created_at;
+        const date = new Date(starredAt);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        monthlyStars[monthKey] = (monthlyStars[monthKey] || 0) + 1;
       });
 
+      // 生成月度数据
+      const sortedMonths = Object.keys(monthlyStars).sort();
+      sortedMonths.forEach(month => {
+        cumulative += monthlyStars[month];
+        monthlyData.push({
+          date: month,
+          count: monthlyStars[month],
+          cumulative
+        });
+      });
+
+      // 计算洞察数据
+      const totalRepos = repositories.length;
+      const sortedLanguageEntries = Object.entries(languages).sort(([,a], [,b]) => b - a);
+      const topLanguages = sortedLanguageEntries.slice(0, 5).map(([name, count]) => ({
+        name,
+        count,
+        percentage: Math.round((count / totalRepos) * 100)
+      }));
+
+      const sortedTopicEntries = Object.entries(topics).sort(([,a], [,b]) => b - a);
+      const topTopics = sortedTopicEntries.slice(0, 5).map(([name, count]) => ({
+        name,
+        count,
+        percentage: Math.round((count / totalRepos) * 100)
+      }));
+
+      // 计算月平均收藏数
+      const avgStarsPerMonth = monthlyData.length > 0 
+        ? totalRepos / Math.max(monthlyData.length, 12) 
+        : 0;
+
+      // 找到最活跃月份
+      const mostActiveMonth = monthlyData.length > 0
+        ? monthlyData.reduce((prev, current) => prev.count > current.count ? prev : current).date
+        : '';
+
+      console.log(`[统计服务] 统计分析完成：总数=${totalRepos}, 语言类型=${Object.keys(languages).length}, 主题类型=${Object.keys(topics).length}`);
+      console.log(`[统计服务] 前5种语言:`, topLanguages.map(l => `${l.name}(${l.count})`).join(', '));
+      console.log(`[统计服务] 前5个主题:`, topTopics.map(t => `${t.name}(${t.count})`).join(', '));
+
       return {
-        total_count: repositories.length,
-        languages,
-        topics,
-        most_starred: mostStarred,
-        recently_starred: recentlyStarred,
+        basic: {
+          total_count: totalRepos,
+          languages,
+          topics,
+          most_starred: mostStarred,
+          recently_starred: recentlyStarred,
+        },
+        timeSeries: {
+          monthly: monthlyData,
+          weekly: [] // 暂时留空，可后续实现
+        },
+        insights: {
+          avgStarsPerMonth: Math.round(avgStarsPerMonth * 10) / 10,
+          mostActiveMonth,
+          topLanguages,
+          topTopics,
+        },
       };
     } catch (error) {
       throw this.handleError(error, "获取收藏仓库统计信息失败");
@@ -545,20 +658,20 @@ export class GitHubStarService {
   }
 
   /**
-   * 初始化 Chroma 数据库
+   * 初始化 LanceDB 数据库
    */
   async initializeDatabase(): Promise<void> {
     try {
       await lancedbService.initialize();
-      console.log('ChromaDB 数据库初始化成功');
+      console.log('LanceDB 数据库初始化成功');
     } catch (error) {
-      console.error('ChromaDB 数据库初始化失败:', error);
+      console.error('LanceDB 数据库初始化失败:', error);
       throw error;
     }
   }
 
   /**
-   * 同步仓库数据到 Chroma 数据库
+   * 同步仓库数据到 LanceDB 数据库
    */
   async syncRepositoriesToDatabase(repositories: GitHubRepository[]): Promise<void> {
     try {
@@ -575,6 +688,8 @@ export class GitHubStarService {
    */
   async getRepositoriesFromDatabase(limit?: number, offset?: number): Promise<GitHubRepository[]> {
     try {
+      // 确保 LanceDB 在访问前已完成初始化
+      await this.initializeDatabase();
       return await lancedbService.getAllRepositories(limit, offset);
     } catch (error) {
       console.error('从数据库获取仓库失败:', error);

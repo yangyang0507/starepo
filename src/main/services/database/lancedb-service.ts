@@ -212,12 +212,16 @@ export class LanceDBService {
   /**
    * 获取所有仓库
    */
-  async getAllRepositories(limit?: number, _offset?: number): Promise<GitHubRepository[]> {
+  async getAllRepositories(limit?: number, offset?: number): Promise<GitHubRepository[]> {
     this.ensureInitialized();
 
-    let query = this.repositoriesTable!.search(new Array(1536).fill(0.0));
+    let query = this.repositoriesTable!.query();
 
-    if (limit) {
+    if (offset && offset > 0) {
+      query = query.offset(offset);
+    }
+
+    if (limit && limit > 0) {
       query = query.limit(limit);
     }
 

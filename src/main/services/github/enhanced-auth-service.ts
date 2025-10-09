@@ -186,10 +186,14 @@ export class EnhancedGitHubAuthService {
    * 获取当前认证状态
    */
   async getAuthState(): Promise<AuthState> {
-    // 如果内存中没有状态，尝试从存储中加载
-    if (!this.currentAuthState.isAuthenticated) {
-      await this.initialize();
-    }
+    // 始终尝试初始化，确保从存储中加载最新状态
+    await this.initialize();
+    
+    console.log('[增强认证服务] 当前认证状态:', {
+      isAuthenticated: this.currentAuthState.isAuthenticated,
+      user: this.currentAuthState.user?.login,
+      hasTokenInfo: !!this.currentAuthState.tokenInfo,
+    });
 
     return { ...this.currentAuthState };
   }

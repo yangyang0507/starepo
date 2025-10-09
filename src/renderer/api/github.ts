@@ -43,7 +43,28 @@ export const githubAPI = {
     if (!result.success) {
       throw new Error(result.error || "获取认证状态失败");
     }
-    return result.data;
+    
+    // 反序列化字符串为Date对象
+    const authState = result.data;
+    if (authState.lastValidated && typeof authState.lastValidated === 'string') {
+      authState.lastValidated = new Date(authState.lastValidated);
+    }
+    if (authState.expiresAt && typeof authState.expiresAt === 'string') {
+      authState.expiresAt = new Date(authState.expiresAt);
+    }
+    if (authState.tokenInfo) {
+      if (authState.tokenInfo.createdAt && typeof authState.tokenInfo.createdAt === 'string') {
+        authState.tokenInfo.createdAt = new Date(authState.tokenInfo.createdAt);
+      }
+      if (authState.tokenInfo.lastUsed && typeof authState.tokenInfo.lastUsed === 'string') {
+        authState.tokenInfo.lastUsed = new Date(authState.tokenInfo.lastUsed);
+      }
+      if (authState.tokenInfo.rateLimit && authState.tokenInfo.rateLimit.reset && typeof authState.tokenInfo.rateLimit.reset === 'string') {
+        authState.tokenInfo.rateLimit.reset = new Date(authState.tokenInfo.rateLimit.reset);
+      }
+    }
+    
+    return authState;
   },
 
   refreshAuth: async () => {

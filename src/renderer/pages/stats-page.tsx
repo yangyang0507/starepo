@@ -110,6 +110,7 @@ interface StatsPageState {
       topLanguages: Array<{ name: string; count: number; percentage: number }>;
       topTopics: Array<{ name: string; count: number; percentage: number }>;
     };
+    repositories: GitHubRepository[]; // 添加完整仓库数据
   } | null;
 }
 
@@ -129,9 +130,16 @@ export default function StatsPage() {
 
     try {
       // 检查认证状态
+      console.log('[统计页面] 开始检查认证状态...');
       const authState = await githubAPI.getAuthState() as AuthState;
+      console.log('[统计页面] 获取到的认证状态:', {
+        isAuthenticated: authState.isAuthenticated,
+        user: authState.user?.login,
+        hasTokenInfo: !!authState.tokenInfo,
+      });
       const isAuthenticated = authState.isAuthenticated;
       if (!isAuthenticated) {
+        console.log('[统计页面] 用户未认证，显示错误信息');
         setState(prev => ({
           ...prev,
           loading: false,
@@ -139,6 +147,7 @@ export default function StatsPage() {
         }));
         return;
       }
+      console.log('[统计页面] 用户已认证，继续获取数据...');
 
       // 获取用户信息
       const user = await githubAPI.getCurrentUser() as GitHubUser;
@@ -146,11 +155,20 @@ export default function StatsPage() {
       // 获取扩展统计数据
       const statsData = await githubAPI.getStarredStats() as any;
 
+      // 获取完整的仓库数据用于排行榜
+      const repositoriesResult = await githubAPI.getAllStarredRepositoriesEnhanced({
+        useDatabase: true,
+        forceRefresh: false,
+      }) as any;
+
       setState({
         loading: false,
         error: null,
         user,
-        statsData,
+        statsData: {
+          ...statsData,
+          repositories: repositoriesResult.repositories || [],
+        },
       });
 
       // 重置动画状态，让数字重新动画
@@ -395,7 +413,7 @@ export default function StatsPage() {
 
             {/* 热门仓库排行榜 */}
             <RepositoriesRanking
-              repositories={[]} // TODO: 需要从 getAllStarredRepositories 获取完整数据
+              repositories={state.statsData.repositories || []}
               title="热门仓库"
               onRepositoryClick={(repo) => {
                 // 处理仓库点击事件，可以跳转到仓库详情或在浏览器中打开
