@@ -1,13 +1,13 @@
+import type { SearchResult as SharedSearchResult } from '@shared/types';
+
 // 数据库相关类型定义
 
 export interface LanceDBMetadata {
   [key: string]: string | number | boolean | null;
 }
 
-export interface SearchResult<T> {
-  items: T[];
+export interface SearchResult<T> extends SharedSearchResult<T> {
   scores: number[];
-  totalCount: number;
 }
 
 export interface DatabaseStats {

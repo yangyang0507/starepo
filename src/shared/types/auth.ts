@@ -16,6 +16,7 @@ export interface AuthState {
 export interface GitHubUser {
   id: number;
   login: string;
+  html_url: string;
   avatar_url: string;
   name: string | null;
   email: string | null;

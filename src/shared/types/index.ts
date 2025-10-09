@@ -37,6 +37,7 @@ export interface GitHubUser {
   id: number;
   login: string;
   name: string | null;
+  html_url: string;
   avatar_url: string;
   email: string | null;
   bio?: string | null;
@@ -138,11 +139,11 @@ export interface GitHubRepository {
 }
 
 // 数据库相关类型 (未来功能)
-export interface SearchResult {
-  repos: GitHubRepo[];
-  total: number;
-  query: string;
-  similarity_scores?: number[];
+export interface SearchResult<T = GitHubRepo> {
+  items: T[];
+  totalCount: number;
+  query?: string;
+  scores?: number[];
 }
 
 // AI 聊天相关类型 (未来功能)

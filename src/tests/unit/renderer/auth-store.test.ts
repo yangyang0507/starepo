@@ -66,6 +66,7 @@ describe('Zustand Auth Store', () => {
     const mockUser: GitHubUser = {
       id: 12345,
       login: 'testuser',
+      html_url: 'https://github.com/testuser',
       avatar_url: 'https://avatars.githubusercontent.com/u/12345',
       name: 'Test User',
       email: 'test@example.com',
@@ -236,6 +237,7 @@ describe('Zustand Auth Store', () => {
       user: {
         id: 12345,
         login: 'testuser',
+        html_url: 'https://github.com/testuser',
         avatar_url: 'https://example.com/avatar.png',
         name: 'Test User',
         email: 'test@example.com',

@@ -4,6 +4,7 @@ import type { GitHubRepository, GitHubUser } from '../../../shared/types/index.j
 import type { SearchResult, DatabaseStats } from './types.js';
 import * as path from 'path';
 import * as os from 'os';
+import { createHash } from 'node:crypto';
 
 /**
  * LanceDB 数据库服务类
@@ -15,6 +16,8 @@ export class LanceDBService {
   private usersTable: any = null;
   private initialized = false;
   private dbPath: string;
+  private readonly embeddingDimensions = 1536;
+  private readonly likeEscapeChar = '\\';
 
   constructor() {
     // 设置数据库路径到用户目录
@@ -167,23 +170,25 @@ export class LanceDBService {
     await this.deleteRepositoriesByIds(ids);
 
     // 准备数据
-    const data = uniqueRepositories.map(repo => ({
-      id: repo.id,
-      name: repo.name,
-      full_name: repo.full_name,
-      description: repo.description || '',
-      html_url: repo.html_url,
-      language: repo.language || '',
-      stargazers_count: repo.stargazers_count,
-      forks_count: repo.forks_count,
-      topics: repo.topics?.join(',') || '',
-      created_at: repo.created_at,
-      updated_at: repo.updated_at,
-      owner_login: repo.owner.login,
-      document: this.createRepositoryDocument(repo),
-      // 暂时设置空向量，后续可以集成嵌入函数
-      vector: new Array(1536).fill(0.0),
-    }));
+    const data = uniqueRepositories.map(repo => {
+      const document = this.createRepositoryDocument(repo);
+      return {
+        id: repo.id,
+        name: repo.name,
+        full_name: repo.full_name,
+        description: repo.description || '',
+        html_url: repo.html_url,
+        language: repo.language || '',
+        stargazers_count: repo.stargazers_count,
+        forks_count: repo.forks_count,
+        topics: repo.topics?.join(',') || '',
+        created_at: repo.created_at,
+        updated_at: repo.updated_at,
+        owner_login: repo.owner.login,
+        document,
+        vector: this.generateEmbedding(document),
+      };
+    });
 
     // 直接插入数据数组
     await this.repositoriesTable!.add(data);
@@ -196,9 +201,14 @@ export class LanceDBService {
   async getRepositoryById(id: number): Promise<GitHubRepository | null> {
     this.ensureInitialized();
 
+    const safeId = Number(id);
+    if (!Number.isFinite(safeId)) {
+      throw new Error('无效的仓库 ID');
+    }
+
     const result = await this.repositoriesTable!
-      .search([0])  // 使用空向量搜索
-      .where(`id = ${id}`)
+      .query()
+      .where(`id = ${safeId}`)
       .limit(1)
       .toArray();
 
@@ -239,32 +249,47 @@ export class LanceDBService {
   ): Promise<SearchResult<GitHubRepository>> {
     this.ensureInitialized();
 
-    // 使用向量搜索
-    let searchQuery = this.repositoriesTable!
-      .search(new Array(1536).fill(0.0))
-      .limit(limit);
+    const trimmedQuery = query?.trim() ?? '';
+    const filters: string[] = [];
+    let builder: any;
 
-    // 简单的文本搜索过滤
-    let whereClause = '';
-    if (query) {
-      whereClause = `document LIKE '%${query}%'`;
+    if (trimmedQuery.length > 0) {
+      const embedding = this.generateEmbedding(trimmedQuery);
+      builder = this.repositoriesTable!.search(embedding);
+      const likeClause = `document LIKE '%${this.escapeLikePattern(trimmedQuery)}%' ESCAPE '${this.likeEscapeChar}'`;
+      filters.push(likeClause);
+    } else {
+      builder = this.repositoriesTable!.query();
     }
 
     if (where) {
-      whereClause = whereClause ? `${whereClause} AND ${where}` : where;
+      filters.push(where);
     }
 
-    if (whereClause) {
-      searchQuery = searchQuery.where(whereClause);
+    if (filters.length > 0) {
+      builder = builder.where(filters.join(' AND '));
     }
 
-    const result = await searchQuery.toArray();
-    const repositories = this.parseRepositoryRecords(result);
+    builder = builder.limit(limit);
+
+    const rawResult = await builder.toArray();
+    const repositories = this.parseRepositoryRecords(rawResult);
+
+    const scoresMap = new Map<number, number>();
+    if (trimmedQuery.length > 0) {
+      const queryVector = this.generateEmbedding(trimmedQuery);
+      rawResult.forEach((record: any) => {
+        if (record && typeof record.id === 'number' && Array.isArray(record.vector)) {
+          scoresMap.set(record.id, this.computeCosineSimilarity(queryVector, record.vector));
+        }
+      });
+    }
 
     return {
       items: repositories,
-      scores: new Array(repositories.length).fill(1.0),
-      totalCount: repositories.length
+      scores: repositories.map(repo => scoresMap.get(repo.id) ?? 1.0),
+      totalCount: repositories.length,
+      query: trimmedQuery
     };
   }
 
@@ -274,15 +299,17 @@ export class LanceDBService {
   async getRepositoriesByLanguage(language: string, limit?: number): Promise<GitHubRepository[]> {
     this.ensureInitialized();
 
-    let query = this.repositoriesTable!
-      .search(new Array(1536).fill(0.0))
-      .where(`language = '${language}'`);
+    const safeLanguage = this.escapeSqlString(language);
+
+    let builder = this.repositoriesTable!
+      .query()
+      .where(`language = '${safeLanguage}'`);
 
     if (limit) {
-      query = query.limit(limit);
+      builder = builder.limit(limit);
     }
 
-    const result = await query.toArray();
+    const result = await builder.toArray();
     return this.parseRepositoryRecords(result);
   }
 
@@ -296,15 +323,18 @@ export class LanceDBService {
   ): Promise<GitHubRepository[]> {
     this.ensureInitialized();
 
-    let query = this.repositoriesTable!
-      .search(new Array(1536).fill(0.0))
-      .where(`stargazers_count >= ${minStars} AND stargazers_count <= ${maxStars}`);
+    const safeMin = Number.isFinite(minStars) ? Math.max(0, Math.floor(minStars)) : 0;
+    const safeMax = Number.isFinite(maxStars) ? Math.max(safeMin, Math.floor(maxStars)) : Number.MAX_SAFE_INTEGER;
+
+    let builder = this.repositoriesTable!
+      .query()
+      .where(`stargazers_count >= ${safeMin} AND stargazers_count <= ${safeMax}`);
 
     if (limit) {
-      query = query.limit(limit);
+      builder = builder.limit(limit);
     }
 
-    const result = await query.toArray();
+    const result = await builder.toArray();
     return this.parseRepositoryRecords(result);
   }
 
@@ -314,7 +344,16 @@ export class LanceDBService {
   async deleteRepositories(ids: number[]): Promise<void> {
     this.ensureInitialized();
 
-    const whereClause = `id IN (${ids.join(',')})`;
+    const sanitizedIds = ids
+      .map(id => Number(id))
+      .filter(id => Number.isFinite(id))
+      .map(id => Math.floor(id));
+
+    if (!sanitizedIds.length) {
+      return;
+    }
+
+    const whereClause = `id IN (${sanitizedIds.join(',')})`;
     await this.repositoriesTable!.delete(whereClause);
 
     console.log(`已从 LanceDB 删除 ${ids.length} 个仓库`);
@@ -326,6 +365,7 @@ export class LanceDBService {
   async upsertUser(user: GitHubUser): Promise<void> {
     this.ensureInitialized();
 
+    const document = this.createUserDocument(user);
     const data = [{
       id: user.id,
       login: user.login,
@@ -336,8 +376,8 @@ export class LanceDBService {
       followers: user.followers,
       following: user.following,
       created_at: user.created_at,
-      document: this.createUserDocument(user),
-      vector: new Array(1536).fill(0.0),
+      document,
+      vector: this.generateEmbedding(document),
     }];
 
     await this.usersTable!.add(data);
@@ -350,9 +390,14 @@ export class LanceDBService {
   async getUserById(id: number): Promise<GitHubUser | null> {
     this.ensureInitialized();
 
+    const safeId = Number(id);
+    if (!Number.isFinite(safeId)) {
+      throw new Error('无效的用户 ID');
+    }
+
     const result = await this.usersTable!
-      .search(new Array(1536).fill(0.0))
-      .where(`id = ${id}`)
+      .query()
+      .where(`id = ${safeId}`)
       .limit(1)
       .toArray();
 
@@ -518,7 +563,15 @@ export class LanceDBService {
 
     const chunkSize = 500;
     for (let i = 0; i < ids.length; i += chunkSize) {
-      const chunk = ids.slice(i, i + chunkSize);
+      const chunk = ids.slice(i, i + chunkSize)
+        .map(id => Number(id))
+        .filter(id => Number.isFinite(id))
+        .map(id => Math.floor(id));
+
+      if (!chunk.length) {
+        continue;
+      }
+
       const whereClause = `id IN (${chunk.join(',')})`;
       await this.repositoriesTable!.delete(whereClause);
     }
@@ -552,6 +605,96 @@ export class LanceDBService {
     });
 
     return Array.from(map.values());
+  }
+
+  /**
+   * 计算两个向量之间的余弦相似度
+   */
+  private computeCosineSimilarity(queryVector: number[], candidateVector: number[] | Float32Array): number {
+    if (!candidateVector || candidateVector.length === 0) {
+      return 0;
+    }
+
+    const length = Math.min(queryVector.length, candidateVector.length);
+    let dotProduct = 0;
+    let queryMagnitude = 0;
+    let candidateMagnitude = 0;
+
+    for (let i = 0; i < length; i += 1) {
+      const q = queryVector[i] ?? 0;
+      const c = candidateVector[i] ?? 0;
+      dotProduct += q * c;
+      queryMagnitude += q * q;
+      candidateMagnitude += c * c;
+    }
+
+    if (queryMagnitude === 0 || candidateMagnitude === 0) {
+      return 0;
+    }
+
+    const score = dotProduct / (Math.sqrt(queryMagnitude) * Math.sqrt(candidateMagnitude));
+    return Number.isFinite(score) ? Number(score.toFixed(6)) : 0;
+  }
+
+  /**
+   * 生成简单但稳定的向量嵌入
+   * 使用字符分布 + 哈希摘要构建固定长度向量，满足 LanceDB 搜索要求
+   */
+  private generateEmbedding(text: string): number[] {
+    const dimensions = this.embeddingDimensions;
+    const vector = new Array(dimensions).fill(0);
+    const normalized = text.normalize('NFKC').toLowerCase();
+
+    if (!normalized.trim()) {
+      return vector;
+    }
+
+    for (let i = 0; i < normalized.length; i += 1) {
+      const codePoint = normalized.codePointAt(i);
+      if (codePoint === undefined) {
+        continue;
+      }
+
+      const index = codePoint % dimensions;
+      vector[index] += (codePoint % 97) / 97;
+
+      if (codePoint > 0xffff) {
+        i += 1; // 跳过代理对的第二个代码单元
+      }
+    }
+
+    const digest = createHash('sha256').update(normalized).digest();
+    for (let i = 0; i < dimensions; i += 1) {
+      const byte = digest[i % digest.length];
+      vector[i] += (byte / 255) - 0.5;
+    }
+
+    const magnitude = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
+    if (magnitude > 0) {
+      for (let i = 0; i < dimensions; i += 1) {
+        vector[i] = Number((vector[i] / magnitude).toFixed(6));
+      }
+    }
+
+    return vector;
+  }
+
+  /**
+   * 转义 SQL 字符串常量，避免注入
+   */
+  private escapeSqlString(value: string): string {
+    return value.replace(/'/g, "''");
+  }
+
+  /**
+   * 转义 LIKE 模式中的特殊字符
+   */
+  private escapeLikePattern(value: string): string {
+    return value
+      .replace(/\\/g, '\\\\')
+      .replace(/%/g, '\\%')
+      .replace(/_/g, '\\_')
+      .replace(/'/g, "''");
   }
 }
 

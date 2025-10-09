@@ -710,23 +710,27 @@ export class GitHubStarService {
     }
   ): Promise<SearchResult<GitHubRepository>> {
     try {
-      const where: any = {};
+      const conditions: string[] = [];
 
       if (filters?.language) {
-        where.language = filters.language;
+        conditions.push(`language = '${this.escapeSqlLiteral(filters.language)}'`);
       }
 
-      if (filters?.minStars !== undefined || filters?.maxStars !== undefined) {
-        where.stargazers_count = {};
-        if (filters.minStars !== undefined) {
-          where.stargazers_count["$gte"] = filters.minStars;
-        }
-        if (filters.maxStars !== undefined) {
-          where.stargazers_count["$lte"] = filters.maxStars;
-        }
+      const minInput = filters?.minStars;
+      const maxInput = filters?.maxStars;
+      const hasMin = typeof minInput === 'number' && Number.isFinite(minInput);
+      const hasMax = typeof maxInput === 'number' && Number.isFinite(maxInput);
+
+      if (hasMin || hasMax) {
+        const min = hasMin ? Math.max(0, Math.floor(minInput as number)) : 0;
+        const maxCandidate = hasMax ? Math.floor(maxInput as number) : Number.MAX_SAFE_INTEGER;
+        const max = Math.max(min, maxCandidate);
+        conditions.push(`stargazers_count >= ${min} AND stargazers_count <= ${max}`);
       }
 
-      return await lancedbService.searchRepositories(query, limit, where);
+      const whereClause = conditions.length ? conditions.join(' AND ') : undefined;
+
+      return await lancedbService.searchRepositories(query, limit, whereClause);
     } catch (error) {
       console.error('语义搜索仓库失败:', error);
       throw error;
@@ -854,6 +858,10 @@ export class GitHubStarService {
       console.error('获取增强版 starred 仓库失败:', error);
       throw error;
     }
+  }
+
+  private escapeSqlLiteral(value: string): string {
+    return value.replace(/'/g, "''");
   }
 }
 

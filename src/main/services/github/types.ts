@@ -1,60 +1,5 @@
 // GitHub API 相关类型定义
-import type { AuthStep } from '@shared/types';
-
-export interface GitHubUser {
-  id: number;
-  login: string;
-  name: string | null;
-  email: string | null;
-  avatar_url: string;
-  html_url: string;
-  bio: string | null;
-  company: string | null;
-  location: string | null;
-  blog: string | null;
-  public_repos: number;
-  public_gists: number;
-  followers: number;
-  following: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface GitHubRepository {
-  id: number;
-  name: string;
-  full_name: string;
-  description: string | null;
-  html_url: string;
-  clone_url: string;
-  ssh_url: string;
-  language: string | null;
-  stargazers_count: number;
-  watchers_count: number;
-  forks_count: number;
-  open_issues_count: number;
-  created_at: string;
-  updated_at: string;
-  pushed_at: string;
-  size: number;
-  default_branch: string;
-  topics: string[];
-  archived: boolean;
-  disabled: boolean;
-  private: boolean;
-  fork: boolean;
-  owner: {
-    id: number;
-    login: string;
-    avatar_url: string;
-  };
-  license?: {
-    key: string;
-    name: string;
-    spdx_id: string;
-    url: string;
-  };
-}
+import type { AuthState, AuthStep, GitHubRepository, GitHubUser } from '@shared/types';
 
 export interface GitHubRelease {
   id: number;
@@ -153,13 +98,6 @@ export interface CacheOptions {
   useIndexedDB?: boolean;
 }
 
-export interface GitHubError {
-  message: string;
-  status?: number;
-  code?: string;
-  documentation_url?: string;
-}
-
 export interface PaginationInfo {
   page: number;
   per_page: number;
@@ -181,23 +119,6 @@ export interface SyncStatus {
   totalRepositories?: number;
   syncedRepositories?: number;
   errors?: string[];
-}
-
-
-export interface TokenValidationResult {
-  valid: boolean;
-  user?: GitHubUser;
-  scopes?: string[];
-  error?: string;
-}
-
-export interface AuthState {
-  isAuthenticated: boolean;
-  authMethod?: "token";
-  user?: GitHubUser;
-  token?: string;
-  scopes?: string[];
-  expiresAt?: Date;
 }
 
 // AuthGuard 状态接口
@@ -364,3 +285,8 @@ export interface GitHubAPIRepository {
     type: string;
   };
 }
+
+export type {
+  AuthState, GitHubError, GitHubRepository, GitHubUser
+} from '@shared/types';
+export type { TokenValidationResult } from '@shared/types/auth';

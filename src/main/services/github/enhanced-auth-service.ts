@@ -20,32 +20,54 @@ export class EnhancedGitHubAuthService {
   };
 
   private authListeners: Array<(state: AuthState) => void> = [];
+  private initialized = false;
+  private initializationPromise: Promise<boolean> | null = null;
+  private lastValidationTimestamp: number | null = null;
+  private readonly validationCacheDuration = 60 * 1000; // 60s 缓存认证结果
 
   /**
    * 初始化认证服务，从存储中恢复认证状态
    */
   async initialize(): Promise<boolean> {
+    if (this.initialized && !this.initializationPromise) {
+      return this.currentAuthState.isAuthenticated;
+    }
+
+    if (this.initializationPromise) {
+      return this.initializationPromise;
+    }
+
+    this.initializationPromise = this.performInitialization();
+
     try {
-      // 尝试从存储中恢复认证状态
+      return await this.initializationPromise;
+    } finally {
+      this.initialized = true;
+      this.initializationPromise = null;
+    }
+  }
+
+  private async performInitialization(): Promise<boolean> {
+    try {
       const storedToken = await githubTokenStorage.getToken();
       if (!storedToken) {
+        this.currentAuthState = { isAuthenticated: false };
         return false;
       }
 
-      // 检查Token是否过期
       if (await githubTokenStorage.isExpired()) {
         await githubTokenStorage.clearAuth();
+        this.currentAuthState = { isAuthenticated: false };
         return false;
       }
 
-      // 尝试验证Token
       const validation = await this.validateToken(storedToken);
       if (!validation.valid) {
         await githubTokenStorage.clearAuth();
+        this.currentAuthState = { isAuthenticated: false };
         return false;
       }
 
-      // 恢复认证状态
       const user = await githubTokenStorage.getUserInfo();
       const tokenInfo = await githubTokenStorage.getTokenInfo();
       const lastValidated = await githubTokenStorage.getLastValidated();
@@ -58,33 +80,39 @@ export class EnhancedGitHubAuthService {
           tokenType: 'personal',
           createdAt: new Date(),
           lastUsed: new Date(),
+          rateLimit: validation.rateLimit,
         },
         lastValidated: lastValidated || new Date(),
       };
 
-      // 如果需要刷新，则进行刷新
+      await githubTokenStorage.storeAuthState(this.currentAuthState);
+
       if (await githubTokenStorage.needsRefresh()) {
-        await this.refreshAuth();
+        await this.refreshAuth(true);
+      } else {
+        this.updateLastValidationTimestamp();
       }
 
       this.notifyAuthListeners();
 
-      // 初始化旧系统的 octokitManager，确保认证状态同步
-      try {
-        await octokitManager.initialize({
-          authMethod: 'token',
-          token: storedToken,
-          userAgent: 'Starepo/1.0.0',
-          timeout: 10000,
-        });
-        console.log('octokitManager 已从存储恢复认证状态');
-      } catch (octokitError) {
-        console.warn('octokitManager 恢复失败，但不影响主认证流程:', octokitError);
+      if (this.currentAuthState.isAuthenticated) {
+        try {
+          await octokitManager.initialize({
+            authMethod: 'token',
+            token: storedToken,
+            userAgent: 'Starepo/1.0.0',
+            timeout: 10000,
+          });
+          console.log('octokitManager 已从存储恢复认证状态');
+        } catch (octokitError) {
+          console.warn('octokitManager 恢复失败，但不影响主认证流程:', octokitError);
+        }
       }
 
       return true;
     } catch (error) {
       console.error('认证服务初始化失败:', error);
+      this.currentAuthState = { isAuthenticated: false };
       return false;
     }
   }
@@ -146,6 +174,8 @@ export class EnhancedGitHubAuthService {
 
       // 更新内存中的状态
       this.currentAuthState = authState;
+      this.initialized = true;
+      this.updateLastValidationTimestamp();
       this.notifyAuthListeners();
 
       // 初始化旧系统的 octokitManager，确保认证状态同步
@@ -186,8 +216,7 @@ export class EnhancedGitHubAuthService {
    * 获取当前认证状态
    */
   async getAuthState(): Promise<AuthState> {
-    // 始终尝试初始化，确保从存储中加载最新状态
-    await this.initialize();
+    await this.ensureInitialized();
     
     console.log('[增强认证服务] 当前认证状态:', {
       isAuthenticated: this.currentAuthState.isAuthenticated,
@@ -201,11 +230,20 @@ export class EnhancedGitHubAuthService {
   /**
    * 刷新认证状态
    */
-  async refreshAuth(): Promise<boolean> {
+  async refreshAuth(force = false): Promise<boolean> {
     try {
+      if (!this.initialized && !force) {
+        await this.initialize();
+      }
+
       const token = await githubTokenStorage.getToken();
       if (!token) {
         return false;
+      }
+
+      if (!force && this.shouldSkipValidation()) {
+        this.updateLastValidationTimestamp();
+        return true;
       }
 
       // 验证Token仍然有效
@@ -221,12 +259,19 @@ export class EnhancedGitHubAuthService {
         this.currentAuthState.user = validation.user;
       }
 
-      if (validation.scopes) {
-        const tokenInfo: TokenInfo = {
-          ...this.currentAuthState.tokenInfo!,
-          scopes: validation.scopes,
+      if (validation.scopes || validation.rateLimit) {
+        const baseTokenInfo: TokenInfo = this.currentAuthState.tokenInfo ?? {
+          scopes: validation.scopes || [],
+          tokenType: 'personal',
+          createdAt: new Date(),
           lastUsed: new Date(),
-          rateLimit: validation.rateLimit,
+        };
+
+        const tokenInfo: TokenInfo = {
+          ...baseTokenInfo,
+          scopes: validation.scopes ?? baseTokenInfo.scopes,
+          lastUsed: new Date(),
+          rateLimit: validation.rateLimit ?? baseTokenInfo.rateLimit,
         };
         await githubTokenStorage.storeTokenInfo(tokenInfo);
         this.currentAuthState.tokenInfo = tokenInfo;
@@ -238,6 +283,7 @@ export class EnhancedGitHubAuthService {
 
       // 保存更新后的状态
       await githubTokenStorage.storeAuthState(this.currentAuthState);
+      this.updateLastValidationTimestamp();
       this.notifyAuthListeners();
 
       return true;
@@ -258,6 +304,7 @@ export class EnhancedGitHubAuthService {
       this.currentAuthState = {
         isAuthenticated: false,
       };
+      this.lastValidationTimestamp = null;
 
       this.notifyAuthListeners();
     } catch (error) {
@@ -278,6 +325,7 @@ export class EnhancedGitHubAuthService {
       const user: GitHubUser = {
         id: userResponse.data.id,
         login: userResponse.data.login,
+        html_url: userResponse.data.html_url,
         avatar_url: userResponse.data.avatar_url,
         name: userResponse.data.name,
         email: userResponse.data.email,
@@ -384,6 +432,24 @@ export class EnhancedGitHubAuthService {
     }
 
     return true; // 其他错误默认可恢复
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+  }
+
+  private updateLastValidationTimestamp(): void {
+    this.lastValidationTimestamp = Date.now();
+  }
+
+  private shouldSkipValidation(): boolean {
+    if (this.lastValidationTimestamp === null) {
+      return false;
+    }
+
+    return Date.now() - this.lastValidationTimestamp < this.validationCacheDuration;
   }
 
   /**

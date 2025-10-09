@@ -87,13 +87,14 @@ vi.mock('octokit', () => ({
 describe('Integration Test: Token失效处理', () => {
   let mainWindow: BrowserWindow;
   const testToken = 'github_pat_11AAAAAAA0123456789abcdef';
-  const mockUser: GitHubUser = {
-    id: 12345,
-    login: 'testuser',
-    avatar_url: 'https://avatars.githubusercontent.com/u/12345',
-    name: 'Test User',
-    email: 'test@example.com',
-    public_repos: 10,
+const mockUser: GitHubUser = {
+  id: 12345,
+  login: 'testuser',
+  html_url: 'https://github.com/testuser',
+  avatar_url: 'https://avatars.githubusercontent.com/u/12345',
+  name: 'Test User',
+  email: 'test@example.com',
+  public_repos: 10,
     followers: 5,
     following: 8,
   };

@@ -10,7 +10,10 @@ import type {
   RefreshAuthResponse,
   ClearAuthRequest,
   ClearAuthResponse,
+  ValidateTokenRequest,
+  ValidateTokenResponse,
 } from '@shared/types/auth';
+import { githubTokenStorage } from '../services/database/secure-service';
 
 /**
  * 注册新的认证IPC处理器
@@ -93,6 +96,50 @@ export function registerAuthIPCHandlers(): void {
     }
   );
 
+  // validate-token
+  ipcMain.handle(
+    AUTH_IPC_CHANNELS.VALIDATE_TOKEN,
+    async (_, request: ValidateTokenRequest): Promise<ValidateTokenResponse> => {
+      try {
+        const token = request.token ?? (await githubTokenStorage.getToken());
+        if (!token) {
+          return {
+            valid: false,
+            error: '缺少可用的 Token',
+          };
+        }
+
+        const validation = await enhancedGitHubAuthService.validateToken(token);
+
+        if (validation.valid) {
+          const scopes = validation.scopes ?? [];
+          return {
+            valid: true,
+            user: validation.user,
+            tokenInfo: {
+              scopes,
+              tokenType: 'personal',
+              createdAt: new Date(),
+              lastUsed: new Date(),
+              rateLimit: validation.rateLimit,
+            },
+          };
+        }
+
+        return {
+          valid: false,
+          error: validation.error,
+        };
+      } catch (error) {
+        console.error('IPC validate-token error:', error);
+        return {
+          valid: false,
+          error: error instanceof Error ? error.message : 'Token 验证失败',
+        };
+      }
+    }
+  );
+
   // clear-auth
   ipcMain.handle(
     AUTH_IPC_CHANNELS.CLEAR_AUTH,
@@ -122,6 +169,7 @@ export function unregisterAuthIPCHandlers(): void {
   ipcMain.removeHandler(AUTH_IPC_CHANNELS.AUTHENTICATE_WITH_TOKEN);
   ipcMain.removeHandler(AUTH_IPC_CHANNELS.GET_AUTH_STATE);
   ipcMain.removeHandler(AUTH_IPC_CHANNELS.REFRESH_AUTH);
+  ipcMain.removeHandler(AUTH_IPC_CHANNELS.VALIDATE_TOKEN);
   ipcMain.removeHandler(AUTH_IPC_CHANNELS.CLEAR_AUTH);
 
   console.log('Enhanced Auth IPC handlers unregistered');

@@ -16,6 +16,8 @@ import type {
   RefreshAuthResponse,
   ClearAuthRequest,
   ClearAuthResponse,
+  ValidateTokenRequest,
+  ValidateTokenResponse,
 } from '@shared/types/auth';
 
 /**
@@ -154,22 +156,27 @@ export const enhancedAuthAPI = {
    * 验证Token是否有效
    */
   async validateToken(token: string): Promise<TokenValidationResult> {
-    try {
-      // 通过认证来验证token
-      const result = await this.authenticateWithToken(token);
+    ensureElectronAPI();
 
-      if (result.success && result.user) {
+    try {
+      const request: ValidateTokenRequest = { token };
+      const response: ValidateTokenResponse = await window.electronAPI.invoke(
+        AUTH_IPC_CHANNELS.VALIDATE_TOKEN,
+        request
+      );
+
+      if (response.valid) {
         return {
           valid: true,
-          user: result.user,
-          scopes: [], // 可以从GitHub API获取实际的scopes
-        };
-      } else {
-        return {
-          valid: false,
-          error: result.error || 'Invalid token',
+          user: response.user,
+          scopes: response.tokenInfo?.scopes ?? [],
         };
       }
+
+      return {
+        valid: false,
+        error: response.error || 'Invalid token',
+      };
     } catch (error) {
       return {
         valid: false,
