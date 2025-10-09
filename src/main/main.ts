@@ -3,8 +3,10 @@ import { WindowManager } from "./window";
 import { registerIpcHandlers } from "./ipc/handlers";
 import { installExtensions } from "./utils/dev-tools";
 import { enhancedGitHubAuthService } from "./services/github/enhanced-auth-service";
+import { getLogger } from "./utils/logger";
 
 const isDevelopment = process.env.NODE_ENV === "development";
+const appLogger = getLogger("app:main");
 
 // 设置应用名称
 app.setName("Starepo");
@@ -13,9 +15,9 @@ async function createApplication(): Promise<void> {
   // 初始化认证服务，尝试从存储恢复认证状态
   try {
     await enhancedGitHubAuthService.initialize();
-    console.log("认证服务初始化完成");
+    appLogger.info("认证服务初始化完成");
   } catch (error) {
-    console.warn("认证服务初始化失败，但不影响应用启动:", error);
+    appLogger.warn("认证服务初始化失败，但不影响应用启动", error);
   }
 
   // 注册 IPC 处理器
@@ -52,5 +54,5 @@ app.on("activate", async () => {
 // 应用退出前的清理工作
 app.on("before-quit", () => {
   // 这里可以添加清理逻辑，如保存设置、关闭数据库连接等
-  console.log("Application is quitting...");
+  appLogger.info("Application is quitting...");
 });

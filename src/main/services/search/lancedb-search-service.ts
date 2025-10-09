@@ -1,5 +1,40 @@
 import { lancedbService } from '../database/lancedb-service';
 import type { GitHubRepository } from '../../../shared/types/index.js';
+import { getLogger } from '../../utils/logger';
+
+interface SearchCacheEntry {
+  timestamp: number;
+  result: SearchResponse;
+}
+
+type SortField = 'relevance' | 'stars' | 'updated' | 'created';
+type SortOrder = 'asc' | 'desc';
+
+interface SearchOptions {
+  query?: string;
+  language?: string;
+  minStars?: number;
+  maxStars?: number;
+  limit?: number;
+  offset?: number;
+  page?: number;
+  pageSize?: number;
+  sortBy?: SortField;
+  sortOrder?: SortOrder;
+  disableCache?: boolean;
+}
+
+interface SearchResponse {
+  repositories: GitHubRepository[];
+  totalCount: number;
+  searchTime: number;
+  page: number;
+  pageSize: number;
+  offset: number;
+  hasMore: boolean;
+  nextOffset?: number;
+  cached?: boolean;
+}
 
 /**
  * 基于 LanceDB 的搜索服务
@@ -7,6 +42,10 @@ import type { GitHubRepository } from '../../../shared/types/index.js';
  */
 export class LanceDBSearchService {
   private initialized = false;
+  private readonly cache = new Map<string, SearchCacheEntry>();
+  private readonly cacheTTL = 30 * 1000; // 30 秒
+  private readonly cacheLimit = 50;
+  private readonly log = getLogger('search:lancedb');
 
   /**
    * 初始化搜索服务
@@ -20,7 +59,7 @@ export class LanceDBSearchService {
     await lancedbService.initialize();
 
     this.initialized = true;
-    console.log('LanceDB 搜索服务初始化成功');
+    this.log.info('LanceDB 搜索服务初始化成功');
   }
 
   /**
@@ -35,19 +74,7 @@ export class LanceDBSearchService {
   /**
    * 全文搜索仓库
    */
-  async searchRepositories(options: {
-    query?: string;
-    language?: string;
-    minStars?: number;
-    maxStars?: number;
-    limit?: number;
-    sortBy?: 'relevance' | 'stars' | 'updated' | 'created';
-    sortOrder?: 'asc' | 'desc';
-  }): Promise<{
-    repositories: GitHubRepository[];
-    totalCount: number;
-    searchTime: number;
-  }> {
+  async searchRepositories(options: SearchOptions = {}): Promise<SearchResponse> {
     this.ensureInitialized();
 
     const startTime = Date.now();
@@ -56,65 +83,91 @@ export class LanceDBSearchService {
       language,
       minStars,
       maxStars,
-      limit = 50,
+      limit,
+      page,
+      pageSize,
+      offset,
       sortBy = 'relevance',
-      sortOrder = 'desc'
+      sortOrder = 'desc',
+      disableCache = false
     } = options;
 
+    const normalizedPageSize = this.normalizePageSize(pageSize ?? limit ?? 50);
+    const normalizedPage = this.normalizePage(page);
+    const normalizedOffset = this.normalizeOffset(offset ?? (normalizedPage - 1) * normalizedPageSize);
+    const normalizedLimit = normalizedPageSize;
+
+    const cacheKey = this.buildCacheKey({
+      query,
+      language,
+      minStars,
+      maxStars,
+      limit: normalizedLimit,
+      offset: normalizedOffset,
+      sortBy,
+      sortOrder
+    });
+
+    if (!disableCache) {
+      const cached = this.getFromCache(cacheKey);
+      if (cached) {
+        return {
+          ...cached,
+          searchTime: Date.now() - startTime,
+          cached: true
+        };
+      }
+    }
+
     try {
-      let repositories: GitHubRepository[] = [];
+      const whereClause = this.buildWhereClause({ language, minStars, maxStars });
+      const fetchLimit = normalizedLimit + normalizedOffset + 1;
 
-      if (query) {
-        // 使用 LanceDB 的语义搜索
-        const searchResult = await lancedbService.searchRepositories(query, limit);
-        repositories = searchResult.items;
-      } else {
-        // 如果没有查询文本，获取所有仓库
-        repositories = await lancedbService.getAllRepositories(limit);
-      }
+      const searchResult = await lancedbService.searchRepositories(
+        query,
+        fetchLimit,
+        whereClause
+      );
 
-      // 应用语言筛选
-      if (language) {
-        const filteredByLanguage = await lancedbService.getRepositoriesByLanguage(language, limit);
-        if (query) {
-          // 如果有查询文本，取交集
-          const searchedIds = new Set(repositories.map(r => r.id));
-          repositories = filteredByLanguage.filter(r => searchedIds.has(r.id));
-        } else {
-          repositories = filteredByLanguage;
-        }
-      }
+      const sortedItems = this.sortRepositories(
+        [...searchResult.items],
+        sortBy,
+        sortOrder
+      );
 
-      // 应用 star 数量筛选
-      if (minStars !== undefined || maxStars !== undefined) {
-        const min = minStars ?? 0;
-        const max = maxStars ?? Number.MAX_SAFE_INTEGER;
+      const pagedItems = this.sliceWithOffset(
+        sortedItems,
+        normalizedOffset,
+        normalizedLimit
+      );
 
-        const filteredByStars = await lancedbService.getRepositoriesByStarRange(min, max, limit);
-        if (query || language) {
-          // 如果有其他筛选条件，取交集
-          const filteredIds = new Set(repositories.map(r => r.id));
-          repositories = filteredByStars.filter(r => filteredIds.has(r.id));
-        } else {
-          repositories = filteredByStars;
-        }
-      }
-
-      // 应用排序
-      repositories = this.sortRepositories(repositories, sortBy, sortOrder);
-
-      // 限制结果数量
-      repositories = repositories.slice(0, limit);
+      const hasMore = sortedItems.length > normalizedOffset + pagedItems.length;
+      const totalCount = Math.max(
+        searchResult.totalCount,
+        normalizedOffset + pagedItems.length + (hasMore ? 1 : 0)
+      );
 
       const searchTime = Date.now() - startTime;
 
-      return {
-        repositories,
-        totalCount: repositories.length,
-        searchTime
+      const response: SearchResponse = {
+        repositories: pagedItems.slice(0, normalizedLimit),
+        totalCount,
+        searchTime,
+        page: normalizedPage,
+        pageSize: normalizedPageSize,
+        offset: normalizedOffset,
+        hasMore,
+        nextOffset: hasMore ? normalizedOffset + normalizedLimit : undefined,
+        cached: false
       };
+
+      if (!disableCache) {
+        this.saveToCache(cacheKey, response);
+      }
+
+      return response;
     } catch (error) {
-      console.error('搜索仓库失败:', error);
+      this.log.error('搜索仓库失败', error);
       throw error;
     }
   }
@@ -166,7 +219,7 @@ export class LanceDBSearchService {
         topics: topics.slice(0, 5)
       };
     } catch (error) {
-      console.error('获取搜索建议失败:', error);
+      this.log.error('获取搜索建议失败', error);
       return {
         terms: [],
         languages: [],
@@ -220,7 +273,7 @@ export class LanceDBSearchService {
         topics
       };
     } catch (error) {
-      console.error('获取热门搜索词失败:', error);
+      this.log.error('获取热门搜索词失败', error);
       return {
         languages: [],
         topics: []
@@ -246,7 +299,7 @@ export class LanceDBSearchService {
         indexSize: stats.tablesCount
       };
     } catch (error) {
-      console.error('获取搜索统计失败:', error);
+      this.log.error('获取搜索统计失败', error);
       return {
         totalRepositories: 0,
         totalUsers: 0,
@@ -260,8 +313,8 @@ export class LanceDBSearchService {
    */
   private sortRepositories(
     repositories: GitHubRepository[],
-    sortBy: 'relevance' | 'stars' | 'updated' | 'created',
-    sortOrder: 'asc' | 'desc'
+    sortBy: SortField,
+    sortOrder: SortOrder
   ): GitHubRepository[] {
     const multiplier = sortOrder === 'desc' ? -1 : 1;
 
@@ -293,6 +346,119 @@ export class LanceDBSearchService {
 
       return comparison;
     });
+  }
+
+  /**
+   * 构造缓存键
+   */
+  private buildCacheKey(params: Record<string, unknown>): string {
+    return JSON.stringify(params);
+  }
+
+  private getFromCache(cacheKey: string): SearchResponse | null {
+    const entry = this.cache.get(cacheKey);
+    if (!entry) {
+      return null;
+    }
+
+    if (Date.now() - entry.timestamp > this.cacheTTL) {
+      this.cache.delete(cacheKey);
+      return null;
+    }
+
+    return {
+      ...entry.result,
+      repositories: entry.result.repositories.map(repo => ({ ...repo }))
+    };
+  }
+
+  private saveToCache(cacheKey: string, result: SearchResponse): void {
+    this.cache.set(cacheKey, {
+      timestamp: Date.now(),
+      result: {
+        ...result,
+        // 避免缓存被外部修改
+        repositories: result.repositories.map(repo => ({ ...repo }))
+      }
+    });
+
+    if (this.cache.size > this.cacheLimit) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey) {
+        this.cache.delete(oldestKey);
+      }
+    }
+  }
+
+  /**
+   * 将数据库结果按 offset/limit 分页
+   */
+  private sliceWithOffset<T>(items: T[], offset: number, limit: number): T[] {
+    if (offset <= 0) {
+      return items.slice(0, limit);
+    }
+    return items.slice(offset, offset + limit);
+  }
+
+  /**
+   * 构造过滤条件
+   */
+  private buildWhereClause(filters: {
+    language?: string;
+    minStars?: number;
+    maxStars?: number;
+  }): string | undefined {
+    const conditions: string[] = [];
+
+    if (filters.language) {
+      conditions.push(`language = '${this.escapeSqlString(filters.language)}'`);
+    }
+
+    const minInput = filters.minStars;
+    const maxInput = filters.maxStars;
+    const hasMin = typeof minInput === 'number' && Number.isFinite(minInput);
+    const hasMax = typeof maxInput === 'number' && Number.isFinite(maxInput);
+
+    if (hasMin || hasMax) {
+      const min = hasMin ? Math.max(0, Math.floor(minInput as number)) : 0;
+      const maxCandidate = hasMax ? Math.floor(maxInput as number) : Number.MAX_SAFE_INTEGER;
+      const max = Math.max(min, maxCandidate);
+      conditions.push(`stargazers_count >= ${min} AND stargazers_count <= ${max}`);
+    }
+
+    return conditions.length ? conditions.join(' AND ') : undefined;
+  }
+
+  private normalizePage(page?: number): number {
+    if (typeof page !== 'number' || !Number.isFinite(page)) {
+      return 1;
+    }
+    return Math.max(1, Math.floor(page));
+  }
+
+  private normalizePageSize(pageSize: number): number {
+    if (!Number.isFinite(pageSize) || pageSize <= 0) {
+      return 50;
+    }
+    return Math.min(200, Math.max(1, Math.floor(pageSize)));
+  }
+
+  private normalizeOffset(offset: number): number {
+    if (!Number.isFinite(offset) || offset <= 0) {
+      return 0;
+    }
+    return Math.max(0, Math.floor(offset));
+  }
+
+  private escapeSqlString(value: string): string {
+    return value.replace(/'/g, "''");
+  }
+
+  /**
+   * 主动清理缓存，供外部服务调用
+   */
+  clearCache(): void {
+    this.cache.clear();
   }
 }
 

@@ -2,11 +2,13 @@ import { ipcMain } from "electron";
 import { IPC_CHANNELS } from "@shared/constants/ipc-channels";
 import { githubServiceManager } from "../services/github";
 import type { APIResponse } from "@shared/types";
+import { getLogger } from "../utils/logger";
 
 /**
  * GitHub 相关的 IPC 处理器
  */
 export function registerGitHubHandlers(): void {
+  const githubLogger = getLogger("ipc:github");
   const authService = githubServiceManager.getAuthService();
   const starService = githubServiceManager.getStarService();
 
@@ -56,17 +58,17 @@ export function registerGitHubHandlers(): void {
     async (): Promise<APIResponse> => {
       try {
         const authState = await authService.getAuthState();
-        console.log('[主进程] 获取到的原始认证状态:', authState);
-        console.log('[主进程] 获取认证状态:', {
+        githubLogger.debug("[主进程] 获取到的原始认证状态", authState);
+        githubLogger.debug("[主进程] 获取认证状态", {
           isAuthenticated: authState.isAuthenticated,
           user: authState.user?.login,
           hasTokenInfo: !!authState.tokenInfo,
         });
         
         // 安全地序列化所有日期字段，统一为字符串格式
-        console.log('[主进程] 开始序列化认证状态...');
-        console.log('[主进程] tokenInfo.createdAt 类型:', typeof authState.tokenInfo?.createdAt);
-        console.log('[主进程] tokenInfo.createdAt 是否为Date:', authState.tokenInfo?.createdAt instanceof Date);
+        githubLogger.debug("[主进程] 开始序列化认证状态");
+        githubLogger.debug("[主进程] tokenInfo.createdAt 类型", { type: typeof authState.tokenInfo?.createdAt });
+        githubLogger.debug("[主进程] tokenInfo.createdAt 是否为Date", { isDate: authState.tokenInfo?.createdAt instanceof Date });
         
         const serializedAuthState = {
           ...authState,
@@ -83,14 +85,14 @@ export function registerGitHubHandlers(): void {
           } : undefined,
         };
 
-        console.log('[主进程] 序列化完成，未发生错误');
+        githubLogger.debug("[主进程] 序列化完成，未发生错误");
 
         return {
           success: true,
           data: serializedAuthState,
         };
       } catch (error) {
-        console.error('[主进程] 获取认证状态失败:', error);
+        githubLogger.error("[主进程] 获取认证状态失败", error);
         return {
           success: false,
           error: error instanceof Error ? error.message : "获取认证状态失败",
@@ -143,15 +145,17 @@ export function registerGitHubHandlers(): void {
     IPC_CHANNELS.GITHUB.GET_CURRENT_USER,
     async (): Promise<APIResponse> => {
       try {
-        console.log('[主进程] 开始获取当前用户信息...');
+        githubLogger.debug("[主进程] 开始获取当前用户信息");
         const user = authService.getCurrentUserSync();
-        console.log('[主进程] 获取到的用户信息:', user ? `${user.login} (${user.name})` : 'null/undefined');
+        githubLogger.debug("[主进程] 获取到的用户信息", {
+          user: user ? `${user.login} (${user.name})` : "null/undefined",
+        });
         return {
           success: true,
           data: user,
         };
       } catch (error) {
-        console.error('[主进程] 获取用户信息失败:', error);
+        githubLogger.error("[主进程] 获取用户信息失败", error);
         return {
           success: false,
           error: error instanceof Error ? error.message : "获取用户信息失败",
@@ -508,5 +512,5 @@ export function registerGitHubHandlers(): void {
     }
   );
 
-  console.log("GitHub IPC 处理器已注册（包含向量数据库功能）");
+  githubLogger.info("GitHub IPC 处理器已注册（包含向量数据库功能）");
 }

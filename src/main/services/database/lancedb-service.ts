@@ -5,6 +5,7 @@ import type { SearchResult, DatabaseStats } from './types.js';
 import * as path from 'path';
 import * as os from 'os';
 import { createHash } from 'node:crypto';
+import { getLogger } from '../../utils/logger';
 
 /**
  * LanceDB 数据库服务类
@@ -18,6 +19,7 @@ export class LanceDBService {
   private dbPath: string;
   private readonly embeddingDimensions = 1536;
   private readonly likeEscapeChar = '\\';
+  private readonly log = getLogger('database:lancedb');
 
   constructor() {
     // 设置数据库路径到用户目录
@@ -35,15 +37,15 @@ export class LanceDBService {
     try {
       // 连接到 LanceDB
       this.db = await lancedb.connect(this.dbPath);
-      console.log('LanceDB 连接成功，路径:', this.dbPath);
+      this.log.info('LanceDB 连接成功', { path: this.dbPath });
 
       // 初始化表（如果不存在则创建）
       await this.initializeTables();
 
       this.initialized = true;
-      console.log('LanceDB 服务初始化成功');
+      this.log.info('LanceDB 服务初始化成功');
     } catch (error) {
-      console.error('LanceDB 服务初始化失败:', error);
+      this.log.error('LanceDB 服务初始化失败', error);
       throw error;
     }
   }
@@ -59,20 +61,20 @@ export class LanceDBService {
     try {
       // 尝试打开现有的仓库表
       this.repositoriesTable = await this.db.openTable('github_repositories');
-      console.log('打开现有仓库表成功');
+      this.log.debug('打开现有仓库表成功');
     } catch {
       // 如果表不存在，创建新表
-      console.log('仓库表不存在，创建新表...');
+      this.log.warn('仓库表不存在，开始创建新表');
       await this.createRepositoriesTable();
     }
 
     try {
       // 尝试打开现有的用户表
       this.usersTable = await this.db.openTable('github_users');
-      console.log('打开现有用户表成功');
+      this.log.debug('打开现有用户表成功');
     } catch {
       // 如果表不存在，创建新表
-      console.log('用户表不存在，创建新表...');
+      this.log.warn('用户表不存在，开始创建新表');
       await this.createUsersTable();
     }
   }
@@ -108,7 +110,7 @@ export class LanceDBService {
     // 删除占位符数据
     await this.repositoriesTable.delete('id = 0');
 
-    console.log('仓库表创建成功');
+    this.log.info('仓库表创建成功');
   }
 
   /**
@@ -140,7 +142,7 @@ export class LanceDBService {
     // 删除占位符数据
     await this.usersTable.delete('id = 0');
 
-    console.log('用户表创建成功');
+    this.log.info('用户表创建成功');
   }
 
   /**
@@ -192,7 +194,7 @@ export class LanceDBService {
 
     // 直接插入数据数组
     await this.repositoriesTable!.add(data);
-    console.log(`已存储 ${uniqueRepositories.length} 个仓库到 LanceDB`);
+    this.log.info('仓库写入完成', { count: uniqueRepositories.length });
   }
 
   /**
@@ -356,7 +358,7 @@ export class LanceDBService {
     const whereClause = `id IN (${sanitizedIds.join(',')})`;
     await this.repositoriesTable!.delete(whereClause);
 
-    console.log(`已从 LanceDB 删除 ${ids.length} 个仓库`);
+    this.log.info('仓库删除完成', { count: ids.length });
   }
 
   /**
@@ -381,7 +383,7 @@ export class LanceDBService {
     }];
 
     await this.usersTable!.add(data);
-    console.log(`已存储用户 ${user.login} 到 LanceDB`);
+    this.log.info('用户写入完成', { login: user.login });
   }
 
   /**
@@ -442,9 +444,9 @@ export class LanceDBService {
       // 重新初始化表
       await this.initializeTables();
 
-      console.log('LanceDB 数据已重置');
+      this.log.warn('LanceDB 数据已重置');
     } catch (error) {
-      console.error('重置 LanceDB 失败:', error);
+      this.log.error('重置 LanceDB 失败', error);
       throw error;
     }
   }
@@ -549,7 +551,7 @@ export class LanceDBService {
       this.repositoriesTable = null;
       this.usersTable = null;
       this.initialized = false;
-      console.log('LanceDB 连接已关闭');
+      this.log.debug('LanceDB 连接已关闭');
     }
   }
 

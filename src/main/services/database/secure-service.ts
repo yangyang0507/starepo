@@ -2,6 +2,7 @@ import { safeStorage } from "electron";
 import * as path from "path";
 import * as fs from "fs/promises";
 import * as os from "os";
+import { getLogger } from "../../utils/logger";
 
 export interface SecureStorageItem {
   key: string;
@@ -22,6 +23,7 @@ export class SecureStorageService {
   private readonly storageDir: string;
   private readonly metadataFile: string;
   private isInitialized = false;
+  private readonly log = getLogger("database:secure-storage");
 
   private constructor() {
     this.storageDir = path.join(os.homedir(), ".starepo", "secure-storage");
@@ -50,9 +52,9 @@ export class SecureStorageService {
       await this.initializeMetadata();
 
       this.isInitialized = true;
-      console.log("安全存储服务初始化成功");
+      this.log.info("安全存储服务初始化成功");
     } catch (error) {
-      console.error("安全存储服务初始化失败:", error);
+      this.log.error("安全存储服务初始化失败", error);
       throw error;
     }
   }
@@ -82,9 +84,9 @@ export class SecureStorageService {
       // 更新元数据
       await this.updateMetadata();
 
-      console.log(`安全存储项目已保存: ${key}`);
+      this.log.info("安全存储项目已保存", { key });
     } catch (error) {
-      console.error(`保存安全存储项目失败 (${key}):`, error);
+      this.log.error(`保存安全存储项目失败 (${key})`, error);
       throw new Error(
         `保存安全存储项目失败: ${error instanceof Error ? error.message : "未知错误"}`,
       );
@@ -126,7 +128,7 @@ export class SecureStorageService {
 
       return decryptedValue;
     } catch (error) {
-      console.error(`获取安全存储项目失败 (${key}):`, error);
+      this.log.error(`获取安全存储项目失败 (${key})`, error);
       return null;
     }
   }
@@ -142,7 +144,7 @@ export class SecureStorageService {
 
       try {
         await fs.unlink(filePath);
-        console.log(`安全存储项目已删除: ${key}`);
+        this.log.info("安全存储项目已删除", { key });
       } catch (error: unknown) {
         if (error && typeof error === 'object' && 'code' in error && error.code !== "ENOENT") {
           throw error;
@@ -153,7 +155,7 @@ export class SecureStorageService {
       // 更新元数据
       await this.updateMetadata();
     } catch (error) {
-      console.error(`删除安全存储项目失败 (${key}):`, error);
+      this.log.error(`删除安全存储项目失败 (${key})`, error);
       throw new Error(
         `删除安全存储项目失败: ${error instanceof Error ? error.message : "未知错误"}`,
       );
@@ -206,7 +208,7 @@ export class SecureStorageService {
 
       return keys;
     } catch (error) {
-      console.error("获取存储键列表失败:", error);
+      this.log.error("获取存储键列表失败", error);
       return [];
     }
   }
@@ -224,9 +226,9 @@ export class SecureStorageService {
         await this.removeItem(key);
       }
 
-      console.log("所有安全存储项目已清空");
+      this.log.info("所有安全存储项目已清空");
     } catch (error) {
-      console.error("清空安全存储失败:", error);
+      this.log.error("清空安全存储失败", error);
       throw new Error(
         `清空安全存储失败: ${error instanceof Error ? error.message : "未知错误"}`,
       );
@@ -261,7 +263,7 @@ export class SecureStorageService {
         lastAccessed: metadata.lastAccessed,
       };
     } catch (error) {
-      console.error("获取存储统计信息失败:", error);
+      this.log.error("获取存储统计信息失败", error);
       return { totalItems: 0, totalSize: 0, lastAccessed: 0 };
     }
   }
@@ -271,7 +273,7 @@ export class SecureStorageService {
     try {
       await fs.mkdir(this.storageDir, { recursive: true });
     } catch (error) {
-      console.error("创建存储目录失败:", error);
+      this.log.error("创建存储目录失败", error);
       throw error;
     }
   }
@@ -315,7 +317,7 @@ export class SecureStorageService {
         "utf8",
       );
     } catch (error) {
-      console.warn("更新元数据失败:", error);
+      this.log.warn("更新元数据失败", error);
     }
   }
 

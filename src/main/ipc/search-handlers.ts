@@ -2,10 +2,13 @@ import { ipcMain } from 'electron';
 import { lancedbSearchService } from '../services/search';
 import { SEARCH_CHANNELS } from '../../shared/constants/ipc-channels';
 import type { APIResponse } from '../../shared/types/index.js';
+import { getLogger } from '../utils/logger';
 
 /**
  * 搜索相关的 IPC 处理器
  */
+
+const searchLogger = getLogger('ipc:search');
 
 // 搜索仓库
 ipcMain.handle(SEARCH_CHANNELS.SEARCH_REPOSITORIES, async (_, options: {
@@ -14,12 +17,22 @@ ipcMain.handle(SEARCH_CHANNELS.SEARCH_REPOSITORIES, async (_, options: {
   minStars?: number;
   maxStars?: number;
   limit?: number;
+  offset?: number;
+  page?: number;
+  pageSize?: number;
   sortBy?: 'relevance' | 'stars' | 'updated' | 'created';
   sortOrder?: 'asc' | 'desc';
+  disableCache?: boolean;
 }): Promise<APIResponse<{
   repositories: any[];
   totalCount: number;
   searchTime: number;
+  page: number;
+  pageSize: number;
+  offset: number;
+  hasMore: boolean;
+  nextOffset?: number;
+  cached?: boolean;
 }>> => {
   try {
     await lancedbSearchService.initialize();
@@ -31,7 +44,7 @@ ipcMain.handle(SEARCH_CHANNELS.SEARCH_REPOSITORIES, async (_, options: {
       message: `找到 ${result.totalCount} 个仓库`
     };
   } catch (error) {
-    console.error('搜索仓库失败:', error);
+    searchLogger.error('搜索仓库失败', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : '搜索失败'
@@ -55,7 +68,7 @@ ipcMain.handle(SEARCH_CHANNELS.GET_SEARCH_SUGGESTIONS, async (_, input: string, 
       message: '获取搜索建议成功'
     };
   } catch (error) {
-    console.error('获取搜索建议失败:', error);
+    searchLogger.error('获取搜索建议失败', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : '获取搜索建议失败'
@@ -78,7 +91,7 @@ ipcMain.handle(SEARCH_CHANNELS.GET_POPULAR_SEARCH_TERMS, async (_, limit: number
       message: '获取热门搜索词成功'
     };
   } catch (error) {
-    console.error('获取热门搜索词失败:', error);
+    searchLogger.error('获取热门搜索词失败', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : '获取热门搜索词失败'
@@ -102,7 +115,7 @@ ipcMain.handle(SEARCH_CHANNELS.GET_SEARCH_STATS, async (): Promise<APIResponse<{
       message: '获取搜索统计成功'
     };
   } catch (error) {
-    console.error('获取搜索统计失败:', error);
+    searchLogger.error('获取搜索统计失败', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : '获取搜索统计失败'
@@ -110,4 +123,4 @@ ipcMain.handle(SEARCH_CHANNELS.GET_SEARCH_STATS, async (): Promise<APIResponse<{
   }
 });
 
-console.log('搜索 IPC 处理器已注册');
+searchLogger.info('搜索 IPC 处理器已注册');

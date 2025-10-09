@@ -14,6 +14,9 @@ import type {
   ValidateTokenResponse,
 } from '@shared/types/auth';
 import { githubTokenStorage } from '../services/database/secure-service';
+import { getLogger } from '../utils/logger';
+
+const authLogger = getLogger('ipc:auth');
 
 /**
  * 注册新的认证IPC处理器
@@ -39,7 +42,7 @@ export function registerAuthIPCHandlers(): void {
           };
         }
       } catch (error) {
-        console.error('IPC authenticate-with-token error:', error);
+        authLogger.error('authenticate-with-token 处理失败', error);
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown authentication error',
@@ -58,7 +61,7 @@ export function registerAuthIPCHandlers(): void {
           authState,
         };
       } catch (error) {
-        console.error('IPC get-auth-state error:', error);
+        authLogger.error('get-auth-state 处理失败', error);
         // 返回未认证状态作为fallback
         return {
           authState: {
@@ -87,7 +90,7 @@ export function registerAuthIPCHandlers(): void {
           };
         }
       } catch (error) {
-        console.error('IPC refresh-auth error:', error);
+        authLogger.error('refresh-auth 处理失败', error);
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown refresh error',
@@ -131,7 +134,7 @@ export function registerAuthIPCHandlers(): void {
           error: validation.error,
         };
       } catch (error) {
-        console.error('IPC validate-token error:', error);
+        authLogger.error('validate-token 处理失败', error);
         return {
           valid: false,
           error: error instanceof Error ? error.message : 'Token 验证失败',
@@ -150,7 +153,7 @@ export function registerAuthIPCHandlers(): void {
           success: true,
         };
       } catch (error) {
-        console.error('IPC clear-auth error:', error);
+        authLogger.error('clear-auth 处理失败', error);
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Failed to clear authentication',
@@ -159,7 +162,7 @@ export function registerAuthIPCHandlers(): void {
     }
   );
 
-  console.log('Enhanced Auth IPC handlers registered');
+  authLogger.info('Enhanced Auth IPC handlers registered');
 }
 
 /**
@@ -172,5 +175,5 @@ export function unregisterAuthIPCHandlers(): void {
   ipcMain.removeHandler(AUTH_IPC_CHANNELS.VALIDATE_TOKEN);
   ipcMain.removeHandler(AUTH_IPC_CHANNELS.CLEAR_AUTH);
 
-  console.log('Enhanced Auth IPC handlers unregistered');
+  authLogger.info('Enhanced Auth IPC handlers unregistered');
 }

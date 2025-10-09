@@ -144,6 +144,12 @@ export interface SearchResult<T = GitHubRepo> {
   totalCount: number;
   query?: string;
   scores?: number[];
+  page?: number;
+  pageSize?: number;
+  offset?: number;
+  hasMore?: boolean;
+  nextOffset?: number;
+  cached?: boolean;
 }
 
 // AI 聊天相关类型 (未来功能)

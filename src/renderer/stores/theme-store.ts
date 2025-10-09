@@ -48,26 +48,28 @@ export const useThemeStore = create<ThemeStore>((set, get) => ({
     try {
       set({ error: null });
 
-      // Check localStorage for theme setting
-      const localTheme = localStorage.getItem('theme') as ThemeMode | null;
+      let resolvedTheme: ThemeMode | null = null;
 
-      if (localTheme) {
-        // Use local setting if available
-        await themeAPI.setTheme(localTheme);
-        set({ theme: localTheme, isLoading: false });
-        updateDOMTheme(localTheme);
-      } else {
-        // Otherwise get current theme (defaults to system)
-        const currentTheme = await themeAPI.getTheme();
-        set({ theme: currentTheme, isLoading: false });
-        updateDOMTheme(currentTheme);
+      try {
+        resolvedTheme = await themeAPI.getTheme();
+      } catch (error) {
+        console.error('无法从主进程获取主题，尝试使用本地缓存', error);
       }
+
+      if (!resolvedTheme) {
+        resolvedTheme = (localStorage.getItem('theme') as ThemeMode | null) ?? 'system';
+      }
+
+      set({ theme: resolvedTheme, isLoading: false });
+      localStorage.setItem('theme', resolvedTheme);
+      updateDOMTheme(resolvedTheme);
 
       // Set up theme change listener (only once)
       if (!get().themeListenerSetup) {
         themeAPI.onThemeChanged((newTheme) => {
           set({ theme: newTheme });
           updateDOMTheme(newTheme);
+          localStorage.setItem('theme', newTheme);
         });
         set({ themeListenerSetup: true });
       }
@@ -80,6 +82,7 @@ export const useThemeStore = create<ThemeStore>((set, get) => ({
       });
       console.error('Failed to load theme:', err);
       // Set default theme on error
+      localStorage.setItem('theme', 'system');
       updateDOMTheme('system');
     }
   },

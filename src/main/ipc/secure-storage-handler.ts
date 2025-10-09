@@ -3,6 +3,9 @@ import {
   secureStorageService,
   githubTokenStorage,
 } from "../services/database/secure-service";
+import { getLogger } from "../utils/logger";
+
+const secureStorageLogger = getLogger("ipc:secure-storage");
 
 // 安全存储相关的 IPC 通道
 export const SECURE_STORAGE_CHANNELS = {
@@ -37,7 +40,7 @@ export function setupSecureStorageHandlers(): void {
         await githubTokenStorage.saveToken(token, authMethod);
         return { success: true };
       } catch (error) {
-        console.error("保存 GitHub Token 失败:", error);
+        secureStorageLogger.error("保存 GitHub Token 失败", error);
         return {
           success: false,
           error: error instanceof Error ? error.message : "未知错误",
@@ -51,7 +54,7 @@ export function setupSecureStorageHandlers(): void {
       const token = await githubTokenStorage.getToken();
       return { success: true, data: token };
     } catch (error) {
-      console.error("获取 GitHub Token 失败:", error);
+      secureStorageLogger.error("获取 GitHub Token 失败", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "未知错误",
@@ -66,7 +69,7 @@ export function setupSecureStorageHandlers(): void {
         await githubTokenStorage.saveUserInfo(userInfo);
         return { success: true };
       } catch (error) {
-        console.error("保存用户信息失败:", error);
+        secureStorageLogger.error("保存用户信息失败", error);
         return {
           success: false,
           error: error instanceof Error ? error.message : "未知错误",
@@ -80,7 +83,7 @@ export function setupSecureStorageHandlers(): void {
       const userInfo = await githubTokenStorage.getUserInfo();
       return { success: true, data: userInfo };
     } catch (error) {
-      console.error("获取用户信息失败:", error);
+      secureStorageLogger.error("获取用户信息失败", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "未知错误",
@@ -93,7 +96,7 @@ export function setupSecureStorageHandlers(): void {
       const authMethod = await githubTokenStorage.getAuthMethod();
       return { success: true, data: authMethod };
     } catch (error) {
-      console.error("获取认证方式失败:", error);
+      secureStorageLogger.error("获取认证方式失败", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "未知错误",
@@ -106,7 +109,7 @@ export function setupSecureStorageHandlers(): void {
       const hasAuth = await githubTokenStorage.hasValidAuth();
       return { success: true, data: hasAuth };
     } catch (error) {
-      console.error("检查认证状态失败:", error);
+      secureStorageLogger.error("检查认证状态失败", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "未知错误",
@@ -119,7 +122,7 @@ export function setupSecureStorageHandlers(): void {
       await githubTokenStorage.clearAuth();
       return { success: true };
     } catch (error) {
-      console.error("清除认证信息失败:", error);
+      secureStorageLogger.error("清除认证信息失败", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "未知错误",
@@ -135,7 +138,7 @@ export function setupSecureStorageHandlers(): void {
         await secureStorageService.setItem(key, value, expiresIn);
         return { success: true };
       } catch (error) {
-        console.error(`设置存储项目失败 (${key}):`, error);
+        secureStorageLogger.error(`设置存储项目失败 (${key})`, error);
         return {
           success: false,
           error: error instanceof Error ? error.message : "未知错误",
@@ -151,7 +154,7 @@ export function setupSecureStorageHandlers(): void {
         const value = await secureStorageService.getItem(key);
         return { success: true, data: value };
       } catch (error) {
-        console.error(`获取存储项目失败 (${key}):`, error);
+        secureStorageLogger.error(`获取存储项目失败 (${key})`, error);
         return {
           success: false,
           error: error instanceof Error ? error.message : "未知错误",
@@ -167,7 +170,7 @@ export function setupSecureStorageHandlers(): void {
         await secureStorageService.removeItem(key);
         return { success: true };
       } catch (error) {
-        console.error(`删除存储项目失败 (${key}):`, error);
+        secureStorageLogger.error(`删除存储项目失败 (${key})`, error);
         return {
           success: false,
           error: error instanceof Error ? error.message : "未知错误",
@@ -183,7 +186,7 @@ export function setupSecureStorageHandlers(): void {
         const hasItem = await secureStorageService.hasItem(key);
         return { success: true, data: hasItem };
       } catch (error) {
-        console.error(`检查存储项目失败 (${key}):`, error);
+        secureStorageLogger.error(`检查存储项目失败 (${key})`, error);
         return {
           success: false,
           error: error instanceof Error ? error.message : "未知错误",
@@ -197,7 +200,7 @@ export function setupSecureStorageHandlers(): void {
       const keys = await secureStorageService.getAllKeys();
       return { success: true, data: keys };
     } catch (error) {
-      console.error("获取所有存储键失败:", error);
+      secureStorageLogger.error("获取所有存储键失败", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "未知错误",
@@ -210,7 +213,7 @@ export function setupSecureStorageHandlers(): void {
       await secureStorageService.clear();
       return { success: true };
     } catch (error) {
-      console.error("清空所有存储失败:", error);
+      secureStorageLogger.error("清空所有存储失败", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "未知错误",
@@ -223,7 +226,7 @@ export function setupSecureStorageHandlers(): void {
       const stats = await secureStorageService.getStorageStats();
       return { success: true, data: stats };
     } catch (error) {
-      console.error("获取存储统计失败:", error);
+      secureStorageLogger.error("获取存储统计失败", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "未知错误",
@@ -241,7 +244,7 @@ export function setupSecureStorageHandlers(): void {
           : false;
       return { success: true, data: isAvailable };
     } catch (error) {
-      console.error("检查加密可用性失败:", error);
+      secureStorageLogger.error("检查加密可用性失败", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "未知错误",
@@ -249,7 +252,7 @@ export function setupSecureStorageHandlers(): void {
     }
   });
 
-  console.log("安全存储 IPC 处理器已设置");
+  secureStorageLogger.info("安全存储 IPC 处理器已设置");
 }
 
 // 清理处理器
@@ -257,5 +260,5 @@ export function cleanupSecureStorageHandlers(): void {
   Object.values(SECURE_STORAGE_CHANNELS).forEach((channel) => {
     ipcMain.removeAllListeners(channel);
   });
-  console.log("安全存储 IPC 处理器已清理");
+  secureStorageLogger.info("安全存储 IPC 处理器已清理");
 }

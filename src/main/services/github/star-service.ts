@@ -1,5 +1,7 @@
 import { octokitManager } from "./octokit-manager";
 import { lancedbService } from "../database/lancedb-service";
+import { lancedbSearchService } from "../search";
+import { getLogger } from "../../utils/logger";
 import type {
   GitHubRepository,
   GitHubError,
@@ -13,6 +15,8 @@ import type { SearchResult } from "../database/types";
  * 专门处理仓库收藏相关的 API 操作
  */
 export class GitHubStarService {
+  private readonly log = getLogger('github:star-service');
+
   /**
    * 获取当前用户收藏的仓库列表
    */
@@ -206,7 +210,7 @@ export class GitHubStarService {
         const isStarred = await this.checkIfStarred(owner, repo);
         results.push({ owner, repo, isStarred });
       } catch (error) {
-        console.warn(`检查仓库 ${owner}/${repo} 收藏状态失败:`, error);
+        this.log.warn(`检查仓库 ${owner}/${repo} 收藏状态失败`, error);
         results.push({ owner, repo, isStarred: false });
       }
     }
@@ -229,7 +233,7 @@ export class GitHubStarService {
         await this.starRepository(owner, repo);
         results.push({ owner, repo, success: true });
       } catch (error: any) {
-        console.warn(`收藏仓库 ${owner}/${repo} 失败:`, error);
+        this.log.warn(`收藏仓库 ${owner}/${repo} 失败`, error);
         results.push({
           owner,
           repo,
@@ -257,7 +261,7 @@ export class GitHubStarService {
         await this.unstarRepository(owner, repo);
         results.push({ owner, repo, success: true });
       } catch (error: any) {
-        console.warn(`取消收藏仓库 ${owner}/${repo} 失败:`, error);
+        this.log.warn(`取消收藏仓库 ${owner}/${repo} 失败`, error);
         results.push({
           owner,
           repo,
@@ -294,7 +298,7 @@ export class GitHubStarService {
         throw new Error("GitHub客户端未初始化，请先进行认证");
       }
 
-      console.log("从GitHub API获取仓库数据...");
+      this.log.debug("从 GitHub API 获取仓库数据");
       const allRepositories: StarredRepository[] = [];
       let page = 1;
       let hasNextPage = true;
@@ -335,7 +339,7 @@ export class GitHubStarService {
             await new Promise(resolve => setTimeout(resolve, 100));
           }
         } catch (error) {
-          console.warn(`获取第${page}页数据失败:`, error);
+          this.log.warn(`获取第 ${page} 页收藏仓库数据失败`, error);
           // 如果是速率限制错误，等待更长时间
           if (error instanceof Error && error.message.includes('rate limit')) {
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -378,18 +382,18 @@ export class GitHubStarService {
     };
   }> {
     try {
-      console.log('[统计服务] 开始获取所有收藏仓库数据进行统计...');
+      this.log.info('[统计服务] 开始获取所有收藏仓库数据进行统计');
       
       // 优先从数据库获取所有数据，这样更高效
       let repositories: GitHubRepository[];
       try {
         // 首先尝试从数据库获取
         repositories = await this.getRepositoriesFromDatabase();
-        console.log(`[统计服务] 从数据库获取到 ${repositories.length} 个仓库`);
+        this.log.debug('[统计服务] 从数据库获取仓库数据', { count: repositories.length });
         
         // 如果数据库中数据较少，尝试从API获取全部数据
         if (repositories.length < 1000) {
-          console.log('[统计服务] 数据库数据较少，从API获取完整数据...');
+          this.log.info('[统计服务] 数据库数据较少，准备从 GitHub API 获取完整数据');
           const apiResult = await this.getAllStarredRepositories({
             batchSize: 100,
           });
@@ -398,27 +402,27 @@ export class GitHubStarService {
           // 同步到数据库以便后续使用
           try {
             await this.syncRepositoriesToDatabase(repositories);
-            console.log(`[统计服务] 已将 ${repositories.length} 个仓库同步到数据库`);
+            this.log.info('[统计服务] 已将仓库数据同步到向量数据库', { count: repositories.length });
           } catch (syncError) {
-            console.warn('[统计服务] 同步到数据库失败:', syncError);
+            this.log.warn('[统计服务] 同步到向量数据库失败', syncError);
           }
         }
       } catch (dbError) {
-        console.warn('[统计服务] 从数据库获取失败，尝试从API获取:', dbError);
+        this.log.warn('[统计服务] 从数据库获取失败，尝试从 GitHub API 获取', dbError);
         // 如果数据库失败，则从API获取所有数据
         const apiResult = await this.getAllStarredRepositories({
           batchSize: 100,
         });
         repositories = apiResult.repositories as GitHubRepository[];
-        console.log(`[统计服务] 从API获取到 ${repositories.length} 个仓库`);
+        this.log.info('[统计服务] 从 GitHub API 获取仓库数据', { count: repositories.length });
         
         // 尝试将API数据同步到数据库
         try {
           await this.initializeDatabase();
           await this.syncRepositoriesToDatabase(repositories);
-          console.log(`[统计服务] 已将 ${repositories.length} 个仓库同步到数据库`);
+          this.log.info('[统计服务] 已将仓库数据同步到向量数据库', { count: repositories.length });
         } catch (syncError) {
-          console.warn('[统计服务] 同步到数据库失败:', syncError);
+          this.log.warn('[统计服务] 同步到向量数据库失败', syncError);
         }
       }
 
@@ -499,9 +503,13 @@ export class GitHubStarService {
         ? monthlyData.reduce((prev, current) => prev.count > current.count ? prev : current).date
         : '';
 
-      console.log(`[统计服务] 统计分析完成：总数=${totalRepos}, 语言类型=${Object.keys(languages).length}, 主题类型=${Object.keys(topics).length}`);
-      console.log(`[统计服务] 前5种语言:`, topLanguages.map(l => `${l.name}(${l.count})`).join(', '));
-      console.log(`[统计服务] 前5个主题:`, topTopics.map(t => `${t.name}(${t.count})`).join(', '));
+      this.log.info('[统计服务] 统计分析完成', {
+        total: totalRepos,
+        languageCount: Object.keys(languages).length,
+        topicCount: Object.keys(topics).length
+      });
+      this.log.debug('[统计服务] 前五语言', topLanguages.map(l => `${l.name}(${l.count})`).join(', '));
+      this.log.debug('[统计服务] 前五主题', topTopics.map(t => `${t.name}(${t.count})`).join(', '));
 
       return {
         basic: {
@@ -653,7 +661,7 @@ export class GitHubStarService {
       gitHubError.status = (error as any).status;
     }
 
-    console.error(gitHubError.message, error);
+    this.log.error(gitHubError.message, error);
     return gitHubError;
   }
 
@@ -663,9 +671,9 @@ export class GitHubStarService {
   async initializeDatabase(): Promise<void> {
     try {
       await lancedbService.initialize();
-      console.log('LanceDB 数据库初始化成功');
+      this.log.info('LanceDB 数据库初始化成功');
     } catch (error) {
-      console.error('LanceDB 数据库初始化失败:', error);
+      this.log.error('LanceDB 数据库初始化失败', error);
       throw error;
     }
   }
@@ -676,9 +684,10 @@ export class GitHubStarService {
   async syncRepositoriesToDatabase(repositories: GitHubRepository[]): Promise<void> {
     try {
       await lancedbService.upsertRepositories(repositories);
-      console.log(`已同步 ${repositories.length} 个仓库到向量数据库`);
+      this.log.info('已同步仓库到向量数据库', { count: repositories.length });
+      lancedbSearchService.clearCache();
     } catch (error) {
-      console.error('同步仓库到数据库失败:', error);
+      this.log.error('同步仓库到数据库失败', error);
       throw error;
     }
   }
@@ -692,7 +701,7 @@ export class GitHubStarService {
       await this.initializeDatabase();
       return await lancedbService.getAllRepositories(limit, offset);
     } catch (error) {
-      console.error('从数据库获取仓库失败:', error);
+      this.log.error('从数据库获取仓库失败', error);
       throw error;
     }
   }
@@ -732,7 +741,7 @@ export class GitHubStarService {
 
       return await lancedbService.searchRepositories(query, limit, whereClause);
     } catch (error) {
-      console.error('语义搜索仓库失败:', error);
+      this.log.error('语义搜索仓库失败', error);
       throw error;
     }
   }
@@ -744,7 +753,7 @@ export class GitHubStarService {
     try {
       return await lancedbService.getRepositoriesByLanguage(language, limit);
     } catch (error) {
-      console.error('从数据库按语言获取仓库失败:', error);
+      this.log.error('从数据库按语言获取仓库失败', error);
       throw error;
     }
   }
@@ -760,7 +769,7 @@ export class GitHubStarService {
     try {
       return await lancedbService.getRepositoriesByStarRange(minStars, maxStars, limit);
     } catch (error) {
-      console.error('从数据库按 Star 范围获取仓库失败:', error);
+      this.log.error('从数据库按 Star 范围获取仓库失败', error);
       throw error;
     }
   }
@@ -775,7 +784,7 @@ export class GitHubStarService {
     try {
       return await lancedbService.getStats();
     } catch (error) {
-      console.error('获取数据库统计信息失败:', error);
+      this.log.error('获取数据库统计信息失败', error);
       throw error;
     }
   }
@@ -812,10 +821,10 @@ export class GitHubStarService {
           if (dbRepositories.length > 0) {
             repositories = dbRepositories;
             fromCache = true;
-            console.log(`从数据库加载了 ${repositories.length} 个仓库`);
+            this.log.debug('从向量数据库加载仓库数据', { count: repositories.length });
           }
         } catch (dbError) {
-          console.warn('从数据库加载仓库失败，将从 API 获取:', dbError);
+          this.log.warn('从向量数据库加载仓库失败，改用 GitHub API', dbError);
         }
       }
 
@@ -833,7 +842,7 @@ export class GitHubStarService {
           try {
             await this.syncRepositoriesToDatabase(repositories);
           } catch (syncError) {
-            console.warn('同步仓库到数据库失败:', syncError);
+            this.log.warn('同步仓库到向量数据库失败', syncError);
           }
         }
       }
@@ -844,7 +853,7 @@ export class GitHubStarService {
         try {
           stats = await this.getDatabaseStats();
         } catch (statsError) {
-          console.warn('获取数据库统计信息失败:', statsError);
+          this.log.warn('获取数据库统计信息失败', statsError);
         }
       }
 
@@ -855,7 +864,7 @@ export class GitHubStarService {
         stats
       };
     } catch (error) {
-      console.error('获取增强版 starred 仓库失败:', error);
+      this.log.error('获取增强版 starred 仓库失败', error);
       throw error;
     }
   }

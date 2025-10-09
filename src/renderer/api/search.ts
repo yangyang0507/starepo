@@ -23,8 +23,12 @@ export interface SearchOptions {
   minStars?: number;
   maxStars?: number;
   limit?: number;
+  offset?: number;
+  page?: number;
+  pageSize?: number;
   sortBy?: 'relevance' | 'stars' | 'updated' | 'created';
   sortOrder?: 'asc' | 'desc';
+  disableCache?: boolean;
 }
 
 // 搜索结果接口
@@ -32,6 +36,12 @@ export interface SearchResult {
   repositories: any[];
   totalCount: number;
   searchTime: number;
+  page: number;
+  pageSize: number;
+  offset: number;
+  hasMore: boolean;
+  nextOffset?: number;
+  cached?: boolean;
 }
 
 // 搜索建议接口

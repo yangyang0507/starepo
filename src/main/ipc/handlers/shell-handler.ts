@@ -1,5 +1,8 @@
 import { ipcMain, shell } from "electron";
 import type { APIResponse } from "@shared/types";
+import { getLogger } from "../../utils/logger";
+
+const shellLogger = getLogger("ipc:shell");
 
 /**
  * Shell IPC 处理器
@@ -25,7 +28,7 @@ export function setupShellHandlers(): void {
       await shell.openExternal(url);
       return { success: true };
     } catch (error) {
-      console.error("打开外部链接失败:", error);
+      shellLogger.error("打开外部链接失败", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "打开链接失败",
@@ -39,7 +42,7 @@ export function setupShellHandlers(): void {
       const result = await shell.openPath(path);
       return { success: true, data: result };
     } catch (error) {
-      console.error("打开路径失败:", error);
+      shellLogger.error("打开路径失败", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "打开路径失败",
@@ -53,7 +56,7 @@ export function setupShellHandlers(): void {
       shell.showItemInFolder(fullPath);
       return { success: true };
     } catch (error) {
-      console.error("显示文件失败:", error);
+      shellLogger.error("显示文件失败", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "显示文件失败",
@@ -61,5 +64,5 @@ export function setupShellHandlers(): void {
     }
   });
 
-  console.log("Shell IPC 处理器已设置");
+  shellLogger.info("Shell IPC 处理器已设置");
 }

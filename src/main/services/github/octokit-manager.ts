@@ -7,6 +7,7 @@ import type {
   GitHubUser,
   GitHubRepository,
 } from "./types";
+import { getLogger } from "../../utils/logger";
 
 // 扩展 Octokit 功能
 const MyOctokit = Octokit.plugin(throttling, retry);
@@ -17,6 +18,7 @@ export class OctokitManager {
   private config: GitHubClientConfig | null = null;
   private rateLimitInfo: RateLimitInfo | null = null;
   private isInitialized = false;
+  private readonly log = getLogger("github:octokit");
 
   private constructor() {}
 
@@ -58,10 +60,10 @@ export class OctokitManager {
       // 验证认证并获取用户信息
       await this.validateAuthentication();
 
-      console.log("Octokit 客户端初始化成功");
+      this.log.info("Octokit 客户端初始化成功");
     } catch (error) {
       this.isInitialized = false;
-      console.error("Octokit 客户端初始化失败:", error);
+      this.log.error("Octokit 客户端初始化失败", error);
       throw new Error(
         `GitHub 客户端初始化失败: ${error instanceof Error ? error.message : "未知错误"}`,
       );
@@ -79,7 +81,7 @@ export class OctokitManager {
       await this.updateRateLimitInfo();
       return user as GitHubUser;
     } catch (error) {
-      console.error("认证验证失败:", error);
+      this.log.error("认证验证失败", error);
       throw new Error(
         `认证验证失败: ${error instanceof Error ? error.message : "未知错误"}`,
       );
@@ -96,7 +98,7 @@ export class OctokitManager {
       const { data: user } = await this.octokit!.rest.users.getAuthenticated();
       return user as GitHubUser;
     } catch (error) {
-      console.error("获取用户信息失败:", error);
+      this.log.error("获取用户信息失败", error);
       throw new Error(
         `获取用户信息失败: ${error instanceof Error ? error.message : "未知错误"}`,
       );
@@ -124,7 +126,7 @@ export class OctokitManager {
       await this.updateRateLimitInfo();
       return repos as GitHubRepository[];
     } catch (error) {
-      console.error("获取 starred 仓库失败:", error);
+      this.log.error("获取 starred 仓库失败", error);
       throw new Error(
         `获取 starred 仓库失败: ${error instanceof Error ? error.message : "未知错误"}`,
       );
@@ -143,9 +145,9 @@ export class OctokitManager {
         repo,
       });
       await this.updateRateLimitInfo();
-      console.log(`成功 star 仓库: ${owner}/${repo}`);
+      this.log.info("成功 star 仓库", { owner, repo });
     } catch (error) {
-      console.error("Star 仓库失败:", error);
+      this.log.error("Star 仓库失败", error);
       throw new Error(
         `Star 仓库失败: ${error instanceof Error ? error.message : "未知错误"}`,
       );
@@ -164,9 +166,9 @@ export class OctokitManager {
         repo,
       });
       await this.updateRateLimitInfo();
-      console.log(`成功 unstar 仓库: ${owner}/${repo}`);
+      this.log.info("成功 unstar 仓库", { owner, repo });
     } catch (error) {
-      console.error("Unstar 仓库失败:", error);
+      this.log.error("Unstar 仓库失败", error);
       throw new Error(
         `Unstar 仓库失败: ${error instanceof Error ? error.message : "未知错误"}`,
       );
@@ -190,7 +192,7 @@ export class OctokitManager {
       if (error.status === 404) {
         return false;
       }
-      console.error("检查 star 状态失败:", error);
+      this.log.error("检查 star 状态失败", error);
       throw new Error(
         `检查 star 状态失败: ${error instanceof Error ? error.message : "未知错误"}`,
       );
@@ -211,7 +213,7 @@ export class OctokitManager {
       await this.updateRateLimitInfo();
       return repository as GitHubRepository;
     } catch (error) {
-      console.error("获取仓库信息失败:", error);
+      this.log.error("获取仓库信息失败", error);
       throw new Error(
         `获取仓库信息失败: ${error instanceof Error ? error.message : "未知错误"}`,
       );
@@ -243,7 +245,7 @@ export class OctokitManager {
         total_count: data.total_count,
       };
     } catch (error) {
-      console.error("搜索仓库失败:", error);
+      this.log.error("搜索仓库失败", error);
       throw new Error(
         `搜索仓库失败: ${error instanceof Error ? error.message : "未知错误"}`,
       );
@@ -278,19 +280,19 @@ export class OctokitManager {
         lastUpdated: new Date(),
       };
     } catch (error) {
-      console.warn("获取速率限制信息失败:", error);
+      this.log.warn("获取速率限制信息失败", error);
     }
   }
 
   // 处理速率限制
   private handleRateLimit(retryAfter: number, _options: unknown): boolean {
-    console.warn(`触发速率限制，将在 ${retryAfter} 秒后重试`);
+    this.log.warn("触发速率限制，等待后重试", { retryAfterSeconds: retryAfter });
     return true; // 允许重试
   }
 
   // 处理二级速率限制
   private handleSecondaryRateLimit(retryAfter: number, _options: unknown): boolean {
-    console.warn(`触发二级速率限制，将在 ${retryAfter} 秒后重试`);
+    this.log.warn("触发二级速率限制，等待后重试", { retryAfterSeconds: retryAfter });
     return true; // 允许重试
   }
 
@@ -315,7 +317,7 @@ export class OctokitManager {
     this.config = null;
     this.rateLimitInfo = null;
     this.isInitialized = false;
-    console.log("Octokit 客户端已重置");
+    this.log.info("Octokit 客户端已重置");
   }
 
   // 获取 Octokit 实例（用于高级操作）

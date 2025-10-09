@@ -5,8 +5,14 @@ import { setupSecureStorageHandlers } from "../secure-storage-handler";
 import { setupShellHandlers } from "./shell-handler";
 import { registerGitHubHandlers } from "../github-handlers";
 import { registerAuthIPCHandlers } from "../auth-ipc-handlers";
+import { settingsService } from "../../services/settings";
+import type { ThemeMode, Language } from "../../../shared/types/index.js";
+import { getLogger } from "../../utils/logger";
 // 导入搜索处理器
 import "../search-handlers";
+
+const themeLogger = getLogger('ipc:theme');
+const languageLogger = getLogger('ipc:language');
 
 /**
  * 注册所有 IPC 处理器
@@ -85,70 +91,89 @@ function registerWindowHandlers(): void {
 
 /**
  * 主题相关的 IPC 处理器
- * TODO: 实现主题持久化存储
  */
 function registerThemeHandlers(): void {
-  let currentTheme: string = "system";
-
-  ipcMain.handle(IPC_CHANNELS.THEME.GET_THEME, () => {
-    return { success: true, data: currentTheme };
+  ipcMain.handle(IPC_CHANNELS.THEME.GET_THEME, async () => {
+    try {
+      const theme = await settingsService.getTheme();
+      return { success: true, data: theme };
+    } catch (error) {
+      themeLogger.error("获取主题失败", error);
+      return { success: false, error: "获取主题失败" };
+    }
   });
 
-  ipcMain.handle(IPC_CHANNELS.THEME.SET_THEME, (_event, theme: string) => {
-    currentTheme = theme;
+  ipcMain.handle(IPC_CHANNELS.THEME.SET_THEME, async (_event, theme: string) => {
+    try {
+      const updatedTheme = await settingsService.setTheme(theme as ThemeMode);
 
-    // 向所有渲染进程广播主题变更
-    const windowManager = WindowManager.getInstance();
-    const mainWindow = windowManager.getMainWindow();
-    if (mainWindow) {
-      mainWindow.webContents.send(IPC_CHANNELS.THEME.THEME_CHANGED, theme);
+      const windowManager = WindowManager.getInstance();
+      const mainWindow = windowManager.getMainWindow();
+      if (mainWindow) {
+        mainWindow.webContents.send(IPC_CHANNELS.THEME.THEME_CHANGED, updatedTheme);
+      }
+
+      return { success: true, data: updatedTheme };
+    } catch (error) {
+      themeLogger.error("设置主题失败", error);
+      return { success: false, error: "设置主题失败" };
     }
-
-    return { success: true, data: theme };
   });
 
-  ipcMain.handle(IPC_CHANNELS.THEME.TOGGLE_THEME, () => {
-    const newTheme = currentTheme === "dark" ? "light" : "dark";
-    currentTheme = newTheme;
+  ipcMain.handle(IPC_CHANNELS.THEME.TOGGLE_THEME, async () => {
+    try {
+      const currentTheme = await settingsService.getTheme();
+      const nextTheme: ThemeMode = currentTheme === "dark" ? "light" : "dark";
+      const savedTheme = await settingsService.setTheme(nextTheme);
 
-    // 向所有渲染进程广播主题变更
-    const windowManager = WindowManager.getInstance();
-    const mainWindow = windowManager.getMainWindow();
-    if (mainWindow) {
-      mainWindow.webContents.send(IPC_CHANNELS.THEME.THEME_CHANGED, newTheme);
+      const windowManager = WindowManager.getInstance();
+      const mainWindow = windowManager.getMainWindow();
+      if (mainWindow) {
+        mainWindow.webContents.send(IPC_CHANNELS.THEME.THEME_CHANGED, savedTheme);
+      }
+
+      return { success: true, data: savedTheme };
+    } catch (error) {
+      themeLogger.error("切换主题失败", error);
+      return { success: false, error: "切换主题失败" };
     }
-
-    return { success: true, data: newTheme };
   });
 }
 
 /**
  * 语言相关的 IPC 处理器
- * TODO: 实现语言持久化存储
  */
 function registerLanguageHandlers(): void {
-  let currentLanguage: string = "en";
-
-  ipcMain.handle(IPC_CHANNELS.LANGUAGE.GET_LANGUAGE, () => {
-    return { success: true, data: currentLanguage };
+  ipcMain.handle(IPC_CHANNELS.LANGUAGE.GET_LANGUAGE, async () => {
+    try {
+      const language = await settingsService.getLanguage();
+      return { success: true, data: language };
+    } catch (error) {
+      languageLogger.error("获取语言失败", error);
+      return { success: false, error: "获取语言失败" };
+    }
   });
 
   ipcMain.handle(
     IPC_CHANNELS.LANGUAGE.SET_LANGUAGE,
-    (_event, language: string) => {
-      currentLanguage = language;
+    async (_event, language: string) => {
+      try {
+        const updatedLanguage = await settingsService.setLanguage(language as Language);
 
-      // 向所有渲染进程广播语言变更
-      const windowManager = WindowManager.getInstance();
-      const mainWindow = windowManager.getMainWindow();
-      if (mainWindow) {
-        mainWindow.webContents.send(
-          IPC_CHANNELS.LANGUAGE.LANGUAGE_CHANGED,
-          language,
-        );
+        const windowManager = WindowManager.getInstance();
+        const mainWindow = windowManager.getMainWindow();
+        if (mainWindow) {
+          mainWindow.webContents.send(
+            IPC_CHANNELS.LANGUAGE.LANGUAGE_CHANGED,
+            updatedLanguage,
+          );
+        }
+
+        return { success: true, data: updatedLanguage };
+      } catch (error) {
+        languageLogger.error("设置语言失败", error);
+        return { success: false, error: "设置语言失败" };
       }
-
-      return { success: true, data: language };
     },
   );
 }

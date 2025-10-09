@@ -3,6 +3,7 @@
 import { octokitManager } from "./octokit-manager";
 import { enhancedGitHubAuthService } from "./enhanced-auth-service";
 import { githubStarService } from "./star-service";
+import { getLogger } from "../../utils/logger";
 
 export { octokitManager, OctokitManager } from "./octokit-manager";
 export { enhancedGitHubAuthService, EnhancedGitHubAuthService } from "./enhanced-auth-service";
@@ -14,6 +15,7 @@ export type * from "./types";
 // GitHub 服务管理器
 export class GitHubServiceManager {
   private static instance: GitHubServiceManager;
+  private readonly log = getLogger("github:manager");
 
   private constructor() {}
 
@@ -49,7 +51,7 @@ export class GitHubServiceManager {
    * 初始化所有服务
    */
   async initialize() {
-    console.log("GitHub 服务管理器初始化完成");
+    this.log.info("GitHub 服务管理器初始化完成");
   }
 
   /**
@@ -58,7 +60,7 @@ export class GitHubServiceManager {
   async cleanup() {
     octokitManager.reset();
     await enhancedGitHubAuthService.clearAuth();
-    console.log("GitHub 服务管理器已清理");
+    this.log.info("GitHub 服务管理器已清理");
   }
 }
 

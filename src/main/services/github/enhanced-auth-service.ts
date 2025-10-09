@@ -1,6 +1,7 @@
 import { Octokit } from 'octokit';
 import { githubTokenStorage } from '../database/secure-service';
 import { octokitManager } from './octokit-manager';
+import { getLogger } from '../../utils/logger';
 import type {
   AuthState,
   GitHubUser,
@@ -24,6 +25,7 @@ export class EnhancedGitHubAuthService {
   private initializationPromise: Promise<boolean> | null = null;
   private lastValidationTimestamp: number | null = null;
   private readonly validationCacheDuration = 60 * 1000; // 60s 缓存认证结果
+  private readonly log = getLogger('github:auth-service');
 
   /**
    * 初始化认证服务，从存储中恢复认证状态
@@ -103,15 +105,15 @@ export class EnhancedGitHubAuthService {
             userAgent: 'Starepo/1.0.0',
             timeout: 10000,
           });
-          console.log('octokitManager 已从存储恢复认证状态');
+          this.log.info('octokitManager 已从存储恢复认证状态');
         } catch (octokitError) {
-          console.warn('octokitManager 恢复失败，但不影响主认证流程:', octokitError);
+          this.log.warn('octokitManager 恢复失败，但不影响主认证流程', octokitError);
         }
       }
 
       return true;
     } catch (error) {
-      console.error('认证服务初始化失败:', error);
+      this.log.error('认证服务初始化失败', error);
       this.currentAuthState = { isAuthenticated: false };
       return false;
     }
@@ -186,9 +188,9 @@ export class EnhancedGitHubAuthService {
           userAgent: 'Starepo/1.0.0',
           timeout: 10000,
         });
-        console.log('octokitManager 已同步认证状态');
+        this.log.info('octokitManager 已同步认证状态');
       } catch (octokitError) {
-        console.warn('octokitManager 初始化失败，但不影响主认证流程:', octokitError);
+        this.log.warn('octokitManager 初始化失败，但不影响主认证流程', octokitError);
       }
 
       return {
@@ -196,7 +198,7 @@ export class EnhancedGitHubAuthService {
         user: user as any, // 类型断言，避免不同 GitHubUser 定义的冲突
       };
     } catch (error) {
-      console.error('Token认证失败:', error);
+      this.log.error('Token认证失败', error);
 
       const authError: AuthError = {
         code: 'AUTHENTICATION_FAILED',
@@ -218,7 +220,7 @@ export class EnhancedGitHubAuthService {
   async getAuthState(): Promise<AuthState> {
     await this.ensureInitialized();
     
-    console.log('[增强认证服务] 当前认证状态:', {
+    this.log.debug('[增强认证服务] 当前认证状态', {
       isAuthenticated: this.currentAuthState.isAuthenticated,
       user: this.currentAuthState.user?.login,
       hasTokenInfo: !!this.currentAuthState.tokenInfo,
@@ -288,7 +290,7 @@ export class EnhancedGitHubAuthService {
 
       return true;
     } catch (error) {
-      console.error('刷新认证失败:', error);
+      this.log.error('刷新认证失败', error);
       await this.clearAuth();
       return false;
     }
@@ -308,7 +310,7 @@ export class EnhancedGitHubAuthService {
 
       this.notifyAuthListeners();
     } catch (error) {
-      console.error('清除认证失败:', error);
+      this.log.error('清除认证失败', error);
       throw error;
     }
   }
@@ -353,7 +355,7 @@ export class EnhancedGitHubAuthService {
         rateLimit,
       };
     } catch (error: any) {
-      console.error('Token验证失败:', error);
+      this.log.error('Token验证失败', error);
 
       let errorMessage = 'Token validation failed';
 
@@ -475,7 +477,7 @@ export class EnhancedGitHubAuthService {
       try {
         listener({ ...this.currentAuthState });
       } catch (error) {
-        console.error('认证状态监听器执行失败:', error);
+        this.log.error('认证状态监听器执行失败', error);
       }
     });
   }

@@ -81,12 +81,22 @@ const searchAPI = {
     minStars?: number;
     maxStars?: number;
     limit?: number;
+    offset?: number;
+    page?: number;
+    pageSize?: number;
     sortBy?: 'relevance' | 'stars' | 'updated' | 'created';
     sortOrder?: 'asc' | 'desc';
+    disableCache?: boolean;
   }): Promise<APIResponse<{
     repositories: any[];
     totalCount: number;
     searchTime: number;
+    page: number;
+    pageSize: number;
+    offset: number;
+    hasMore: boolean;
+    nextOffset?: number;
+    cached?: boolean;
   }>> =>
     ipcRenderer.invoke(IPC_CHANNELS.SEARCH.SEARCH_REPOSITORIES, options),
 
