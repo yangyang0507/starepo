@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { IPC_CHANNELS } from "@shared/constants/ipc-channels";
-import type { APIResponse, ThemeMode, Language } from "@shared/types";
+import type { APIResponse, ThemeMode, Language, AppSettings } from "@shared/types";
 
 /**
  * 预加载脚本 - 在渲染进程和主进程之间提供安全的通信桥梁
@@ -71,6 +71,18 @@ const languageAPI = {
         handler,
       );
   },
+};
+
+// 应用设置 API
+const settingsAPI = {
+  getSettings: (): Promise<APIResponse<AppSettings>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SETTINGS.GET_SETTINGS),
+
+  updateSettings: (update: Partial<AppSettings>): Promise<APIResponse<AppSettings>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SETTINGS.SET_SETTING, update),
+
+  resetSettings: (): Promise<APIResponse<AppSettings>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SETTINGS.RESET_SETTINGS),
 };
 
 // 搜索 API
@@ -309,6 +321,7 @@ const electronAPI = {
   window: windowAPI,
   theme: themeAPI,
   language: languageAPI,
+  settings: settingsAPI,
   search: searchAPI,
   github: githubAPI,
   database: databaseAPI,

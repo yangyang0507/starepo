@@ -1,18 +1,14 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import type { ThemeMode, Language } from '../../../shared/types/index.js';
-import { getLogger } from '../../utils/logger';
-
-interface AppSettings {
-  theme: ThemeMode;
-  language: Language;
-  updatedAt: string;
-}
+import type { ThemeMode, Language, AppSettings, LogLevel } from '../../../shared/types/index.js';
+import { getLogger, getLogLevel as getCurrentLogLevel, setLogLevel as setLoggerLevel } from '../../utils/logger';
 
 const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   language: 'en',
+  developerMode: false,
+  logLevel: getCurrentLogLevel(),
   updatedAt: new Date(0).toISOString()
 };
 
@@ -42,6 +38,7 @@ export class SettingsService {
       await this.persistSettings(this.settingsCache);
     }
 
+    this.applyRuntimeSettings(this.settingsCache!);
     this.isLoaded = true;
     return this.settingsCache!;
   }
@@ -70,14 +67,45 @@ export class SettingsService {
     return normalizedLanguage;
   }
 
+  async getDeveloperMode(): Promise<boolean> {
+    const settings = await this.getSettings();
+    return settings.developerMode;
+  }
+
+  async setDeveloperMode(enabled: boolean): Promise<boolean> {
+    const normalized = Boolean(enabled);
+    await this.updateSettings({ developerMode: normalized });
+    this.log.info('开发者模式已更新', { developerMode: normalized });
+    return normalized;
+  }
+
+  async getLogLevel(): Promise<LogLevel> {
+    const settings = await this.getSettings();
+    return settings.logLevel;
+  }
+
+  async setLogLevel(level: LogLevel): Promise<LogLevel> {
+    const normalized = this.isValidLogLevel(level) ? level : DEFAULT_SETTINGS.logLevel;
+    await this.updateSettings({ logLevel: normalized });
+    this.log.info('日志级别已更新', { logLevel: normalized });
+    return normalized;
+  }
+
+  async updateSettings(update: Partial<AppSettings>): Promise<AppSettings> {
+    const merged = await this.applyUpdate(update);
+    this.applyRuntimeSettings(merged);
+    return merged;
+  }
+
   async reset(): Promise<void> {
     this.settingsCache = { ...DEFAULT_SETTINGS, updatedAt: new Date().toISOString() };
     this.isLoaded = true;
     await this.persistSettings(this.settingsCache);
+    this.applyRuntimeSettings(this.settingsCache);
     this.log.warn('设置已重置为默认值');
   }
 
-  private async updateSettings(update: Partial<AppSettings>): Promise<AppSettings> {
+  private async applyUpdate(update: Partial<AppSettings>): Promise<AppSettings> {
     const current = await this.getSettings();
     const merged: AppSettings = {
       ...current,
@@ -108,10 +136,14 @@ export class SettingsService {
 
     const theme = this.isValidTheme(settings.theme) ? settings.theme! : DEFAULT_SETTINGS.theme;
     const language = this.isValidLanguage(settings.language) ? settings.language! : DEFAULT_SETTINGS.language;
+    const developerMode = typeof settings.developerMode === 'boolean' ? settings.developerMode : DEFAULT_SETTINGS.developerMode;
+    const logLevel = this.isValidLogLevel(settings.logLevel) ? settings.logLevel! : DEFAULT_SETTINGS.logLevel;
 
     return {
       theme,
       language,
+      developerMode,
+      logLevel,
       updatedAt: settings.updatedAt ?? new Date().toISOString()
     };
   }
@@ -122,6 +154,14 @@ export class SettingsService {
 
   private isValidLanguage(language?: string): language is Language {
     return typeof language === 'string' && language.length > 0;
+  }
+
+  private isValidLogLevel(level?: string): level is LogLevel {
+    return level === 'debug' || level === 'info' || level === 'warn' || level === 'error';
+  }
+
+  private applyRuntimeSettings(settings: AppSettings): void {
+    setLoggerLevel(settings.logLevel);
   }
 }
 

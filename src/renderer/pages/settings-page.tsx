@@ -4,12 +4,19 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTheme } from "@/hooks/use-theme";
 import { useAuthStore } from "@/stores/auth-store";
 import { setAppLanguage } from "@/utils/language-helpers";
-import type { ThemeMode } from "@shared/types";
+import type { ThemeMode, LogLevel } from "@shared/types";
 import {
   AlertCircle,
   CheckCircle,
@@ -18,6 +25,7 @@ import {
   Github,
   Globe,
   Key,
+  Loader2,
   LogOut,
   Monitor,
   Moon,
@@ -27,17 +35,53 @@ import {
   Sun,
   User
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { settingsAPI, logLevelLabels } from "@/api/settings";
 
 export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showTokenManagement, setShowTokenManagement] = useState(false);
+  const [developerMode, setDeveloperMode] = useState(false);
+  const [logLevel, setLogLevelState] = useState<LogLevel>("info");
+  const [advancedLoading, setAdvancedLoading] = useState(true);
+  const [devModeUpdating, setDevModeUpdating] = useState(false);
+  const [logLevelUpdating, setLogLevelUpdating] = useState(false);
+  const [advancedError, setAdvancedError] = useState<string | null>(null);
 
   // Hooks
   const { authState, refreshAuth, logout } = useAuthStore();
   const { theme, changeTheme, isLoading: themeLoading } = useTheme();
   const { i18n } = useTranslation();
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadSettings = async () => {
+      try {
+        const currentSettings = await settingsAPI.getSettings();
+        if (!mounted) return;
+        setDeveloperMode(currentSettings.developerMode);
+        setLogLevelState(currentSettings.logLevel);
+        setAdvancedError(null);
+      } catch (error) {
+        if (!mounted) return;
+        const message =
+          error instanceof Error ? error.message : "加载高级设置失败";
+        setAdvancedError(message);
+      } finally {
+        if (mounted) {
+          setAdvancedLoading(false);
+        }
+      }
+    };
+
+    loadSettings();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleRefreshAuth = async () => {
     setIsLoading(true);
@@ -76,6 +120,50 @@ export default function SettingsPage() {
       await setAppLanguage(newLanguage, i18n);
     } catch (error) {
       console.error("语言切换失败:", error);
+    }
+  };
+
+  const handleToggleDeveloperMode = async () => {
+    if (advancedLoading || devModeUpdating) {
+      return;
+    }
+
+    const nextValue = !developerMode;
+    setDevModeUpdating(true);
+    setAdvancedError(null);
+
+    try {
+      const updated = await settingsAPI.updateSettings({
+        developerMode: nextValue,
+      });
+      setDeveloperMode(updated.developerMode);
+      setLogLevelState(updated.logLevel);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "更新开发者模式失败";
+      setAdvancedError(message);
+    } finally {
+      setDevModeUpdating(false);
+    }
+  };
+
+  const handleLogLevelChange = async (value: LogLevel) => {
+    if (advancedLoading || logLevelUpdating || value === logLevel) {
+      return;
+    }
+
+    setLogLevelUpdating(true);
+    setAdvancedError(null);
+
+    try {
+      const updated = await settingsAPI.updateSettings({ logLevel: value });
+      setLogLevelState(updated.logLevel);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "更新日志级别失败";
+      setAdvancedError(message);
+    } finally {
+      setLogLevelUpdating(false);
     }
   };
 
@@ -503,28 +591,91 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h4 className="font-medium">开发者模式</h4>
                   <p className="text-sm text-muted-foreground">
                     启用开发者工具和调试功能
                   </p>
                 </div>
-                <Button variant="outline" size="sm">
-                  关闭
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Badge variant={developerMode ? "outline" : "secondary"}>
+                    {advancedLoading
+                      ? "加载中..."
+                      : developerMode
+                        ? "已开启"
+                        : "已关闭"}
+                  </Badge>
+                  <Button
+                    variant={developerMode ? "destructive" : "outline"}
+                    size="sm"
+                    onClick={handleToggleDeveloperMode}
+                    disabled={advancedLoading || devModeUpdating}
+                    className="flex items-center gap-2"
+                  >
+                    {devModeUpdating ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : null}
+                    {developerMode ? "关闭" : "开启"}
+                  </Button>
+                </div>
               </div>
               <Separator />
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h4 className="font-medium">日志级别</h4>
                   <p className="text-sm text-muted-foreground">
                     设置应用日志详细程度
                   </p>
                 </div>
-                <Badge variant="secondary">Info</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">
+                    {advancedLoading ? "加载中..." : logLevelLabels[logLevel]}
+                  </Badge>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-2"
+                        disabled={advancedLoading || logLevelUpdating}
+                      >
+                        {logLevelUpdating ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : null}
+                        选择
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[180px]">
+                      <DropdownMenuRadioGroup
+                        value={logLevel}
+                        onValueChange={(value) =>
+                          handleLogLevelChange(value as LogLevel)
+                        }
+                      >
+                        {(Object.keys(logLevelLabels) as LogLevel[]).map(
+                          (level) => (
+                            <DropdownMenuRadioItem
+                              key={level}
+                              value={level}
+                              disabled={logLevelUpdating}
+                            >
+                              {logLevelLabels[level]}
+                            </DropdownMenuRadioItem>
+                          ),
+                        )}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </div>
+            {advancedError && (
+              <div className="flex items-center gap-2 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4" />
+                <span>{advancedError}</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 

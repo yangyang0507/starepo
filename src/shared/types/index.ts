@@ -22,14 +22,15 @@ export interface WindowState {
   };
 }
 
+export type LogLevel = "debug" | "info" | "warn" | "error";
+
 // 应用设置类型
 export interface AppSettings {
   theme: ThemeMode;
   language: Language;
-  windowState: WindowState;
-  autoStart: boolean;
-  minimizeToTray: boolean;
-  closeToTray: boolean;
+  developerMode: boolean;
+  logLevel: LogLevel;
+  updatedAt: string;
 }
 
 // GitHub 相关类型

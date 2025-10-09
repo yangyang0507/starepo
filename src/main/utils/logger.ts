@@ -1,4 +1,4 @@
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 const LEVEL_PRIORITY: Record<LogLevel, number> = {
   debug: 10,
@@ -24,20 +24,31 @@ function resolveLogLevel(): LogLevel {
   return isProduction ? 'info' : 'debug';
 }
 
-const baseLevel = resolveLogLevel();
+const logLevelState = { level: resolveLogLevel() };
+
+export function getLogLevel(): LogLevel {
+  return logLevelState.level;
+}
+
+export function setLogLevel(level: LogLevel): void {
+  if (!(level in LEVEL_PRIORITY)) {
+    throw new Error(`Invalid log level: ${level}`);
+  }
+  logLevelState.level = level;
+}
 
 interface LoggerOptions {
   scope?: string;
-  level?: LogLevel;
+  levelRef?: { level: LogLevel };
 }
 
 export class Logger {
   private readonly scope?: string;
-  private readonly level: LogLevel;
+  private readonly levelRef: { level: LogLevel };
 
   constructor(options: LoggerOptions = {}) {
     this.scope = options.scope;
-    this.level = options.level ?? baseLevel;
+    this.levelRef = options.levelRef ?? logLevelState;
   }
 
   debug(message: string, ...details: unknown[]): void {
@@ -58,11 +69,12 @@ export class Logger {
 
   child(scope: string): Logger {
     const nestedScope = this.scope ? `${this.scope}:${scope}` : scope;
-    return new Logger({ scope: nestedScope, level: this.level });
+    return new Logger({ scope: nestedScope, levelRef: this.levelRef });
   }
 
   private log(level: LogLevel, message: string, ...details: unknown[]): void {
-    if (LEVEL_PRIORITY[level] < LEVEL_PRIORITY[this.level]) {
+    const activeLevel = this.levelRef.level;
+    if (LEVEL_PRIORITY[level] < LEVEL_PRIORITY[activeLevel]) {
       return;
     }
 
