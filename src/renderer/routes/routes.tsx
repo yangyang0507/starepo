@@ -4,25 +4,30 @@ import HomePage from "@/pages/home-page";
 import StatsPage from "@/pages/stats-page";
 import GitHubRepositoriesPage from "@/pages/github-repositories-page";
 import SettingsPage from "@/pages/settings-page";
+import { PerformanceDashboard } from "@/components/performance-dashboard";
 
-// TODO: Steps to add a new route:
-// 1. Create a new page component in the '../pages/' directory (e.g., NewPage.tsx)
-// 2. Import the new page component at the top of this file
-// 3. Define a new route for the page using createRoute()
-// 4. Add the new route to the routeTree in RootRoute.addChildren([...])
-// 5. Add a new Link in the navigation section of RootRoute if needed
-
-// Example of adding a new route:
-// 1. Create '../pages/NewPage.tsx'
-// 2. Import: import NewPage from '../pages/NewPage';
-// 3. Define route:
-//    const NewRoute = createRoute({
-//      getParentRoute: () => RootRoute,
-//      path: '/new',
-//      component: NewPage,
-//    });
-// 4. Add to routeTree: RootRoute.addChildren([HomeRoute, NewRoute, ...])
-// 5. Add Link: <Link to="/new">New Page</Link>
+/**
+ * 路由添加指南：
+ * 
+ * 添加新路由的步骤：
+ * 1. 在 '../pages/' 目录创建新的页面组件（例如：NewPage.tsx）
+ * 2. 在文件顶部导入新的页面组件
+ * 3. 使用 createRoute() 定义新路由
+ * 4. 在 RootRoute.addChildren([...]) 中添加新路由
+ * 5. 如果需要，在 RootRoute 的导航部分添加新链接
+ * 
+ * 示例：
+ * 1. 创建 '../pages/NewPage.tsx'
+ * 2. 导入：import NewPage from '../pages/NewPage';
+ * 3. 定义路由：
+ *    const NewRoute = createRoute({
+ *      getParentRoute: () => RootRoute,
+ *      path: '/new',
+ *      component: NewPage,
+ *    });
+ * 4. 添加到路由树：RootRoute.addChildren([HomeRoute, NewRoute, ...])
+ * 5. 添加链接：<Link to="/new">New Page</Link>
+ */
 
 export const HomeRoute = createRoute({
   getParentRoute: () => RootRoute,
@@ -48,9 +53,16 @@ export const SettingsRoute = createRoute({
   component: SettingsPage,
 });
 
+export const PerformanceRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/performance",
+  component: PerformanceDashboard,
+});
+
 export const rootTree = RootRoute.addChildren([
   HomeRoute,
   StatsPageRoute,
   GitHubRepositoriesRoute,
   SettingsRoute,
+  PerformanceRoute,
 ]);

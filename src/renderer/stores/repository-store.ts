@@ -5,7 +5,6 @@ import type {
   GitHubUser,
   FilterOptions,
   ViewOptions,
-  AuthState,
 } from "@shared/types"
 
 interface CacheStatus {
@@ -144,8 +143,13 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
 
       await get().applyFiltersAndSearch();
 
-      // TODO: Start sync service (需要在 main 进程实现)
-      // await githubAPI.startIncrementalSync();
+      // 启动同步服务（如果支持的话）
+      if (window.electronAPI && window.electronAPI.github.startIncrementalSync) {
+        // 异步启动，不阻塞主流程
+        window.electronAPI.github.startIncrementalSync().catch(error => {
+          console.warn('启动同步服务失败:', error);
+        });
+      }
     } catch (error) {
       console.error('初始化失败:', error);
       set({
@@ -297,8 +301,37 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
   },
 
   checkAndUpdateCache: async () => {
-    // TODO: 实现缓存状态检查 - 当前跳过缓存检查
-    console.log('缓存状态检查功能待实现');
+    // 实现缓存状态检查
+    try {
+      const currentTime = Date.now();
+      const lastSync = get().lastSyncTime;
+      const cacheThreshold = 5 * 60 * 1000; // 5分钟
+
+      // 检查缓存是否过期
+      if (lastSync && (currentTime - lastSync) < cacheThreshold) {
+        set({ 
+          cacheStatus: 'valid',
+          refreshMessage: null,
+          fromCache: true 
+        });
+        return true; // 缓存有效
+      } else {
+        set({ 
+          cacheStatus: 'expired',
+          refreshMessage: lastSync ? '缓存已过期，正在刷新...' : '数据已过期，正在加载...',
+          fromCache: false 
+        });
+        return false; // 缓存过期
+      }
+    } catch (error) {
+      console.error('缓存状态检查失败:', error);
+      set({ 
+        cacheStatus: 'error',
+        refreshMessage: '缓存检查失败',
+        fromCache: false 
+      });
+      return false;
+    }
   },
 
   setSearchQuery: (query) => {

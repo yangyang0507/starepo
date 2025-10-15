@@ -3,7 +3,7 @@
  * 基于 LanceDB 的全文检索和语义搜索
  */
 
-import type { APIResponse } from '@shared/types';
+import type { APIResponse, GitHubRepository } from '@shared/types';
 
 /**
  * 检查 electronAPI 是否可用
@@ -33,7 +33,7 @@ export interface SearchOptions {
 
 // 搜索结果接口
 export interface SearchResult {
-  repositories: any[];
+  repositories: GitHubRepository[];
   totalCount: number;
   searchTime: number;
   page: number;
@@ -127,7 +127,7 @@ export const searchAPI = {
   /**
    * 简化的搜索函数 - 只需要查询文本
    */
-  quickSearch: async (query: string, limit: number = 20): Promise<any[]> => {
+  quickSearch: async (query: string, limit: number = 20): Promise<GitHubRepository[]> => {
     const result = await searchAPI.searchRepositories({
       query,
       limit,
@@ -141,7 +141,7 @@ export const searchAPI = {
   /**
    * 按语言搜索
    */
-  searchByLanguage: async (language: string, limit: number = 20): Promise<any[]> => {
+  searchByLanguage: async (language: string, limit: number = 20): Promise<GitHubRepository[]> => {
     const result = await searchAPI.searchRepositories({
       language,
       limit,
@@ -155,7 +155,7 @@ export const searchAPI = {
   /**
    * 按 star 数量范围搜索
    */
-  searchByStarRange: async (minStars: number, maxStars: number, limit: number = 20): Promise<any[]> => {
+  searchByStarRange: async (minStars: number, maxStars: number, limit: number = 20): Promise<GitHubRepository[]> => {
     const result = await searchAPI.searchRepositories({
       minStars,
       maxStars,
@@ -179,7 +179,7 @@ export const searchAPI = {
     sortOrder?: 'asc' | 'desc';
     limit?: number;
   }): Promise<{
-    repositories: any[];
+    repositories: GitHubRepository[];
     totalCount: number;
     searchTime: number;
   }> => {

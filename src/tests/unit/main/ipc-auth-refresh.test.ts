@@ -1,11 +1,12 @@
 /**
  * IPC认证合约测试 - refresh-auth
- * 这个测试必须在实现前失败，验证刷新认证的IPC通信合约
+ * 测试刷新认证的IPC通信合约
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ipcMain } from 'electron';
 import { AUTH_IPC_CHANNELS } from '@shared/types/auth';
+import { registerAuthIPCHandlers, unregisterAuthIPCHandlers } from '../../../main/ipc/auth-ipc-handlers';
 import type {
   RefreshAuthRequest,
   RefreshAuthResponse
@@ -19,13 +20,25 @@ vi.mock('electron', () => ({
   },
 }));
 
+// Mock enhanced GitHub auth service
+vi.mock('../../../main/services/github/enhanced-auth-service', () => ({
+  enhancedGitHubAuthService: {
+    refreshAuth: vi.fn(),
+  },
+}));
+
 describe('IPC Auth Contract: refresh-auth', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // 清理之前注册的处理器
+    unregisterAuthIPCHandlers();
   });
 
   it('should register IPC handler for refresh-auth', () => {
-    // 这个测试应该失败，因为还没有实现IPC处理器
+    // 注册IPC处理器
+    registerAuthIPCHandlers();
+    
+    // 验证处理器被正确注册
     expect(ipcMain.handle).toHaveBeenCalledWith(
       AUTH_IPC_CHANNELS.REFRESH_AUTH,
       expect.any(Function)
@@ -33,25 +46,35 @@ describe('IPC Auth Contract: refresh-auth', () => {
   });
 
   it('should successfully refresh valid authentication', async () => {
+    const { enhancedGitHubAuthService } = await import('../../../main/services/github/enhanced-auth-service');
+    
+    // Mock成功的认证刷新响应
+    (enhancedGitHubAuthService.refreshAuth as any).mockResolvedValue(true);
+
     // 模拟刷新请求（无参数）
     const request: RefreshAuthRequest = {};
 
-    // 期望的成功响应
-    const expectedResponse: RefreshAuthResponse = {
-      success: true,
-    };
+    // 注册IPC处理器
+    registerAuthIPCHandlers();
+    
+    // 获取注册的处理器
+    const handleCalls = (ipcMain.handle as any).mock.calls;
+    const refreshAuthHandler = handleCalls.find(
+      (call: any) => call[0] === AUTH_IPC_CHANNELS.REFRESH_AUTH
+    )?.[1];
 
-    // 这个测试应该失败，因为处理器还没有实现
-    const mockHandler = vi.fn().mockResolvedValue(expectedResponse);
+    expect(refreshAuthHandler).toBeDefined();
 
-    expect(ipcMain.handle).toHaveBeenCalledWith(
-      AUTH_IPC_CHANNELS.REFRESH_AUTH,
-      mockHandler
-    );
+    // 调用处理器
+    const result = await refreshAuthHandler(null, request);
 
-    const result = await mockHandler(null, request);
+    // 验证结果
+    expect(result).toEqual({ success: true });
     expect(result.success).toBe(true);
     expect(result.error).toBeUndefined();
+
+    // 验证服务被正确调用
+    expect(enhancedGitHubAuthService.refreshAuth).toHaveBeenCalled();
   });
 
   it('should fail to refresh when no stored token exists', async () => {

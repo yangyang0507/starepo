@@ -144,17 +144,17 @@ const LanguageDistributionChart: React.FC<LanguageDistributionChartProps> = ({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-80 w-full">
+        <div className="h-60 sm:h-72 lg:h-80 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={chartData}
                 cx="50%"
                 cy="50%"
-                outerRadius={80}
-                innerRadius={40}
+                outerRadius={60}
+                innerRadius={30}
                 dataKey="value"
-                label={({ percentage }) => `${percentage.toFixed(1)}%`}
+                label={false}
                 labelLine={false}
               >
                 {chartData.map((entry, index) => (
@@ -168,30 +168,29 @@ const LanguageDistributionChart: React.FC<LanguageDistributionChartProps> = ({
         </div>
 
         {/* 语言统计列表 */}
-        <div className="mt-4 space-y-2">
+        <div className="mt-2 sm:mt-4 space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground">详细统计</h4>
-          <div className="space-y-1">
-            {languages.slice(0, 5).map((lang) => (
-              <div key={lang.name} className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+            {languages.slice(0, 4).map((lang) => (
+              <div key={lang.name} className="flex items-center justify-between text-xs sm:text-sm p-1 sm:p-2 rounded-md bg-muted/30">
+                <div className="flex items-center gap-1 sm:gap-2 min-w-0">
                   <div
-                    className="w-3 h-3 rounded-full"
+                    className="w-2 sm:w-3 h-2 sm:h-3 rounded-full flex-shrink-0"
                     style={{ backgroundColor: getLanguageColor(lang.name) }}
                   />
-                  <span>{lang.name}</span>
+                  <span className="truncate">{lang.name}</span>
                 </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <span>{lang.count} 个</span>
-                  <span>({lang.percentage.toFixed(1)}%)</span>
+                <div className="flex items-center gap-1 text-muted-foreground flex-shrink-0 text-xs">
+                  <span className="font-medium">{lang.count}</span>
                 </div>
               </div>
             ))}
-            {languages.length > 5 && (
-              <div className="text-xs text-muted-foreground text-center pt-2">
-                还有 {languages.length - 5} 种其他语言...
-              </div>
-            )}
           </div>
+          {languages.length > 4 && (
+            <div className="text-xs text-muted-foreground text-center pt-1 sm:pt-2">
+              还有 {languages.length - 4} 种其他语言...
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

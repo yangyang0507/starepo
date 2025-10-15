@@ -6,6 +6,9 @@ import "./styles/global.css";
 // 导入预加载脚本类型定义
 import "@preload/types";
 
+// 初始化全局错误处理器
+import "./utils/global-error-handler";
+
 // 确保 DOM 已加载
 document.addEventListener("DOMContentLoaded", () => {
   const container = document.getElementById("root");

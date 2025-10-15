@@ -152,6 +152,9 @@ export interface SearchResult<T = GitHubRepo> {
   cached?: boolean;
 }
 
+// Re-export GitHub API 相关类型
+export * from "./github-api";
+
 // AI 聊天相关类型 (未来功能)
 export interface ChatMessage {
   id: string;

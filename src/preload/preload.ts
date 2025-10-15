@@ -1,6 +1,14 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { IPC_CHANNELS } from "@shared/constants/ipc-channels";
-import type { APIResponse, ThemeMode, Language } from "@shared/types";
+import type { 
+  APIResponse, 
+  ThemeMode, 
+  Language, 
+  GitHubRepository,
+  GitHubPaginationOptions, 
+  GitHubSearchOptions, 
+  RepositorySyncFilters 
+} from "@shared/types";
 
 /**
  * 预加载脚本 - 在渲染进程和主进程之间提供安全的通信桥梁
@@ -88,7 +96,7 @@ const searchAPI = {
     sortOrder?: 'asc' | 'desc';
     disableCache?: boolean;
   }): Promise<APIResponse<{
-    repositories: any[];
+    repositories: GitHubRepository[];
     totalCount: number;
     searchTime: number;
     page: number;
@@ -144,10 +152,10 @@ const githubAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_CURRENT_USER),
 
   // Star 相关
-  getStarredRepositories: (options: any): Promise<APIResponse> =>
+  getStarredRepositories: (options: GitHubPaginationOptions): Promise<APIResponse> =>
     ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_STARRED_REPOSITORIES, options),
 
-  getUserStarredRepositories: (username: string, options: any): Promise<APIResponse> =>
+  getUserStarredRepositories: (username: string, options: GitHubPaginationOptions): Promise<APIResponse> =>
     ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_USER_STARRED_REPOSITORIES, username, options),
 
   checkIfStarred: (owner: string, repo: string): Promise<APIResponse> =>
@@ -159,13 +167,13 @@ const githubAPI = {
   unstarRepository: (owner: string, repo: string): Promise<APIResponse> =>
     ipcRenderer.invoke(IPC_CHANNELS.GITHUB.UNSTAR_REPOSITORY, owner, repo),
 
-  getAllStarredRepositories: (options: any): Promise<APIResponse> =>
+  getAllStarredRepositories: (options: GitHubPaginationOptions): Promise<APIResponse> =>
     ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_ALL_STARRED_REPOSITORIES, options),
 
   getStarredStats: (): Promise<APIResponse> =>
     ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_STARRED_STATS),
 
-  searchStarredRepositories: (query: string, options: any): Promise<APIResponse> =>
+  searchStarredRepositories: (query: string, options: GitHubSearchOptions): Promise<APIResponse> =>
     ipcRenderer.invoke(IPC_CHANNELS.GITHUB.SEARCH_STARRED_REPOSITORIES, query, options),
 
   // 批量操作
@@ -182,10 +190,10 @@ const githubAPI = {
   initializeDatabase: (): Promise<APIResponse> =>
     ipcRenderer.invoke(IPC_CHANNELS.GITHUB.INITIALIZE_DATABASE),
 
-  getAllStarredRepositoriesEnhanced: (options: any): Promise<APIResponse> =>
+  getAllStarredRepositoriesEnhanced: (options: GitHubPaginationOptions): Promise<APIResponse> =>
     ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_ALL_STARRED_REPOSITORIES_ENHANCED, options),
 
-  searchRepositoriesSemanticially: (query: string, limit?: number, filters?: any): Promise<APIResponse> =>
+  searchRepositoriesSemanticially: (query: string, limit?: number, filters?: RepositorySyncFilters): Promise<APIResponse> =>
     ipcRenderer.invoke(IPC_CHANNELS.GITHUB.SEARCH_REPOSITORIES_SEMANTICALLY, query, limit, filters),
 
   getRepositoriesByLanguageFromDatabase: (language: string, limit?: number): Promise<APIResponse> =>
@@ -197,7 +205,7 @@ const githubAPI = {
   getDatabaseStats: (): Promise<APIResponse> =>
     ipcRenderer.invoke(IPC_CHANNELS.GITHUB.GET_DATABASE_STATS),
 
-  syncRepositoriesToDatabase: (repositories: any[]): Promise<APIResponse> =>
+  syncRepositoriesToDatabase: (repositories: GitHubRepository[]): Promise<APIResponse> =>
     ipcRenderer.invoke(IPC_CHANNELS.GITHUB.SYNC_REPOSITORIES_TO_DATABASE, repositories),
 };
 
@@ -276,17 +284,30 @@ const secureStorageAPI = {
 };
 
 const databaseAPI = {
-  // TODO: 实现数据库相关 API
-  search: () => Promise.resolve({ success: false, error: "Not implemented" }),
-  storeRepo: () =>
-    Promise.resolve({ success: false, error: "Not implemented" }),
+  // 数据库相关 API
+  search: (query: string, options?: { limit?: number; offset?: number }): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DATABASE.SEARCH, query, options),
+
+  storeRepo: (repo: import("@shared/types").GitHubRepository): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DATABASE.STORE_REPO, repo),
+
+  getRepos: (options?: { limit?: number; offset?: number; language?: string }): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DATABASE.GET_REPOS, options),
+
+  deleteRepo: (repoId: number): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DATABASE.DELETE_REPO, repoId),
 };
 
 const aiAPI = {
-  // TODO: 实现 AI 相关 API
-  chat: () => Promise.resolve({ success: false, error: "Not implemented" }),
-  searchSemantic: () =>
-    Promise.resolve({ success: false, error: "Not implemented" }),
+  // AI 相关 API
+  chat: (message: string, conversationId?: string): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.AI.CHAT, message, conversationId),
+
+  searchSemantic: (query: string, filters?: { language?: string; topics?: string[] }): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.AI.SEARCH_SEMANTIC, query, filters),
+
+  generateEmbedding: (text: string): Promise<APIResponse<number[]>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.AI.GENERATE_EMBEDDING, text),
 };
 
 // Shell API - 用于打开外部链接
@@ -300,7 +321,7 @@ const shellAPI = {
 };
 
 // 通用的IPC调用方法（用于新的认证API）
-const invoke = (channel: string, ...args: any[]) => {
+const invoke = (channel: string, ...args: unknown[]) => {
   return ipcRenderer.invoke(channel, ...args);
 };
 

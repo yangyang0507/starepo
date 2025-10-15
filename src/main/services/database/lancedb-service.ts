@@ -7,14 +7,29 @@ import * as os from 'os';
 import { createHash } from 'node:crypto';
 import { getLogger } from '../../utils/logger';
 
+// LanceDB 类型定义 - 简化版本来避免复杂的 any 类型
+type LanceDBTable = {
+  query: () => unknown;
+  search: (query: unknown) => unknown;
+  add: (data: unknown[]) => Promise<void>;
+  delete: (condition: string) => Promise<void>;
+  limit: (count: number) => unknown;
+  offset: (count: number) => unknown;
+  where: (condition: string) => unknown;
+  nearestTo: (vector: number[]) => unknown;
+  execute: () => Promise<unknown>;
+  select: (...columns: string[]) => unknown;
+  toArray: () => Promise<unknown>;
+};
+
 /**
  * LanceDB 数据库服务类
  * 提供向量化存储和检索功能，用于 GitHub 仓库数据的持久化
  */
 export class LanceDBService {
-  private db: any = null; // 使用 any 类型避免类型问题
-  private repositoriesTable: any = null;
-  private usersTable: any = null;
+  private db: unknown | null = null;
+  private repositoriesTable: LanceDBTable | null = null;
+  private usersTable: LanceDBTable | null = null;
   private initialized = false;
   private dbPath: string;
   private readonly embeddingDimensions = 1536;
@@ -253,7 +268,7 @@ export class LanceDBService {
 
     const trimmedQuery = query?.trim() ?? '';
     const filters: string[] = [];
-    let builder: any;
+    let builder: unknown;
 
     if (trimmedQuery.length > 0) {
       const embedding = this.generateEmbedding(trimmedQuery);
@@ -597,7 +612,7 @@ export class LanceDBService {
   /**
    * 解析数据库记录并按 ID 去重
    */
-  private parseRepositoryRecords(records: any[]): GitHubRepository[] {
+  private parseRepositoryRecords(records: Record<string, unknown>[]): GitHubRepository[] {
     const map = new Map<number, GitHubRepository>();
 
     records.forEach(record => {

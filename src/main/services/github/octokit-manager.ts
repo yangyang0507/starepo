@@ -34,7 +34,7 @@ export class OctokitManager {
     try {
       this.config = config;
 
-      const octokitConfig: any = {
+      const octokitConfig: Record<string, unknown> = {
         userAgent: config.userAgent || "Starepo/1.0.0",
         baseUrl: config.baseUrl || "https://api.github.com",
         request: {
@@ -188,7 +188,7 @@ export class OctokitManager {
       });
       await this.updateRateLimitInfo();
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error.status === 404) {
         return false;
       }

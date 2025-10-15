@@ -146,7 +146,7 @@ export default function TokenManagement({
           {validationResult.user && (
             <div className="bg-green-50 dark:bg-green-950/20 rounded-lg p-3 space-y-2">
               <div className="text-sm font-medium">
-                用户: {(validationResult.user as any)?.name || (validationResult.user as any)?.login}
+                用户: {validationResult.user?.name || validationResult.user?.login}
               </div>
               {validationResult.scopes && validationResult.scopes.length > 0 && (
                 <div className="space-y-1">

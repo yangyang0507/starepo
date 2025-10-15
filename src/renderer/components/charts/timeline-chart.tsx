@@ -125,15 +125,15 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-80 w-full">
+        <div className="h-60 sm:h-72 lg:h-80 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
               data={formattedData}
               margin={{
-                top: 20,
-                right: 30,
-                left: 20,
-                bottom: 60,
+                top: 10,
+                right: 10,
+                left: 10,
+                bottom: 50,
               }}
             >
               <defs>
@@ -151,11 +151,12 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({
                 dataKey="displayLabel"
                 angle={-45}
                 textAnchor="end"
-                height={80}
-                fontSize={12}
-                interval={Math.max(0, Math.floor(formattedData.length / 6))}
+                height={60}
+                fontSize={10}
+                interval={Math.max(0, Math.floor(formattedData.length / 4))}
+                hide={formattedData.length > 12}
               />
-              <YAxis fontSize={12} />
+              <YAxis fontSize={10} width={40} />
               <Tooltip content={<CustomTooltip />} />
               <Legend />
               <Area
@@ -179,15 +180,15 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({
         </div>
 
         {/* 统计摘要 */}
-        <div className="mt-4 grid grid-cols-3 gap-4">
+        <div className="mt-2 sm:mt-4 grid grid-cols-3 gap-2 sm:gap-4">
           <div className="text-center">
-            <div className="text-2xl font-bold text-primary">
+            <div className="text-lg sm:text-2xl font-bold text-primary">
               {formattedData.reduce((sum, item) => sum + item.count, 0)}
             </div>
             <div className="text-xs text-muted-foreground">总收藏数</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-lg sm:text-2xl font-bold text-green-600">
               {formattedData.length > 0 ? Math.round(
                 formattedData.reduce((sum, item) => sum + item.count, 0) / formattedData.length * 10
               ) / 10 : 0}
@@ -195,7 +196,7 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({
             <div className="text-xs text-muted-foreground">平均每月</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-orange-600">
+            <div className="text-lg sm:text-2xl font-bold text-orange-600">
               {formattedData.length > 1 ?
                 Math.max(...formattedData.map(item => item.count)) : 0}
             </div>

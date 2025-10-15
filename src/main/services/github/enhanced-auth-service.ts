@@ -195,7 +195,7 @@ export class EnhancedGitHubAuthService {
 
       return {
         success: true,
-        user: user as any, // 类型断言，避免不同 GitHubUser 定义的冲突
+        user,
       };
     } catch (error) {
       this.log.error('Token认证失败', error);
@@ -354,7 +354,7 @@ export class EnhancedGitHubAuthService {
         scopes,
         rateLimit,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.log.error('Token验证失败', error);
 
       let errorMessage = 'Token validation failed';
@@ -408,7 +408,7 @@ export class EnhancedGitHubAuthService {
   /**
    * 从响应头中提取权限范围
    */
-  private extractScopesFromHeaders(headers: any): string[] {
+  private extractScopesFromHeaders(headers: Record<string, string>): string[] {
     const scopes = headers['x-oauth-scopes'];
     if (!scopes) {
       return [];
@@ -420,7 +420,7 @@ export class EnhancedGitHubAuthService {
   /**
    * 判断错误是否可恢复
    */
-  private isRecoverableError(error: any): boolean {
+  private isRecoverableError(error: unknown): boolean {
     if (error?.status === 401) {
       return false; // 认证错误通常不可恢复
     }

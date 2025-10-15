@@ -100,14 +100,14 @@ export const TopicsDistributionChart: React.FC<TopicsDistributionChartProps> = (
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-80 w-full">
+        <div className="h-60 sm:h-72 lg:h-80 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={chartData}
               margin={{
-                top: 20,
-                right: 30,
-                left: 20,
+                top: 10,
+                right: 10,
+                left: 10,
                 bottom: 60,
               }}
             >
@@ -116,11 +116,11 @@ export const TopicsDistributionChart: React.FC<TopicsDistributionChartProps> = (
                 dataKey="name"
                 angle={-45}
                 textAnchor="end"
-                height={80}
-                fontSize={12}
+                height={60}
+                fontSize={10}
                 interval={0}
               />
-              <YAxis fontSize={12} />
+              <YAxis fontSize={10} width={40} />
               <Tooltip content={<CustomTooltip />} />
               <Bar
                 dataKey="value"
@@ -133,13 +133,13 @@ export const TopicsDistributionChart: React.FC<TopicsDistributionChartProps> = (
         </div>
 
         {/* 主题统计列表 */}
-        <div className="mt-4 space-y-2">
+        <div className="mt-2 sm:mt-4 space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground">热门主题</h4>
-          <div className="grid grid-cols-2 gap-2">
-            {topics.slice(0, 8).map((topic, index) => (
-              <div key={topic.name} className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/50">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium text-primary">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+            {topics.slice(0, 6).map((topic, index) => (
+              <div key={topic.name} className="flex items-center justify-between text-xs sm:text-sm p-1 sm:p-2 rounded-md bg-muted/30">
+                <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+                  <div className="flex-shrink-0 w-4 sm:w-5 h-4 sm:h-5 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium text-primary">
                     {index + 1}
                   </div>
                   <span className="truncate" title={topic.name}>
@@ -147,15 +147,14 @@ export const TopicsDistributionChart: React.FC<TopicsDistributionChartProps> = (
                   </span>
                 </div>
                 <div className="flex items-center gap-1 text-muted-foreground flex-shrink-0">
-                  <span className="font-medium">{topic.count}</span>
-                  <span className="text-xs">({topic.percentage.toFixed(1)}%)</span>
+                  <span className="font-medium text-xs">{topic.count}</span>
                 </div>
               </div>
             ))}
           </div>
-          {topics.length > 8 && (
-            <div className="text-xs text-muted-foreground text-center pt-2">
-              还有 {topics.length - 8} 个其他主题...
+          {topics.length > 6 && (
+            <div className="text-xs text-muted-foreground text-center pt-1 sm:pt-2">
+              还有 {topics.length - 6} 个其他主题...
             </div>
           )}
         </div>

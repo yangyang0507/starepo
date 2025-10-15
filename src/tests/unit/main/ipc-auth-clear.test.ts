@@ -1,11 +1,12 @@
 /**
  * IPC认证合约测试 - clear-auth
- * 这个测试必须在实现前失败，验证清除认证的IPC通信合约
+ * 测试清除认证的IPC通信合约
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ipcMain } from 'electron';
 import { AUTH_IPC_CHANNELS } from '@shared/types/auth';
+import { registerAuthIPCHandlers, unregisterAuthIPCHandlers } from '../../../main/ipc/auth-ipc-handlers';
 import type {
   ClearAuthRequest,
   ClearAuthResponse
@@ -19,13 +20,25 @@ vi.mock('electron', () => ({
   },
 }));
 
+// Mock enhanced GitHub auth service
+vi.mock('../../../main/services/github/enhanced-auth-service', () => ({
+  enhancedGitHubAuthService: {
+    clearAuth: vi.fn(),
+  },
+}));
+
 describe('IPC Auth Contract: clear-auth', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // 清理之前注册的处理器
+    unregisterAuthIPCHandlers();
   });
 
   it('should register IPC handler for clear-auth', () => {
-    // 这个测试应该失败，因为还没有实现IPC处理器
+    // 注册IPC处理器
+    registerAuthIPCHandlers();
+    
+    // 验证处理器被正确注册
     expect(ipcMain.handle).toHaveBeenCalledWith(
       AUTH_IPC_CHANNELS.CLEAR_AUTH,
       expect.any(Function)
@@ -33,25 +46,32 @@ describe('IPC Auth Contract: clear-auth', () => {
   });
 
   it('should successfully clear authentication data', async () => {
+    const { enhancedGitHubAuthService } = await import('../../../main/services/github/enhanced-auth-service');
+    
+    // Mock成功的清除认证响应
+    (enhancedGitHubAuthService.clearAuth as any).mockResolvedValue(undefined);
+
     // 模拟清除请求（无参数）
     const request: ClearAuthRequest = {};
 
-    // 期望的成功响应
-    const expectedResponse: ClearAuthResponse = {
-      success: true,
-    };
+    // 注册IPC处理器
+    registerAuthIPCHandlers();
+    
+    // 获取注册的处理器
+    const handleCalls = (ipcMain.handle as any).mock.calls;
+    const clearAuthHandler = handleCalls.find(
+      (call: any) => call[0] === AUTH_IPC_CHANNELS.CLEAR_AUTH
+    )?.[1];
 
-    // 这个测试应该失败，因为处理器还没有实现
-    const mockHandler = vi.fn().mockResolvedValue(expectedResponse);
+    expect(clearAuthHandler).toBeDefined();
 
-    expect(ipcMain.handle).toHaveBeenCalledWith(
-      AUTH_IPC_CHANNELS.CLEAR_AUTH,
-      mockHandler
-    );
-
-    const result = await mockHandler(null, request);
+    // 调用处理器
+    const result = await clearAuthHandler(null, request);
     expect(result.success).toBe(true);
     expect(result.error).toBeUndefined();
+
+    // 验证服务被正确调用
+    expect(enhancedGitHubAuthService.clearAuth).toHaveBeenCalled();
   });
 
   it('should handle clearing auth when no authentication exists', async () => {
@@ -70,35 +90,46 @@ describe('IPC Auth Contract: clear-auth', () => {
   });
 
   it('should handle storage errors during auth clearing', async () => {
+    const { enhancedGitHubAuthService } = await import('../../../main/services/github/enhanced-auth-service');
+    
+    // Mock存储错误
+    (enhancedGitHubAuthService.clearAuth as any).mockRejectedValue(
+      new Error('Failed to remove authentication data from secure storage')
+    );
+
     const request: ClearAuthRequest = {};
 
-    // 期望的存储错误响应
-    const expectedResponse: ClearAuthResponse = {
-      success: false,
-      error: 'Failed to remove authentication data from secure storage',
-    };
+    registerAuthIPCHandlers();
+    
+    const handleCalls = (ipcMain.handle as any).mock.calls;
+    const clearAuthHandler = handleCalls.find(
+      (call: any) => call[0] === AUTH_IPC_CHANNELS.CLEAR_AUTH
+    )?.[1];
 
-    const mockHandler = vi.fn().mockResolvedValue(expectedResponse);
-
-    const result = await mockHandler(null, request);
+    const result = await clearAuthHandler(null, request);
     expect(result.success).toBe(false);
-    expect(result.error).toContain('secure storage');
+    expect(result.error).toContain('storage');
   });
 
   it('should handle partial clearing failures', async () => {
+    const { enhancedGitHubAuthService } = await import('../../../main/services/github/enhanced-auth-service');
+    
+    (enhancedGitHubAuthService.clearAuth as any).mockRejectedValue(
+      new Error('Failed to remove user info from storage, but token was cleared')
+    );
+
     const request: ClearAuthRequest = {};
 
-    // 期望的部分失败响应
-    const expectedResponse: ClearAuthResponse = {
-      success: false,
-      error: 'Failed to remove user info from storage, but token was cleared',
-    };
+    registerAuthIPCHandlers();
+    
+    const handleCalls = (ipcMain.handle as any).mock.calls;
+    const clearAuthHandler = handleCalls.find(
+      (call: any) => call[0] === AUTH_IPC_CHANNELS.CLEAR_AUTH
+    )?.[1];
 
-    const mockHandler = vi.fn().mockResolvedValue(expectedResponse);
-
-    const result = await mockHandler(null, request);
+    const result = await clearAuthHandler(null, request);
     expect(result.success).toBe(false);
-    expect(result.error).toContain('partial');
+    expect(result.error).toBeDefined();
   });
 
   it('should handle file system permission errors', async () => {

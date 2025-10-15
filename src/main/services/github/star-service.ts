@@ -7,6 +7,7 @@ import type {
   GitHubError,
   PaginationInfo,
   StarredRepository,
+  GitHubAPIStarredItem,
 } from "./types";
 import type { SearchResult } from "../database/types";
 
@@ -55,7 +56,7 @@ export class GitHubStarService {
           },
         });
 
-      const repositories: StarredRepository[] = data.map((item: any) => ({
+      const repositories: StarredRepository[] = data.map((item: GitHubAPIStarredItem) => ({
         ...this.mapToGitHubRepository(item.repo || item),
         starred_at: item.starred_at || new Date().toISOString(),
       }));
@@ -112,7 +113,7 @@ export class GitHubStarService {
         page,
       });
 
-      const repositories: GitHubRepository[] = data.map((repo: any) =>
+      const repositories: GitHubRepository[] = data.map((repo: GitHubRepository) =>
         this.mapToGitHubRepository(repo),
       );
 
@@ -148,8 +149,8 @@ export class GitHubStarService {
           repo,
         });
         return true;
-      } catch (error: any) {
-        if (error.status === 404) {
+      } catch (error: unknown) {
+        if (error && typeof error === 'object' && 'status' in error && (error as { status?: number }).status === 404) {
           return false;
         }
         throw error;
@@ -232,7 +233,7 @@ export class GitHubStarService {
       try {
         await this.starRepository(owner, repo);
         results.push({ owner, repo, success: true });
-      } catch (error: any) {
+      } catch (error: unknown) {
         this.log.warn(`收藏仓库 ${owner}/${repo} 失败`, error);
         results.push({
           owner,
@@ -260,7 +261,7 @@ export class GitHubStarService {
       try {
         await this.unstarRepository(owner, repo);
         results.push({ owner, repo, success: true });
-      } catch (error: any) {
+      } catch (error: unknown) {
         this.log.warn(`取消收藏仓库 ${owner}/${repo} 失败`, error);
         results.push({
           owner,
@@ -617,36 +618,43 @@ export class GitHubStarService {
   /**
    * 将API返回的仓库数据映射为GitHubRepository接口
    */
-  private mapToGitHubRepository(repo: any): GitHubRepository {
-    return {
-      id: repo.id,
-      name: repo.name,
-      full_name: repo.full_name,
-      description: repo.description,
-      html_url: repo.html_url,
-      clone_url: repo.clone_url,
-      ssh_url: repo.ssh_url,
-      language: repo.language,
-      stargazers_count: repo.stargazers_count,
-      watchers_count: repo.watchers_count,
-      forks_count: repo.forks_count,
-      open_issues_count: repo.open_issues_count,
-      created_at: repo.created_at,
-      updated_at: repo.updated_at,
-      pushed_at: repo.pushed_at,
-      size: repo.size,
-      default_branch: repo.default_branch,
-      topics: repo.topics || [],
-      archived: repo.archived,
-      disabled: repo.disabled,
-      private: repo.private,
-      fork: repo.fork,
-      owner: {
-        id: repo.owner.id,
-        login: repo.owner.login,
-        avatar_url: repo.owner.avatar_url,
-      },
-    };
+  private mapToGitHubRepository(repo: GitHubRepository | GitHubAPIStarredItem): GitHubRepository {
+    // 处理 GitHubAPIStarredItem 类型
+    if ('repo' in repo) {
+      const starredItem = repo as GitHubAPIStarredItem;
+      return {
+        id: starredItem.repo.id,
+        name: starredItem.repo.name,
+        full_name: starredItem.repo.full_name,
+        description: starredItem.repo.description,
+        html_url: starredItem.repo.html_url,
+        clone_url: starredItem.repo.clone_url,
+        ssh_url: starredItem.repo.ssh_url,
+        language: starredItem.repo.language,
+        stargazers_count: starredItem.repo.stargazers_count,
+        watchers_count: starredItem.repo.watchers_count,
+        forks_count: starredItem.repo.forks_count,
+        open_issues_count: starredItem.repo.open_issues_count,
+        created_at: starredItem.repo.created_at,
+        updated_at: starredItem.repo.updated_at,
+        pushed_at: starredItem.repo.pushed_at,
+        size: starredItem.repo.size,
+        default_branch: starredItem.repo.default_branch,
+        topics: starredItem.repo.topics || [],
+        archived: starredItem.repo.archived,
+        disabled: starredItem.repo.disabled,
+        private: starredItem.repo.private,
+        fork: starredItem.repo.fork,
+        owner: {
+          id: starredItem.repo.owner.id,
+          login: starredItem.repo.owner.login,
+          avatar_url: starredItem.repo.owner.avatar_url,
+        },
+      };
+    }
+    
+    // 处理 GitHubRepository 类型
+    return repo as GitHubRepository;
   }
 
   /**
@@ -658,7 +666,7 @@ export class GitHubStarService {
     };
 
     if (error && typeof error === 'object' && 'status' in error) {
-      gitHubError.status = (error as any).status;
+      gitHubError.status = (error as { status?: number }).status;
     }
 
     this.log.error(gitHubError.message, error);
@@ -801,7 +809,7 @@ export class GitHubStarService {
     repositories: GitHubRepository[];
     totalLoaded: number;
     fromCache: boolean;
-    stats?: any;
+    stats?: Record<string, unknown>;
   }> {
     const { forceRefresh = false, useDatabase = true, onProgress, batchSize = 100 } = options;
 

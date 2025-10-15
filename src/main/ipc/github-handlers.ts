@@ -1,8 +1,9 @@
 import { ipcMain } from "electron";
 import { IPC_CHANNELS } from "@shared/constants/ipc-channels";
 import { githubServiceManager } from "../services/github";
-import type { APIResponse } from "@shared/types";
+import type { APIResponse, GitHubPaginationOptions, GitHubSearchOptions } from "@shared/types";
 import { getLogger } from "../utils/logger";
+import { serializeDates } from "../utils/serialize";
 
 /**
  * GitHub 相关的 IPC 处理器
@@ -66,26 +67,8 @@ export function registerGitHubHandlers(): void {
         });
         
         // 安全地序列化所有日期字段，统一为字符串格式
-        githubLogger.debug("[主进程] 开始序列化认证状态");
-        githubLogger.debug("[主进程] tokenInfo.createdAt 类型", { type: typeof authState.tokenInfo?.createdAt });
-        githubLogger.debug("[主进程] tokenInfo.createdAt 是否为Date", { isDate: authState.tokenInfo?.createdAt instanceof Date });
-        
-        const serializedAuthState = {
-          ...authState,
-          lastValidated: authState.lastValidated instanceof Date ? authState.lastValidated.toISOString() : authState.lastValidated,
-          expiresAt: authState.expiresAt instanceof Date ? authState.expiresAt.toISOString() : authState.expiresAt,
-          tokenInfo: authState.tokenInfo ? {
-            ...authState.tokenInfo,
-            createdAt: authState.tokenInfo.createdAt instanceof Date ? authState.tokenInfo.createdAt.toISOString() : authState.tokenInfo.createdAt,
-            lastUsed: authState.tokenInfo.lastUsed instanceof Date ? authState.tokenInfo.lastUsed.toISOString() : authState.tokenInfo.lastUsed,
-            rateLimit: authState.tokenInfo.rateLimit ? {
-              ...authState.tokenInfo.rateLimit,
-              reset: authState.tokenInfo.rateLimit.reset instanceof Date ? authState.tokenInfo.rateLimit.reset.toISOString() : authState.tokenInfo.rateLimit.reset,
-            } : undefined,
-          } : undefined,
-        };
-
-        githubLogger.debug("[主进程] 序列化完成，未发生错误");
+        const serializedAuthState = serializeDates(authState);
+        githubLogger.debug("[主进程] 认证状态序列化完成");
 
         return {
           success: true,
@@ -169,7 +152,7 @@ export function registerGitHubHandlers(): void {
   // 获取收藏的仓库列表
   ipcMain.handle(
     IPC_CHANNELS.GITHUB.GET_STARRED_REPOSITORIES,
-    async (_, options: any): Promise<APIResponse> => {
+    async (_, options: GitHubPaginationOptions): Promise<APIResponse> => {
       try {
         const result = await starService.getStarredRepositories(options);
         return {
@@ -188,7 +171,7 @@ export function registerGitHubHandlers(): void {
   // 获取指定用户的收藏仓库
   ipcMain.handle(
     IPC_CHANNELS.GITHUB.GET_USER_STARRED_REPOSITORIES,
-    async (_, username: string, options: any): Promise<APIResponse> => {
+    async (_, username: string, options: GitHubPaginationOptions): Promise<APIResponse> => {
       try {
         const result = await starService.getUserStarredRepositories(username, options);
         return {
@@ -262,7 +245,7 @@ export function registerGitHubHandlers(): void {
   // 获取所有收藏的仓库
   ipcMain.handle(
     IPC_CHANNELS.GITHUB.GET_ALL_STARRED_REPOSITORIES,
-    async (_, options: any): Promise<APIResponse> => {
+    async (_, options: GitHubPaginationOptions): Promise<APIResponse> => {
       try {
         // 过滤掉不可序列化的回调函数，避免 "An object could not be cloned" 错误
         const { onProgress: _onProgress, ...safeOptions } = options || {};
@@ -302,9 +285,17 @@ export function registerGitHubHandlers(): void {
   // 搜索收藏的仓库
   ipcMain.handle(
     IPC_CHANNELS.GITHUB.SEARCH_STARRED_REPOSITORIES,
-    async (_, query: string, options: any): Promise<APIResponse> => {
+    async (_, query: string, options: GitHubSearchOptions): Promise<APIResponse> => {
       try {
-        const result = await starService.searchStarredRepositories(query, options);
+        // 转换选项以匹配 star-service 的期望类型
+        const serviceOptions = {
+          language: options.q, // 简化的映射，实际应用中可能需要更复杂
+          topic: options.q,
+          sort: options.sort !== "forks" ? options.sort : "stars", // 排除不支持的 "forks"
+          direction: options.direction,
+        };
+        
+        const result = await starService.searchStarredRepositories(query, serviceOptions);
         return {
           success: true,
           data: result,
@@ -401,9 +392,17 @@ export function registerGitHubHandlers(): void {
   // 获取增强版的所有 starred 仓库
   ipcMain.handle(
     IPC_CHANNELS.GITHUB.GET_ALL_STARRED_REPOSITORIES_ENHANCED,
-    async (_, options: any = {}): Promise<APIResponse> => {
+    async (_, options: GitHubPaginationOptions = {}): Promise<APIResponse> => {
       try {
-        const result = await starService.getAllStarredRepositoriesEnhanced(options);
+        // 转换选项以匹配方法的期望类型
+        const serviceOptions = {
+          forceRefresh: options.forceRefresh,
+          useDatabase: options.useDatabase,
+          onProgress: options.onProgress,
+          batchSize: options.batchSize,
+        };
+        
+        const result = await starService.getAllStarredRepositoriesEnhanced(serviceOptions);
         return {
           success: true,
           data: result,
@@ -420,7 +419,7 @@ export function registerGitHubHandlers(): void {
   // 语义搜索仓库
   ipcMain.handle(
     IPC_CHANNELS.GITHUB.SEARCH_REPOSITORIES_SEMANTICALLY,
-    async (_, query: string, limit: number = 10, filters?: any): Promise<APIResponse> => {
+    async (_, query: string, limit: number = 10, filters?: { language?: string; topics?: string[]; minStars?: number; maxStars?: number }): Promise<APIResponse> => {
       try {
         const result = await starService.searchRepositoriesSemanticially(query, limit, filters);
         return {
@@ -496,7 +495,7 @@ export function registerGitHubHandlers(): void {
   // 同步仓库到数据库
   ipcMain.handle(
     IPC_CHANNELS.GITHUB.SYNC_REPOSITORIES_TO_DATABASE,
-    async (_, repositories: any[]): Promise<APIResponse> => {
+    async (_, repositories: import("@shared/types").GitHubRepository[]): Promise<APIResponse> => {
       try {
         await starService.syncRepositoriesToDatabase(repositories);
         return {

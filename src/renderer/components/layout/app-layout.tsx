@@ -17,13 +17,13 @@ export function AppLayout({ children, title, className }: AppLayoutProps) {
       <TitleBar title={title} />
       
       {/* 主要内容区域 */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden min-w-0">
         <SidebarProvider>
           <AppSidebar />
-          <SidebarInset className="flex flex-1 flex-col">
+          <SidebarInset className="flex flex-1 flex-col min-h-0 min-w-0">
             {/* 页面内容 */}
-            <div className="flex flex-1 flex-col overflow-hidden">
-              <div className="flex-1 overflow-y-auto">
+            <div className="flex flex-1 flex-col overflow-hidden min-h-0 min-w-0">
+              <div className="flex-1 overflow-y-auto min-h-0 min-w-0">
                 {children}
               </div>
             </div>

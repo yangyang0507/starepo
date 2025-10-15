@@ -105,5 +105,4 @@ out/
 .vscode/
 .trae/
 .claude/
-.specify/
-specs/
+.factory/

@@ -6,6 +6,7 @@ import { setupShellHandlers } from "./shell-handler";
 import { registerGitHubHandlers } from "../github-handlers";
 import { registerAuthIPCHandlers } from "../auth-ipc-handlers";
 import { settingsService } from "../../services/settings";
+import { lancedbService } from "../../services/database/lancedb-service";
 import type { ThemeMode, Language } from "../../../shared/types/index.js";
 import { getLogger } from "../../utils/logger";
 // 导入搜索处理器
@@ -25,9 +26,116 @@ export function registerIpcHandlers(): void {
   setupShellHandlers();
   registerGitHubHandlers();
   registerAuthIPCHandlers(); // 新的认证IPC处理器
-  // 未来可以在这里添加更多处理器
-  // registerDatabaseHandlers();
-  // registerAIHandlers();
+  registerDatabaseHandlers(); // 数据库处理器
+  registerAIHandlers(); // AI处理器
+  // registerPerformanceHandlers(); // 性能监控处理器 - 暂时禁用
+}
+
+/**
+ * 数据库相关的 IPC 处理器
+ */
+function registerDatabaseHandlers(): void {
+  const dbLogger = getLogger('ipc:database');
+
+  // 搜索仓库
+  ipcMain.handle(IPC_CHANNELS.DATABASE.SEARCH, async (_, query: string, options?: { limit?: number; offset?: number }) => {
+    try {
+      // 转换为使用正确的类型转换
+      const result = await lancedbService.searchRepositories(query, {
+        limit: options?.limit,
+        offset: options?.offset,
+        query: query,
+      });
+      return { success: true, data: result };
+    } catch (error) {
+      dbLogger.error('数据库搜索失败', error);
+      return { success: false, error: error instanceof Error ? error.message : '搜索失败' };
+    }
+  });
+
+  // 存储仓库
+  ipcMain.handle(IPC_CHANNELS.DATABASE.STORE_REPO, async (_, repo: import('@shared/types').GitHubRepository) => {
+    try {
+      await lancedbService.storeRepository(repo);
+      return { success: true };
+    } catch (error) {
+      dbLogger.error('仓库存储失败', error);
+      return { success: false, error: error instanceof Error ? error.message : '存储失败' };
+    }
+  });
+
+  // 获取仓库列表
+  ipcMain.handle(IPC_CHANNELS.DATABASE.GET_REPOS, async (_, options?: { limit?: number; offset?: number; language?: string }) => {
+    try {
+      const result = await lancedbService.getRepositories(options);
+      return { success: true, data: result };
+    } catch (error) {
+      dbLogger.error('获取仓库列表失败', error);
+      return { success: false, error: error instanceof Error ? error.message : '获取失败' };
+    }
+  });
+
+  // 删除仓库
+  ipcMain.handle(IPC_CHANNELS.DATABASE.DELETE_REPO, async (_, repoId: number) => {
+    try {
+      await lancedbService.deleteRepository(repoId);
+      return { success: true };
+    } catch (error) {
+      dbLogger.error('删除仓库失败', error);
+      return { success: false, error: error instanceof Error ? error.message : '删除失败' };
+    }
+  });
+}
+
+/**
+ * AI 相关的 IPC 处理器
+ */
+function registerAIHandlers(): void {
+  const aiLogger = getLogger('ipc:ai');
+
+  // AI 聊天
+  ipcMain.handle(IPC_CHANNELS.AI.CHAT, async (_, message: string, conversationId?: string) => {
+    try {
+      // 占位符实现 - 未来可以集成真正的 AI 服务
+      const response = { 
+        reply: `AI 响应: "${message}" (功能待实现)`,
+        conversationId: conversationId || 'default'
+      };
+      return { success: true, data: response };
+    } catch (error) {
+      aiLogger.error('AI聊天失败', error);
+      return { success: false, error: error instanceof Error ? error.message : '聊天失败' };
+    }
+  });
+
+  // 语义搜索
+  ipcMain.handle(IPC_CHANNELS.AI.SEARCH_SEMANTIC, async (_, query: string, filters?: { language?: string; topics?: string[] }) => {
+    try {
+      // 占位符实现 - 未来可以集成真正的嵌入式搜索
+      const response = { 
+        results: [],
+        query,
+        filters,
+        message: '语义搜索功能待实现'
+      };
+      return { success: true, data: response };
+    } catch (error) {
+      aiLogger.error('语义搜索失败', error);
+      return { success: false, error: error instanceof Error ? error.message : '搜索失败' };
+    }
+  });
+
+  // 生成嵌入向量
+  ipcMain.handle(IPC_CHANNELS.AI.GENERATE_EMBEDDING, async (_event, _text: string) => {
+    try {
+      // 占位符实现 - 未来可以集成真正的嵌入模型
+      const mockEmbedding = Array.from({ length: 1536 }, () => Math.random() - 0.5); // 模拟 OpenAI 嵌入向量
+      return { success: true, data: mockEmbedding };
+    } catch (error) {
+      aiLogger.error('生成嵌入向量失败', error);
+      return { success: false, error: error instanceof Error ? error.message : '生成失败' };
+    }
+  });
 }
 
 /**

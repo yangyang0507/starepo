@@ -130,8 +130,9 @@ export const RepositoriesRanking: React.FC<RepositoriesRankingProps> = ({
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="rounded-md border">
+      <CardContent className="p-0 sm:p-6">
+        {/* 桌面端表格 */}
+        <div className="hidden sm:block rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
@@ -246,6 +247,74 @@ export const RepositoriesRanking: React.FC<RepositoriesRankingProps> = ({
               ))}
             </TableBody>
           </Table>
+        </div>
+
+        {/* 移动端列表 */}
+        <div className="sm:hidden space-y-2 px-4">
+          {sortedRepositories.map((repo, index) => (
+            <div
+              key={repo.id}
+              className="border rounded-lg p-3 cursor-pointer hover:bg-muted/50"
+              onClick={() => onRepositoryClick?.(repo)}
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-bold text-muted-foreground text-sm">#{index + 1}</span>
+                  <span className="font-medium truncate" title={repo.full_name}>
+                    {repo.name}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 flex-shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(repo.html_url, '_blank');
+                  }}
+                >
+                  <ExternalLink className="h-3 w-3" />
+                </Button>
+              </div>
+              
+              <div className="text-sm text-muted-foreground mb-2 truncate">
+                {repo.description || '暂无描述'}
+              </div>
+              
+              <div className="flex items-center gap-2 mb-2">
+                {repo.language && (
+                  <Badge variant="secondary" className="text-xs">
+                    {repo.language}
+                  </Badge>
+                )}
+                {repo.private && (
+                  <Badge variant="outline" className="text-xs">
+                    Private
+                  </Badge>
+                )}
+                {repo.archived && (
+                  <Badge variant="outline" className="text-xs">
+                    Archived
+                  </Badge>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="flex items-center gap-1">
+                  <Star className="h-3 w-3 text-yellow-500" />
+                  <span>{repo.stargazers_count.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <GitFork className="h-3 w-3 text-blue-500" />
+                  <span>{repo.forks_count.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Eye className="h-3 w-3 text-green-500" />
+                  <span>{repo.watchers_count.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
 
         {repositories.length > limit && (

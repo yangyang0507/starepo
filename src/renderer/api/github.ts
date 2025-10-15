@@ -3,6 +3,13 @@
  * 封装GitHub相关功能（包含认证和仓库管理）
  */
 
+import type { 
+  GitHubRepository, 
+  GitHubPaginationOptions, 
+  GitHubSearchOptions 
+} from "@shared/types";
+import { deserializeDates } from "@/utils/serialization";
+
 /**
  * 检查 electronAPI 是否可用
  */
@@ -44,25 +51,8 @@ export const githubAPI = {
       throw new Error(result.error || "获取认证状态失败");
     }
     
-    // 反序列化字符串为Date对象
-    const authState = result.data;
-    if (authState.lastValidated && typeof authState.lastValidated === 'string') {
-      authState.lastValidated = new Date(authState.lastValidated);
-    }
-    if (authState.expiresAt && typeof authState.expiresAt === 'string') {
-      authState.expiresAt = new Date(authState.expiresAt);
-    }
-    if (authState.tokenInfo) {
-      if (authState.tokenInfo.createdAt && typeof authState.tokenInfo.createdAt === 'string') {
-        authState.tokenInfo.createdAt = new Date(authState.tokenInfo.createdAt);
-      }
-      if (authState.tokenInfo.lastUsed && typeof authState.tokenInfo.lastUsed === 'string') {
-        authState.tokenInfo.lastUsed = new Date(authState.tokenInfo.lastUsed);
-      }
-      if (authState.tokenInfo.rateLimit && authState.tokenInfo.rateLimit.reset && typeof authState.tokenInfo.rateLimit.reset === 'string') {
-        authState.tokenInfo.rateLimit.reset = new Date(authState.tokenInfo.rateLimit.reset);
-      }
-    }
+    // 使用通用反序列化函数处理所有Date字段
+    const authState = deserializeDates(result.data) as AuthState;
     
     return authState;
   },
@@ -95,7 +85,7 @@ export const githubAPI = {
   },
 
   // Star 相关
-  getStarredRepositories: async (options: any = {}) => {
+  getStarredRepositories: async (options: GitHubPaginationOptions = {}) => {
     ensureElectronAPI();
     const result = await window.electronAPI.github.getStarredRepositories(options);
     if (!result.success) {
@@ -129,7 +119,7 @@ export const githubAPI = {
     }
   },
 
-  getAllStarredRepositories: async (options: any = {}) => {
+  getAllStarredRepositories: async (options: GitHubPaginationOptions = {}) => {
     ensureElectronAPI();
     const result = await window.electronAPI.github.getAllStarredRepositories(options);
     if (!result.success) {
@@ -147,7 +137,7 @@ export const githubAPI = {
     return result.data;
   },
 
-  searchStarredRepositories: async (query: string, options: any = {}) => {
+  searchStarredRepositories: async (query: string, options: GitHubSearchOptions = {}) => {
     ensureElectronAPI();
     const result = await window.electronAPI.github.searchStarredRepositories(query, options);
     if (!result.success) {
@@ -166,7 +156,7 @@ export const githubAPI = {
     return result.data;
   },
 
-  getAllStarredRepositoriesEnhanced: async (options: any = {}) => {
+  getAllStarredRepositoriesEnhanced: async (options: GitHubPaginationOptions = {}) => {
     ensureElectronAPI();
     const result = await window.electronAPI.github.getAllStarredRepositoriesEnhanced(options);
     if (!result.success) {
@@ -175,7 +165,7 @@ export const githubAPI = {
     return result.data;
   },
 
-  searchRepositoriesSemanticially: async (query: string, limit?: number, filters?: any) => {
+  searchRepositoriesSemanticially: async (query: string, limit?: number, filters?: { language?: string; topics?: string[]; minStars?: number; maxStars?: number }) => {
     ensureElectronAPI();
     const result = await window.electronAPI.github.searchRepositoriesSemanticially(query, limit, filters);
     if (!result.success) {
@@ -211,7 +201,7 @@ export const githubAPI = {
     return result.data;
   },
 
-  syncRepositoriesToDatabase: async (repositories: any[]) => {
+  syncRepositoriesToDatabase: async (repositories: GitHubRepository[]) => {
     ensureElectronAPI();
     const result = await window.electronAPI.github.syncRepositoriesToDatabase(repositories);
     if (!result.success) {

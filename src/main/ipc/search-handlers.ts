@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron';
 import { lancedbSearchService } from '../services/search';
 import { SEARCH_CHANNELS } from '../../shared/constants/ipc-channels';
-import type { APIResponse } from '../../shared/types/index.js';
+import type { APIResponse, GitHubRepository } from '../../shared/types/index.js';
 import { getLogger } from '../utils/logger';
 
 /**
@@ -24,7 +24,7 @@ ipcMain.handle(SEARCH_CHANNELS.SEARCH_REPOSITORIES, async (_, options: {
   sortOrder?: 'asc' | 'desc';
   disableCache?: boolean;
 }): Promise<APIResponse<{
-  repositories: any[];
+  repositories: GitHubRepository[];
   totalCount: number;
   searchTime: number;
   page: number;

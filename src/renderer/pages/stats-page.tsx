@@ -212,7 +212,7 @@ export default function StatsPage() {
     const { statsData } = state;
 
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {/* 总收藏数 */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -252,7 +252,7 @@ export default function StatsPage() {
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{statsData.insights.topLanguages[0]?.name || "暂无"}</div>
+            <div className="text-2xl font-bold truncate">{statsData.insights.topLanguages[0]?.name || "暂无"}</div>
             <p className="text-xs text-muted-foreground">
               {statsData.insights.topLanguages[0] ? (
                 <>
@@ -270,7 +270,7 @@ export default function StatsPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{statsData.insights.topTopics[0]?.name || "暂无"}</div>
+            <div className="text-2xl font-bold truncate">{statsData.insights.topTopics[0]?.name || "暂无"}</div>
             <p className="text-xs text-muted-foreground">
               {statsData.insights.topTopics[0] ? (
                 <>
@@ -288,7 +288,7 @@ export default function StatsPage() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{statsData.insights.mostActiveMonth || "暂无"}</div>
+            <div className="text-xl lg:text-2xl font-bold">{statsData.insights.mostActiveMonth || "暂无"}</div>
             <p className="text-xs text-muted-foreground">
               收藏最多
             </p>
@@ -302,10 +302,10 @@ export default function StatsPage() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold truncate">
+            <div className="text-xl lg:text-2xl font-bold truncate">
               {statsData.basic.recently_starred?.name || "暂无"}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground truncate">
               {statsData.basic.recently_starred?.owner.login || "暂无数据"}
             </p>
           </CardContent>
@@ -366,16 +366,17 @@ export default function StatsPage() {
         </div>
       </header>
 
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0 min-w-0">
         {/* 页面标题 */}
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between min-w-0">
+          <div className="space-y-1 min-w-0">
             <h1 className="text-2xl font-bold tracking-tight">统计分析</h1>
             <p className="text-muted-foreground">
               查看您的 GitHub Star 仓库统计信息和趋势分析
             </p>
           </div>
           <Button
+            className="w-full sm:w-auto sm:shrink-0"
             onClick={loadStatsData}
             disabled={state.loading}
             variant="outline"
@@ -393,7 +394,7 @@ export default function StatsPage() {
 
         {/* 图表区域 */}
         {!state.loading && !state.error && state.statsData && (
-          <div className="space-y-6">
+          <div className="space-y-4 lg:space-y-6">
             {/* 时间趋势图表 */}
             <TimelineChart
               data={state.statsData.timeSeries.monthly}
@@ -402,7 +403,7 @@ export default function StatsPage() {
             />
 
             {/* 编程语言和主题分布 */}
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-4 lg:gap-6 lg:grid-cols-2 xl:grid-cols-2">
               <LanguageDistributionChart
                 languages={state.statsData.insights.topLanguages}
               />
