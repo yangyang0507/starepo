@@ -43,12 +43,11 @@ function registerDatabaseHandlers(): void {
   // 搜索仓库
   ipcMain.handle(IPC_CHANNELS.DATABASE.SEARCH, async (_, query: string, options?: { limit?: number; offset?: number }) => {
     try {
-      // 转换为使用正确的类型转换
-      const result = await lancedbService.searchRepositories(query, {
-        limit: options?.limit,
-        offset: options?.offset,
-        query: query,
-      });
+      // searchRepositories 方法签名: (query: string, limit?: number, where?: string)
+      const result = await lancedbService.searchRepositories(
+        query,
+        options?.limit || 10
+      );
       return { success: true, data: result };
     } catch (error) {
       dbLogger.error('数据库搜索失败', error);
@@ -59,7 +58,8 @@ function registerDatabaseHandlers(): void {
   // 存储仓库
   ipcMain.handle(IPC_CHANNELS.DATABASE.STORE_REPO, async (_, repo: import('@shared/types').GitHubRepository) => {
     try {
-      await lancedbService.storeRepository(repo);
+      // upsertRepositories 方法接受数组参数
+      await lancedbService.upsertRepositories([repo]);
       return { success: true };
     } catch (error) {
       dbLogger.error('仓库存储失败', error);
@@ -70,7 +70,14 @@ function registerDatabaseHandlers(): void {
   // 获取仓库列表
   ipcMain.handle(IPC_CHANNELS.DATABASE.GET_REPOS, async (_, options?: { limit?: number; offset?: number; language?: string }) => {
     try {
-      const result = await lancedbService.getRepositories(options);
+      let result;
+      if (options?.language) {
+        // 如果指定了语言，使用 getRepositoriesByLanguage
+        result = await lancedbService.getRepositoriesByLanguage(options.language, options.limit);
+      } else {
+        // 否则使用 getAllRepositories
+        result = await lancedbService.getAllRepositories(options?.limit, options?.offset);
+      }
       return { success: true, data: result };
     } catch (error) {
       dbLogger.error('获取仓库列表失败', error);
@@ -81,7 +88,8 @@ function registerDatabaseHandlers(): void {
   // 删除仓库
   ipcMain.handle(IPC_CHANNELS.DATABASE.DELETE_REPO, async (_, repoId: number) => {
     try {
-      await lancedbService.deleteRepository(repoId);
+      // deleteRepositories 方法接受 ID 数组参数
+      await lancedbService.deleteRepositories([repoId]);
       return { success: true };
     } catch (error) {
       dbLogger.error('删除仓库失败', error);
