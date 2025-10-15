@@ -679,7 +679,7 @@ export class GitHubStarService {
   async initializeDatabase(): Promise<void> {
     try {
       await lancedbService.initialize();
-      this.log.info('LanceDB 数据库初始化成功');
+      this.log.debug('LanceDB 数据库初始化成功');
     } catch (error) {
       this.log.error('LanceDB 数据库初始化失败', error);
       throw error;
@@ -879,6 +879,18 @@ export class GitHubStarService {
 
   private escapeSqlLiteral(value: string): string {
     return value.replace(/'/g, "''");
+  }
+
+  async clearCache(): Promise<void> {
+    try {
+      await lancedbService.initialize();
+      await lancedbService.reset();
+      lancedbSearchService.clearCache();
+      this.log.info('已清理本地缓存数据');
+    } catch (error) {
+      this.log.error('清理缓存失败', error);
+      throw error;
+    }
   }
 }
 

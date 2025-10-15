@@ -93,6 +93,7 @@ export const IPC_CHANNELS = {
     GET_SETTINGS: "settings:getSettings",
     SET_SETTING: "settings:setSetting",
     RESET_SETTINGS: "settings:resetSettings",
+    CLEAR_CACHE: "settings:clearCache",
   },
 } as const;
 

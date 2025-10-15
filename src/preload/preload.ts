@@ -1,13 +1,14 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { IPC_CHANNELS } from "@shared/constants/ipc-channels";
-import type { 
-  APIResponse, 
-  ThemeMode, 
-  Language, 
+import type {
+  APIResponse,
+  ThemeMode,
+  Language,
+  AppSettings,
   GitHubRepository,
-  GitHubPaginationOptions, 
-  GitHubSearchOptions, 
-  RepositorySyncFilters 
+  GitHubPaginationOptions,
+  GitHubSearchOptions,
+  RepositorySyncFilters
 } from "@shared/types";
 
 /**
@@ -79,6 +80,21 @@ const languageAPI = {
         handler,
       );
   },
+};
+
+// 应用设置 API
+const settingsAPI = {
+  getSettings: (): Promise<APIResponse<AppSettings>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SETTINGS.GET_SETTINGS),
+
+  updateSettings: (update: Partial<AppSettings>): Promise<APIResponse<AppSettings>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SETTINGS.SET_SETTING, update),
+
+  resetSettings: (): Promise<APIResponse<AppSettings>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SETTINGS.RESET_SETTINGS),
+
+  clearCache: (): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SETTINGS.CLEAR_CACHE),
 };
 
 // 搜索 API
@@ -330,6 +346,7 @@ const electronAPI = {
   window: windowAPI,
   theme: themeAPI,
   language: languageAPI,
+  settings: settingsAPI,
   search: searchAPI,
   github: githubAPI,
   database: databaseAPI,

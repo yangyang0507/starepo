@@ -352,29 +352,9 @@ export default function StatsPage() {
             orientation="vertical"
             className="mr-2 data-[orientation=vertical]:h-4"
           />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem className="hidden md:block">
-                <BreadcrumbLink href="/">Starepo</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="hidden md:block" />
-              <BreadcrumbItem>
-                <BreadcrumbPage>统计分析</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
+          <h1 className="text-base font-medium">统计分析</h1>
         </div>
-      </header>
-
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0 min-w-0">
-        {/* 页面标题 */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between min-w-0">
-          <div className="space-y-1 min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight">统计分析</h1>
-            <p className="text-muted-foreground">
-              查看您的 GitHub Star 仓库统计信息和趋势分析
-            </p>
-          </div>
+        <div className="ml-auto px-4">
           <Button
             className="w-full sm:w-auto sm:shrink-0"
             onClick={loadStatsData}
@@ -382,10 +362,12 @@ export default function StatsPage() {
             variant="outline"
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${state.loading ? 'animate-spin' : ''}`} />
-            刷新数据
+            刷新
           </Button>
         </div>
+      </header>
 
+      <div className="flex flex-1 flex-col gap-4 p-2 sm:p-4 pt-0">
         {/* 错误状态 */}
         {renderErrorState()}
 

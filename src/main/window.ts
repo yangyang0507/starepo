@@ -1,5 +1,6 @@
 import { BrowserWindow } from "electron";
 import path from "path";
+import { settingsService } from "./services/settings";
 
 // Vite 插件注入的全局变量
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
@@ -25,6 +26,16 @@ export class WindowManager {
     }
 
     const isDevelopment = process.env.NODE_ENV === "development";
+    let developerModeEnabled = false;
+
+    try {
+      const settings = await settingsService.getSettings();
+      developerModeEnabled = settings.developerMode;
+    } catch (error) {
+      // 如果读取设置失败，保持默认的开发者模式关闭状态
+      console.warn("[window] Failed to load settings before window creation:", error);
+    }
+
     // 使用正确的预加载脚本路径
     const preloadPath = path.join(__dirname, "preload.js");
 
@@ -34,7 +45,7 @@ export class WindowManager {
       minWidth: 800,
       minHeight: 600,
       webPreferences: {
-        devTools: isDevelopment,
+        devTools: true,
         contextIsolation: true,
         nodeIntegration: false,
         nodeIntegrationInSubFrames: false,
@@ -48,8 +59,8 @@ export class WindowManager {
     this.mainWindow.once("ready-to-show", () => {
       this.mainWindow?.show();
 
-      if (isDevelopment) {
-        this.mainWindow?.webContents.openDevTools();
+      if (isDevelopment || developerModeEnabled) {
+        this.mainWindow?.webContents.openDevTools({ mode: "detach" });
       }
     });
 

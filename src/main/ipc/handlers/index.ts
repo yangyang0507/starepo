@@ -7,13 +7,15 @@ import { registerGitHubHandlers } from "../github-handlers";
 import { registerAuthIPCHandlers } from "../auth-ipc-handlers";
 import { settingsService } from "../../services/settings";
 import { lancedbService } from "../../services/database/lancedb-service";
-import type { ThemeMode, Language } from "../../../shared/types/index.js";
+import { githubStarService } from "../../services/github";
+import type { ThemeMode, Language, AppSettings } from "../../../shared/types/index.js";
 import { getLogger } from "../../utils/logger";
 // 导入搜索处理器
 import "../search-handlers";
 
 const themeLogger = getLogger('ipc:theme');
 const languageLogger = getLogger('ipc:language');
+const settingsLogger = getLogger('ipc:settings');
 
 /**
  * 注册所有 IPC 处理器
@@ -22,6 +24,7 @@ export function registerIpcHandlers(): void {
   registerWindowHandlers();
   registerThemeHandlers();
   registerLanguageHandlers();
+  registerSettingsHandlers();
   setupSecureStorageHandlers();
   setupShellHandlers();
   registerGitHubHandlers();
@@ -284,4 +287,67 @@ function registerLanguageHandlers(): void {
       }
     },
   );
+}
+
+/**
+ * 应用设置相关的 IPC 处理器
+ */
+function registerSettingsHandlers(): void {
+  ipcMain.handle(IPC_CHANNELS.SETTINGS.GET_SETTINGS, async () => {
+    try {
+      const settings = await settingsService.getSettings();
+      return { success: true, data: settings };
+    } catch (error) {
+      settingsLogger.error("获取应用设置失败", error);
+      return { success: false, error: "获取应用设置失败" };
+    }
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.SETTINGS.SET_SETTING,
+    async (_event, update: Partial<AppSettings>) => {
+      try {
+        const normalizedUpdate = update ?? {};
+        const updated = await settingsService.updateSettings(normalizedUpdate);
+
+        if (Object.prototype.hasOwnProperty.call(normalizedUpdate, "developerMode")) {
+          const windowManager = WindowManager.getInstance();
+          const mainWindow = windowManager.getMainWindow();
+          if (mainWindow) {
+            if (updated.developerMode) {
+              mainWindow.webContents.openDevTools({ mode: "detach" });
+            } else if (mainWindow.webContents.isDevToolsOpened()) {
+              mainWindow.webContents.closeDevTools();
+            }
+          }
+        }
+
+        return { success: true, data: updated };
+      } catch (error) {
+        settingsLogger.error("更新应用设置失败", error);
+        return { success: false, error: "更新应用设置失败" };
+      }
+    },
+  );
+
+  ipcMain.handle(IPC_CHANNELS.SETTINGS.RESET_SETTINGS, async () => {
+    try {
+      await settingsService.reset();
+      const settings = await settingsService.getSettings();
+      return { success: true, data: settings };
+    } catch (error) {
+      settingsLogger.error("重置应用设置失败", error);
+      return { success: false, error: "重置应用设置失败" };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SETTINGS.CLEAR_CACHE, async () => {
+    try {
+      await githubStarService.clearCache();
+      return { success: true };
+    } catch (error) {
+      settingsLogger.error("清理缓存失败", error);
+      return { success: false, error: "清理缓存失败" };
+    }
+  });
 }
