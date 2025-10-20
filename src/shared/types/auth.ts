@@ -3,6 +3,10 @@
  * 基于data-model.md设计文档
  */
 
+// 导入共享的 GitHubUser 类型
+import type { GitHubUser } from './index';
+export type { GitHubUser };
+
 // 核心认证状态类型
 export interface AuthState {
   isAuthenticated: boolean;
@@ -10,20 +14,6 @@ export interface AuthState {
   tokenInfo?: TokenInfo;
   lastValidated?: Date;
   expiresAt?: Date;
-}
-
-// GitHub用户信息类型
-export interface GitHubUser {
-  id: number;
-  login: string;
-  html_url: string;
-  avatar_url: string;
-  name: string | null;
-  email: string | null;
-  bio?: string | null;
-  public_repos: number;
-  followers: number;
-  following: number;
 }
 
 // Token信息类型

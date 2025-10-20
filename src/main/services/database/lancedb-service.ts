@@ -1,5 +1,5 @@
 import * as lancedb from '@lancedb/lancedb';
-// import * as arrow from 'apache-arrow'; // 暂时不需要直接使用 arrow
+import type { Connection, Table, Query, VectorQuery } from '@lancedb/lancedb';
 import type { GitHubRepository, GitHubUser } from '../../../shared/types/index.js';
 import type { SearchResult, DatabaseStats } from './types.js';
 import * as path from 'path';
@@ -7,29 +7,14 @@ import * as os from 'os';
 import { createHash } from 'node:crypto';
 import { getLogger } from '../../utils/logger';
 
-// LanceDB 类型定义 - 简化版本来避免复杂的 any 类型
-type LanceDBTable = {
-  query: () => unknown;
-  search: (query: unknown) => unknown;
-  add: (data: unknown[]) => Promise<void>;
-  delete: (condition: string) => Promise<void>;
-  limit: (count: number) => unknown;
-  offset: (count: number) => unknown;
-  where: (condition: string) => unknown;
-  nearestTo: (vector: number[]) => unknown;
-  execute: () => Promise<unknown>;
-  select: (...columns: string[]) => unknown;
-  toArray: () => Promise<unknown>;
-};
-
 /**
  * LanceDB 数据库服务类
  * 提供向量化存储和检索功能，用于 GitHub 仓库数据的持久化
  */
 export class LanceDBService {
-  private db: unknown | null = null;
-  private repositoriesTable: LanceDBTable | null = null;
-  private usersTable: LanceDBTable | null = null;
+  private db: Connection | null = null;
+  private repositoriesTable: Table | null = null;
+  private usersTable: Table | null = null;
   private initialized = false;
   private dbPath: string;
   private readonly embeddingDimensions = 1536;
@@ -268,7 +253,7 @@ export class LanceDBService {
 
     const trimmedQuery = query?.trim() ?? '';
     const filters: string[] = [];
-    let builder: unknown;
+    let builder: Query | VectorQuery;
 
     if (trimmedQuery.length > 0) {
       const embedding = this.generateEmbedding(trimmedQuery);
@@ -284,10 +269,10 @@ export class LanceDBService {
     }
 
     if (filters.length > 0) {
-      builder = builder.where(filters.join(' AND '));
+      builder = builder.where(filters.join(' AND ')) as Query | VectorQuery;
     }
 
-    builder = builder.limit(limit);
+    builder = builder.limit(limit) as Query | VectorQuery;
 
     const rawResult = await builder.toArray();
     const repositories = this.parseRepositoryRecords(rawResult);
@@ -543,6 +528,7 @@ export class LanceDBService {
       name: record.name || null,
       email: null, // 暂不支持
       avatar_url: record.avatar_url,
+      html_url: record.html_url || `https://github.com/${record.login}`,
       bio: record.bio || null,
       blog: null, // 暂不支持
       company: null, // 暂不支持

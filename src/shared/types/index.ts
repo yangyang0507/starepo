@@ -113,13 +113,14 @@ export interface GitHubRepository {
   html_url: string;
   clone_url: string;
   ssh_url: string;
+  homepage: string | null;
   language: string | null;
   stargazers_count: number;
   watchers_count: number;
   forks_count: number;
   open_issues_count: number;
-  created_at: string;
-  updated_at: string;
+  created_at: string | null;
+  updated_at: string | null;
   pushed_at: string;
   size: number;
   default_branch: string;
@@ -158,19 +159,14 @@ export interface SearchResult<T = GitHubRepo> {
 // Re-export GitHub API 相关类型
 export * from "./github-api";
 
-// AI 聊天相关类型 (未来功能)
-export interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  timestamp: number;
-  repos?: GitHubRepo[];
-}
+// Re-export AI 相关类型
+export * from "./ai";
 
+// ChatConversation 相关类型
 export interface ChatConversation {
   id: string;
   title: string;
-  messages: ChatMessage[];
+  messages: import("./ai").ChatMessage[];
   created_at: number;
   updated_at: number;
 }

@@ -81,11 +81,26 @@ export const IPC_CHANNELS = {
     DELETE_REPO: "database:deleteRepo",
   },
 
-  // AI 服务 (未来功能)
+  // AI 服务
   AI: {
+    // 聊天相关
     CHAT: "ai:chat",
-    SEARCH_SEMANTIC: "ai:searchSemantic",
+    GET_CHAT_HISTORY: "ai:getChatHistory",
+    CLEAR_CHAT_HISTORY: "ai:clearChatHistory",
+
+    // 设置相关
+    GET_SETTINGS: "ai:getSettings",
+    SET_SETTINGS: "ai:setSettings",
+    GET_SAFE_SETTINGS: "ai:getSafeSettings",
+    TEST_CONNECTION: "ai:testConnection",
+
+    // Embedding 和搜索
     GENERATE_EMBEDDING: "ai:generateEmbedding",
+    SEARCH_SEMANTIC: "ai:searchSemantic",
+    CLEAR_EMBEDDING_CACHE: "ai:clearEmbeddingCache",
+
+    // 统计相关
+    GET_API_USAGE_STATS: "ai:getAPIUsageStats",
   },
 
   // 应用设置

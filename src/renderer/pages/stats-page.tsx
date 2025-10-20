@@ -1,12 +1,4 @@
 import React, { useState, useEffect } from "react";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTranslation } from "react-i18next";
@@ -15,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, BarChart3, Calendar, Github, RefreshCw, TrendingUp } from "lucide-react";
 import { githubAPI } from "@/api";
-import type { GitHubUser, GitHubRepository, AuthState } from "@shared/types"
+import type { GitHubUser, GitHubRepository, AuthState } from "@shared/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   LanguageDistributionChart,
@@ -23,6 +15,7 @@ import {
   TimelineChart,
   RepositoriesRanking,
 } from "@/components/charts";
+import { useExternalLink } from "@/hooks/use-external-link";
 
 // 数字动画 Hook
 const useCountAnimation = (end: number, duration: number = 1000) => {
@@ -116,6 +109,7 @@ interface StatsPageState {
 
 export default function StatsPage() {
   const { t: _t } = useTranslation();
+  const { openExternal } = useExternalLink();
   const [state, setState] = useState<StatsPageState>({
     loading: true,
     error: null,
@@ -399,8 +393,8 @@ export default function StatsPage() {
               repositories={state.statsData.repositories || []}
               title="热门仓库"
               onRepositoryClick={(repo) => {
-                // 处理仓库点击事件，可以跳转到仓库详情或在浏览器中打开
-                window.open(repo.html_url, '_blank');
+                // 在用户默认浏览器中打开仓库
+                openExternal(repo.html_url);
               }}
             />
           </div>

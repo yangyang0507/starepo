@@ -317,7 +317,22 @@ const databaseAPI = {
 const aiAPI = {
   // AI 相关 API
   chat: (message: string, conversationId?: string): Promise<APIResponse> =>
-    ipcRenderer.invoke(IPC_CHANNELS.AI.CHAT, message, conversationId),
+    ipcRenderer.invoke(IPC_CHANNELS.AI.CHAT, { message, conversationId }),
+
+  getSafeSettings: (): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.AI.GET_SAFE_SETTINGS),
+
+  setSettings: (settings: unknown): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.AI.SET_SETTINGS, settings),
+
+  testConnection: (config: unknown): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.AI.TEST_CONNECTION, config),
+
+  getChatHistory: (conversationId: string): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.AI.GET_CHAT_HISTORY, conversationId),
+
+  clearChatHistory: (conversationId: string): Promise<APIResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.AI.CLEAR_CHAT_HISTORY, conversationId),
 
   searchSemantic: (query: string, filters?: { language?: string; topics?: string[] }): Promise<APIResponse> =>
     ipcRenderer.invoke(IPC_CHANNELS.AI.SEARCH_SEMANTIC, query, filters),

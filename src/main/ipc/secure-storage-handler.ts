@@ -31,7 +31,7 @@ export const SECURE_STORAGE_CHANNELS = {
   IS_ENCRYPTION_AVAILABLE: "secure-storage:is-encryption-available",
 } as const;
 
-export function setupSecureStorageHandlers(): void {
+export function registerSecureStorageHandlers(): void {
   // GitHub Token 相关处理器
   ipcMain.handle(
     SECURE_STORAGE_CHANNELS.SAVE_GITHUB_TOKEN,

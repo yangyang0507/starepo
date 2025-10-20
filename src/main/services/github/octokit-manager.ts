@@ -1,13 +1,43 @@
 import { retry } from "@octokit/plugin-retry";
 import { throttling } from "@octokit/plugin-throttling";
 import { Octokit } from "octokit";
+import type { Endpoints } from "@octokit/types";
 import type {
   GitHubClientConfig,
-  RateLimitInfo,
   GitHubUser,
   GitHubRepository,
 } from "./types";
 import { getLogger } from "../../utils/logger";
+
+// 使用 @octokit/types 定义的类型
+type GetAuthenticatedUserResponse = Endpoints["GET /user"]["response"];
+type GetRepoResponse = Endpoints["GET /repos/{owner}/{repo}"]["response"];
+type SearchReposResponse = Endpoints["GET /search/repositories"]["response"];
+type ListStarredReposResponse = Endpoints["GET /user/starred"]["response"];
+type GetRateLimitResponse = Endpoints["GET /rate_limit"]["response"];
+
+// 速率限制信息类型
+export interface RateLimitInfo {
+  core: {
+    limit: number;
+    remaining: number;
+    reset: Date;
+    used: number;
+  };
+  search: {
+    limit: number;
+    remaining: number;
+    reset: Date;
+    used: number;
+  };
+  graphql: {
+    limit: number;
+    remaining: number;
+    reset: Date;
+    used: number;
+  };
+  lastUpdated: Date;
+}
 
 // 扩展 Octokit 功能
 const MyOctokit = Octokit.plugin(throttling, retry);
@@ -60,7 +90,7 @@ export class OctokitManager {
       // 验证认证并获取用户信息
       await this.validateAuthentication();
 
-      this.log.info("Octokit 客户端初始化成功");
+      this.log.debug("Octokit 客户端初始化成功");
     } catch (error) {
       this.isInitialized = false;
       this.log.error("Octokit 客户端初始化失败", error);
@@ -77,9 +107,9 @@ export class OctokitManager {
     }
 
     try {
-      const { data: user } = await this.octokit.rest.users.getAuthenticated();
+      const response: GetAuthenticatedUserResponse = await this.octokit.rest.users.getAuthenticated();
       await this.updateRateLimitInfo();
-      return user as GitHubUser;
+      return response.data as GitHubUser;
     } catch (error) {
       this.log.error("认证验证失败", error);
       throw new Error(
@@ -95,8 +125,8 @@ export class OctokitManager {
     }
 
     try {
-      const { data: user } = await this.octokit!.rest.users.getAuthenticated();
-      return user as GitHubUser;
+      const response: GetAuthenticatedUserResponse = await this.octokit!.rest.users.getAuthenticated();
+      return response.data as GitHubUser;
     } catch (error) {
       this.log.error("获取用户信息失败", error);
       throw new Error(
@@ -115,7 +145,7 @@ export class OctokitManager {
     }
 
     try {
-      const { data: repos } =
+      const response: ListStarredReposResponse =
         await this.octokit!.rest.activity.listReposStarredByAuthenticatedUser({
           page,
           per_page: perPage,
@@ -124,7 +154,7 @@ export class OctokitManager {
         });
 
       await this.updateRateLimitInfo();
-      return repos as GitHubRepository[];
+      return response.data as GitHubRepository[];
     } catch (error) {
       this.log.error("获取 starred 仓库失败", error);
       throw new Error(
@@ -145,7 +175,7 @@ export class OctokitManager {
         repo,
       });
       await this.updateRateLimitInfo();
-      this.log.info("成功 star 仓库", { owner, repo });
+      this.log.debug("成功 star 仓库", { owner, repo });
     } catch (error) {
       this.log.error("Star 仓库失败", error);
       throw new Error(
@@ -166,7 +196,7 @@ export class OctokitManager {
         repo,
       });
       await this.updateRateLimitInfo();
-      this.log.info("成功 unstar 仓库", { owner, repo });
+      this.log.debug("成功 unstar 仓库", { owner, repo });
     } catch (error) {
       this.log.error("Unstar 仓库失败", error);
       throw new Error(
@@ -189,7 +219,7 @@ export class OctokitManager {
       await this.updateRateLimitInfo();
       return true;
     } catch (error: unknown) {
-      if (error.status === 404) {
+      if (error && typeof error === 'object' && 'status' in error && error.status === 404) {
         return false;
       }
       this.log.error("检查 star 状态失败", error);
@@ -206,12 +236,12 @@ export class OctokitManager {
     }
 
     try {
-      const { data: repository } = await this.octokit!.rest.repos.get({
+      const response: GetRepoResponse = await this.octokit!.rest.repos.get({
         owner,
         repo,
       });
       await this.updateRateLimitInfo();
-      return repository as GitHubRepository;
+      return response.data as GitHubRepository;
     } catch (error) {
       this.log.error("获取仓库信息失败", error);
       throw new Error(
@@ -231,7 +261,7 @@ export class OctokitManager {
     }
 
     try {
-      const { data } = await this.octokit!.rest.search.repos({
+      const response: SearchReposResponse = await this.octokit!.rest.search.repos({
         q: query,
         page,
         per_page: perPage,
@@ -241,8 +271,8 @@ export class OctokitManager {
 
       await this.updateRateLimitInfo();
       return {
-        repositories: data.items as GitHubRepository[],
-        total_count: data.total_count,
+        repositories: response.data.items as GitHubRepository[],
+        total_count: response.data.total_count,
       };
     } catch (error) {
       this.log.error("搜索仓库失败", error);
@@ -257,7 +287,8 @@ export class OctokitManager {
     if (!this.octokit) return;
 
     try {
-      const { data: rateLimit } = await this.octokit.rest.rateLimit.get();
+      const response: GetRateLimitResponse = await this.octokit.rest.rateLimit.get();
+      const rateLimit = response.data;
       this.rateLimitInfo = {
         core: {
           limit: rateLimit.resources.core.limit,

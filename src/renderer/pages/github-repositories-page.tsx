@@ -8,7 +8,8 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useRepositoryStore } from "@/stores/repository-store";
 import { useAuthStore } from "@/stores/auth-store";
-import type { FilterOptions, ViewOptions } from "@shared/types"
+import { useExternalLink } from "@/hooks/use-external-link";
+import type { FilterOptions, ViewOptions } from "@shared/types";
 import {
   AlertCircle,
   CheckCircle,
@@ -26,6 +27,7 @@ import React, { useEffect, useCallback, useMemo } from "react";
 
 const GitHubRepositoriesPage: React.FC = () => {
   const { authState } = useAuthStore();
+  const { openExternal } = useExternalLink();
   const {
     user,
     repositories,
@@ -281,7 +283,7 @@ const GitHubRepositoriesPage: React.FC = () => {
               <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
                 <button
                   onClick={() =>
-                    window.open(`https://github.com/${user?.login}`, "_blank")
+                    openExternal(`https://github.com/${user?.login}`)
                   }
                   className="group flex-shrink-0"
                 >
@@ -296,10 +298,7 @@ const GitHubRepositoriesPage: React.FC = () => {
                   <div>
                     <button
                       onClick={() =>
-                        window.open(
-                          `https://github.com/${user?.login}`,
-                          "_blank",
-                        )
+                        openExternal(`https://github.com/${user?.login}`)
                       }
                       className="group text-left w-full"
                     >
@@ -312,10 +311,7 @@ const GitHubRepositoriesPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() =>
-                        window.open(
-                          `https://github.com/${user?.login}`,
-                          "_blank",
-                        )
+                        openExternal(`https://github.com/${user?.login}`)
                       }
                       className="text-muted-foreground hover:text-foreground text-sm transition-colors truncate block"
                     >
@@ -335,10 +331,7 @@ const GitHubRepositoriesPage: React.FC = () => {
                     </div>
                     <button
                       onClick={() =>
-                        window.open(
-                          `https://github.com/${user?.login}?tab=repositories`,
-                          "_blank",
-                        )
+                        openExternal(`https://github.com/${user?.login}?tab=repositories`)
                       }
                       className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer group"
                     >

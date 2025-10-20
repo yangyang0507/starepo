@@ -1,6 +1,6 @@
 import { ipcMain, shell } from "electron";
 import type { APIResponse } from "@shared/types";
-import { getLogger } from "../../utils/logger";
+import { getLogger } from "../utils/logger";
 
 const shellLogger = getLogger("ipc:shell");
 
@@ -9,7 +9,7 @@ const shellLogger = getLogger("ipc:shell");
  * 提供安全的外部链接和文件系统操作
  */
 
-export function setupShellHandlers(): void {
+export function registerShellHandlers(): void {
   // 打开外部链接
   ipcMain.handle("shell:openExternal", async (_, url: string): Promise<APIResponse> => {
     try {
@@ -66,3 +66,4 @@ export function setupShellHandlers(): void {
 
   shellLogger.info("Shell IPC 处理器已设置");
 }
+

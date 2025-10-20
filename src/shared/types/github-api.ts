@@ -21,7 +21,7 @@ export interface GitHubPaginationOptions {
 /**
  * GitHub API 搜索选项
  */
-export interface GitHubSearchOptions extends GitHubPaginationOptions {
+export interface GitHubSearchOptions extends Omit<GitHubPaginationOptions, 'sort'> {
   q?: string;
   order?: "asc" | "desc";
   sort?: "stars" | "forks" | "updated";

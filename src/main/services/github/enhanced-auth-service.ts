@@ -1,4 +1,5 @@
 import { Octokit } from 'octokit';
+import type { Endpoints } from '@octokit/types';
 import { githubTokenStorage } from '../database/secure-service';
 import { octokitManager } from './octokit-manager';
 import { getLogger } from '../../utils/logger';
@@ -10,6 +11,10 @@ import type {
   TokenValidationResult,
 } from '@shared/types/auth';
 import type { AuthenticationResult } from './types';
+
+// 定义 @octokit/types 类型
+type GetAuthenticatedUserResponse = Endpoints["GET /user"]["response"];
+type GetRateLimitResponse = Endpoints["GET /rate_limit"]["response"];
 
 /**
  * 增强的GitHub认证服务
@@ -105,7 +110,7 @@ export class EnhancedGitHubAuthService {
             userAgent: 'Starepo/1.0.0',
             timeout: 10000,
           });
-          this.log.info('octokitManager 已从存储恢复认证状态');
+          this.log.debug('octokitManager 已从存储恢复认证状态');
         } catch (octokitError) {
           this.log.warn('octokitManager 恢复失败，但不影响主认证流程', octokitError);
         }
@@ -323,24 +328,31 @@ export class EnhancedGitHubAuthService {
       const octokit = new Octokit({ auth: token });
 
       // 获取用户信息
-      const userResponse = await octokit.rest.users.getAuthenticated();
+      const userResponse: GetAuthenticatedUserResponse = await octokit.rest.users.getAuthenticated();
       const user: GitHubUser = {
         id: userResponse.data.id,
         login: userResponse.data.login,
+        name: userResponse.data.name,
         html_url: userResponse.data.html_url,
         avatar_url: userResponse.data.avatar_url,
-        name: userResponse.data.name,
         email: userResponse.data.email,
+        bio: userResponse.data.bio,
+        blog: userResponse.data.blog,
+        company: userResponse.data.company,
+        location: userResponse.data.location,
         public_repos: userResponse.data.public_repos,
+        public_gists: userResponse.data.public_gists,
         followers: userResponse.data.followers,
         following: userResponse.data.following,
+        created_at: userResponse.data.created_at,
+        updated_at: userResponse.data.updated_at,
       };
 
       // 获取Token权限范围
       const scopes = this.extractScopesFromHeaders(userResponse.headers);
 
       // 获取速率限制信息
-      const rateLimitResponse = await octokit.rest.rateLimit.get();
+      const rateLimitResponse: GetRateLimitResponse = await octokit.rest.rateLimit.get();
       const rateLimit = {
         limit: rateLimitResponse.data.rate.limit,
         remaining: rateLimitResponse.data.rate.remaining,
@@ -359,16 +371,19 @@ export class EnhancedGitHubAuthService {
 
       let errorMessage = 'Token validation failed';
 
-      if (error.status === 401) {
-        errorMessage = 'Bad credentials';
-      } else if (error.status === 403) {
-        if (error.message?.includes('rate limit')) {
-          errorMessage = 'GitHub API rate limit exceeded';
-        } else {
-          errorMessage = 'Resource not accessible by personal access token';
+      if (error && typeof error === 'object') {
+        const err = error as { status?: number; message?: string };
+        if (err.status === 401) {
+          errorMessage = 'Bad credentials';
+        } else if (err.status === 403) {
+          if (err.message?.includes('rate limit')) {
+            errorMessage = 'GitHub API rate limit exceeded';
+          } else {
+            errorMessage = 'Resource not accessible by personal access token';
+          }
+        } else if (err.message?.includes('ENOTFOUND') || err.message?.includes('ECONNREFUSED')) {
+          errorMessage = 'Network error: Unable to connect to GitHub API';
         }
-      } else if (error.message?.includes('ENOTFOUND') || error.message?.includes('ECONNREFUSED')) {
-        errorMessage = 'Network error: Unable to connect to GitHub API';
       }
 
       return {
@@ -408,9 +423,9 @@ export class EnhancedGitHubAuthService {
   /**
    * 从响应头中提取权限范围
    */
-  private extractScopesFromHeaders(headers: Record<string, string>): string[] {
+  private extractScopesFromHeaders(headers: Record<string, string | number | undefined>): string[] {
     const scopes = headers['x-oauth-scopes'];
-    if (!scopes) {
+    if (!scopes || typeof scopes !== 'string') {
       return [];
     }
 
@@ -421,15 +436,21 @@ export class EnhancedGitHubAuthService {
    * 判断错误是否可恢复
    */
   private isRecoverableError(error: unknown): boolean {
-    if (error?.status === 401) {
+    if (!error || typeof error !== 'object') {
+      return true;
+    }
+
+    const err = error as { status?: number; message?: string };
+
+    if (err.status === 401) {
       return false; // 认证错误通常不可恢复
     }
 
-    if (error?.status === 403 && !error?.message?.includes('rate limit')) {
+    if (err.status === 403 && !err.message?.includes('rate limit')) {
       return false; // 权限错误（非速率限制）通常不可恢复
     }
 
-    if (error?.message?.includes('ENOTFOUND') || error?.message?.includes('ECONNREFUSED')) {
+    if (err.message?.includes('ENOTFOUND') || err.message?.includes('ECONNREFUSED')) {
       return true; // 网络错误可恢复
     }
 

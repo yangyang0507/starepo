@@ -31,9 +31,24 @@ export class WindowManager {
     try {
       const settings = await settingsService.getSettings();
       developerModeEnabled = settings.developerMode;
+      if (isDevelopment && !developerModeEnabled) {
+        try {
+          const updated = await settingsService.updateSettings({ developerMode: true });
+          developerModeEnabled = updated.developerMode;
+        } catch (updateError) {
+          console.warn(
+            "[window] Failed to sync developer mode with development environment:",
+            updateError,
+          );
+          developerModeEnabled = true;
+        }
+      }
     } catch (error) {
       // 如果读取设置失败，保持默认的开发者模式关闭状态
       console.warn("[window] Failed to load settings before window creation:", error);
+      if (isDevelopment) {
+        developerModeEnabled = true;
+      }
     }
 
     // 使用正确的预加载脚本路径
@@ -59,7 +74,7 @@ export class WindowManager {
     this.mainWindow.once("ready-to-show", () => {
       this.mainWindow?.show();
 
-      if (isDevelopment || developerModeEnabled) {
+      if (developerModeEnabled) {
         this.mainWindow?.webContents.openDevTools({ mode: "detach" });
       }
     });

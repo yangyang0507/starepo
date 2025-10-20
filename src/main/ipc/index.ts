@@ -1,20 +1,21 @@
 import { ipcMain } from "electron";
-import { WindowManager } from "../../window";
-import { IPC_CHANNELS } from "../../../shared/constants/ipc-channels";
-import { setupSecureStorageHandlers } from "../secure-storage-handler";
-import { setupShellHandlers } from "./shell-handler";
-import { registerGitHubHandlers } from "../github-handlers";
-import { registerAuthIPCHandlers } from "../auth-ipc-handlers";
-import { settingsService } from "../../services/settings";
-import { lancedbService } from "../../services/database/lancedb-service";
-import { githubStarService } from "../../services/github";
-import type { ThemeMode, Language, AppSettings } from "../../../shared/types/index.js";
-import { getLogger } from "../../utils/logger";
+import { WindowManager } from "../window";
+import { IPC_CHANNELS } from "../../shared/constants/ipc-channels";
+import { registerSecureStorageHandlers } from "./secure-storage-handler";
+import { registerShellHandlers } from "./shell-handler";
+import { registerGitHubHandlers } from "./github-handlers";
+import { registerAuthIPCHandlers } from "./auth-ipc-handlers";
+import { settingsService } from "../services/settings";
+import { lancedbService } from "../services/database/lancedb-service";
+import { githubStarService } from "../services/github";
+import type { ThemeMode, Language, AppSettings } from "../../shared/types/index.js";
+import { getLogger } from "../utils/logger";
 // 导入搜索处理器
-import "../search-handlers";
+import "./search-handlers";
+// 导入 AI 处理器
+import { initializeAIHandlers, setAIService } from "./ai-handlers";
+import { AIService } from "../services/ai";
 
-const themeLogger = getLogger('ipc:theme');
-const languageLogger = getLogger('ipc:language');
 const settingsLogger = getLogger('ipc:settings');
 
 /**
@@ -22,15 +23,13 @@ const settingsLogger = getLogger('ipc:settings');
  */
 export function registerIpcHandlers(): void {
   registerWindowHandlers();
-  registerThemeHandlers();
-  registerLanguageHandlers();
   registerSettingsHandlers();
-  setupSecureStorageHandlers();
-  setupShellHandlers();
+  registerSecureStorageHandlers();
+  registerShellHandlers();
   registerGitHubHandlers();
-  registerAuthIPCHandlers(); // 新的认证IPC处理器
-  registerDatabaseHandlers(); // 数据库处理器
-  registerAIHandlers(); // AI处理器
+  registerAuthIPCHandlers();
+  registerDatabaseHandlers();
+  registerAIHandlers();
   // registerPerformanceHandlers(); // 性能监控处理器 - 暂时禁用
 }
 
@@ -104,49 +103,20 @@ function registerDatabaseHandlers(): void {
 function registerAIHandlers(): void {
   const aiLogger = getLogger('ipc:ai');
 
-  // AI 聊天
-  ipcMain.handle(IPC_CHANNELS.AI.CHAT, async (_, message: string, conversationId?: string) => {
-    try {
-      // 占位符实现 - 未来可以集成真正的 AI 服务
-      const response = { 
-        reply: `AI 响应: "${message}" (功能待实现)`,
-        conversationId: conversationId || 'default'
-      };
-      return { success: true, data: response };
-    } catch (error) {
-      aiLogger.error('AI聊天失败', error);
-      return { success: false, error: error instanceof Error ? error.message : '聊天失败' };
-    }
-  });
+  try {
+    // 创建 AI 服务实例
+    const aiService = new AIService();
 
-  // 语义搜索
-  ipcMain.handle(IPC_CHANNELS.AI.SEARCH_SEMANTIC, async (_, query: string, filters?: { language?: string; topics?: string[] }) => {
-    try {
-      // 占位符实现 - 未来可以集成真正的嵌入式搜索
-      const response = { 
-        results: [],
-        query,
-        filters,
-        message: '语义搜索功能待实现'
-      };
-      return { success: true, data: response };
-    } catch (error) {
-      aiLogger.error('语义搜索失败', error);
-      return { success: false, error: error instanceof Error ? error.message : '搜索失败' };
-    }
-  });
+    // 初始化 IPC 处理器
+    initializeAIHandlers();
 
-  // 生成嵌入向量
-  ipcMain.handle(IPC_CHANNELS.AI.GENERATE_EMBEDDING, async (_event, _text: string) => {
-    try {
-      // 占位符实现 - 未来可以集成真正的嵌入模型
-      const mockEmbedding = Array.from({ length: 1536 }, () => Math.random() - 0.5); // 模拟 OpenAI 嵌入向量
-      return { success: true, data: mockEmbedding };
-    } catch (error) {
-      aiLogger.error('生成嵌入向量失败', error);
-      return { success: false, error: error instanceof Error ? error.message : '生成失败' };
-    }
-  });
+    // 设置 AI 服务实例
+    setAIService(aiService);
+
+    aiLogger.info('AI IPC 处理器已成功注册');
+  } catch (error) {
+    aiLogger.error('AI IPC 处理器初始化失败:', error);
+  }
 }
 
 /**
@@ -209,98 +179,11 @@ function registerWindowHandlers(): void {
 }
 
 /**
- * 主题相关的 IPC 处理器
- */
-function registerThemeHandlers(): void {
-  ipcMain.handle(IPC_CHANNELS.THEME.GET_THEME, async () => {
-    try {
-      const theme = await settingsService.getTheme();
-      return { success: true, data: theme };
-    } catch (error) {
-      themeLogger.error("获取主题失败", error);
-      return { success: false, error: "获取主题失败" };
-    }
-  });
-
-  ipcMain.handle(IPC_CHANNELS.THEME.SET_THEME, async (_event, theme: string) => {
-    try {
-      const updatedTheme = await settingsService.setTheme(theme as ThemeMode);
-
-      const windowManager = WindowManager.getInstance();
-      const mainWindow = windowManager.getMainWindow();
-      if (mainWindow) {
-        mainWindow.webContents.send(IPC_CHANNELS.THEME.THEME_CHANGED, updatedTheme);
-      }
-
-      return { success: true, data: updatedTheme };
-    } catch (error) {
-      themeLogger.error("设置主题失败", error);
-      return { success: false, error: "设置主题失败" };
-    }
-  });
-
-  ipcMain.handle(IPC_CHANNELS.THEME.TOGGLE_THEME, async () => {
-    try {
-      const currentTheme = await settingsService.getTheme();
-      const nextTheme: ThemeMode = currentTheme === "dark" ? "light" : "dark";
-      const savedTheme = await settingsService.setTheme(nextTheme);
-
-      const windowManager = WindowManager.getInstance();
-      const mainWindow = windowManager.getMainWindow();
-      if (mainWindow) {
-        mainWindow.webContents.send(IPC_CHANNELS.THEME.THEME_CHANGED, savedTheme);
-      }
-
-      return { success: true, data: savedTheme };
-    } catch (error) {
-      themeLogger.error("切换主题失败", error);
-      return { success: false, error: "切换主题失败" };
-    }
-  });
-}
-
-/**
- * 语言相关的 IPC 处理器
- */
-function registerLanguageHandlers(): void {
-  ipcMain.handle(IPC_CHANNELS.LANGUAGE.GET_LANGUAGE, async () => {
-    try {
-      const language = await settingsService.getLanguage();
-      return { success: true, data: language };
-    } catch (error) {
-      languageLogger.error("获取语言失败", error);
-      return { success: false, error: "获取语言失败" };
-    }
-  });
-
-  ipcMain.handle(
-    IPC_CHANNELS.LANGUAGE.SET_LANGUAGE,
-    async (_event, language: string) => {
-      try {
-        const updatedLanguage = await settingsService.setLanguage(language as Language);
-
-        const windowManager = WindowManager.getInstance();
-        const mainWindow = windowManager.getMainWindow();
-        if (mainWindow) {
-          mainWindow.webContents.send(
-            IPC_CHANNELS.LANGUAGE.LANGUAGE_CHANGED,
-            updatedLanguage,
-          );
-        }
-
-        return { success: true, data: updatedLanguage };
-      } catch (error) {
-        languageLogger.error("设置语言失败", error);
-        return { success: false, error: "设置语言失败" };
-      }
-    },
-  );
-}
-
-/**
  * 应用设置相关的 IPC 处理器
+ * 包括：通用设置、主题、语言
  */
 function registerSettingsHandlers(): void {
+  // 获取应用设置
   ipcMain.handle(IPC_CHANNELS.SETTINGS.GET_SETTINGS, async () => {
     try {
       const settings = await settingsService.getSettings();
@@ -311,6 +194,7 @@ function registerSettingsHandlers(): void {
     }
   });
 
+  // 更新应用设置
   ipcMain.handle(
     IPC_CHANNELS.SETTINGS.SET_SETTING,
     async (_event, update: Partial<AppSettings>) => {
@@ -338,6 +222,7 @@ function registerSettingsHandlers(): void {
     },
   );
 
+  // 重置设置
   ipcMain.handle(IPC_CHANNELS.SETTINGS.RESET_SETTINGS, async () => {
     try {
       await settingsService.reset();
@@ -349,6 +234,7 @@ function registerSettingsHandlers(): void {
     }
   });
 
+  // 清理缓存
   ipcMain.handle(IPC_CHANNELS.SETTINGS.CLEAR_CACHE, async () => {
     try {
       await githubStarService.clearCache();
@@ -358,4 +244,93 @@ function registerSettingsHandlers(): void {
       return { success: false, error: "清理缓存失败" };
     }
   });
+
+  // === 主题管理 ===
+  
+  // 获取主题
+  ipcMain.handle(IPC_CHANNELS.THEME.GET_THEME, async () => {
+    try {
+      const theme = await settingsService.getTheme();
+      return { success: true, data: theme };
+    } catch (error) {
+      settingsLogger.error("获取主题失败", error);
+      return { success: false, error: "获取主题失败" };
+    }
+  });
+
+  // 设置主题
+  ipcMain.handle(IPC_CHANNELS.THEME.SET_THEME, async (_event, theme: string) => {
+    try {
+      const updatedTheme = await settingsService.setTheme(theme as ThemeMode);
+
+      const windowManager = WindowManager.getInstance();
+      const mainWindow = windowManager.getMainWindow();
+      if (mainWindow) {
+        mainWindow.webContents.send(IPC_CHANNELS.THEME.THEME_CHANGED, updatedTheme);
+      }
+
+      return { success: true, data: updatedTheme };
+    } catch (error) {
+      settingsLogger.error("设置主题失败", error);
+      return { success: false, error: "设置主题失败" };
+    }
+  });
+
+  // 切换主题
+  ipcMain.handle(IPC_CHANNELS.THEME.TOGGLE_THEME, async () => {
+    try {
+      const currentTheme = await settingsService.getTheme();
+      const nextTheme: ThemeMode = currentTheme === "dark" ? "light" : "dark";
+      const savedTheme = await settingsService.setTheme(nextTheme);
+
+      const windowManager = WindowManager.getInstance();
+      const mainWindow = windowManager.getMainWindow();
+      if (mainWindow) {
+        mainWindow.webContents.send(IPC_CHANNELS.THEME.THEME_CHANGED, savedTheme);
+      }
+
+      return { success: true, data: savedTheme };
+    } catch (error) {
+      settingsLogger.error("切换主题失败", error);
+      return { success: false, error: "切换主题失败" };
+    }
+  });
+
+  // === 语言管理 ===
+  
+  // 获取语言
+  ipcMain.handle(IPC_CHANNELS.LANGUAGE.GET_LANGUAGE, async () => {
+    try {
+      const language = await settingsService.getLanguage();
+      return { success: true, data: language };
+    } catch (error) {
+      settingsLogger.error("获取语言失败", error);
+      return { success: false, error: "获取语言失败" };
+    }
+  });
+
+  // 设置语言
+  ipcMain.handle(
+    IPC_CHANNELS.LANGUAGE.SET_LANGUAGE,
+    async (_event, language: string) => {
+      try {
+        const updatedLanguage = await settingsService.setLanguage(language as Language);
+
+        const windowManager = WindowManager.getInstance();
+        const mainWindow = windowManager.getMainWindow();
+        if (mainWindow) {
+          mainWindow.webContents.send(
+            IPC_CHANNELS.LANGUAGE.LANGUAGE_CHANGED,
+            updatedLanguage,
+          );
+        }
+
+        return { success: true, data: updatedLanguage };
+      } catch (error) {
+        settingsLogger.error("设置语言失败", error);
+        return { success: false, error: "设置语言失败" };
+      }
+    },
+  );
 }
+

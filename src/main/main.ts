@@ -1,6 +1,6 @@
 import { app } from "electron";
 import { WindowManager } from "./window";
-import { registerIpcHandlers } from "./ipc/handlers";
+import { registerIpcHandlers } from "./ipc";
 import { installExtensions } from "./utils/dev-tools";
 import { enhancedGitHubAuthService } from "./services/github/enhanced-auth-service";
 import { getLogger } from "./utils/logger";

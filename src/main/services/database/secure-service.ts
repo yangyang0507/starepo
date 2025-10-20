@@ -52,7 +52,7 @@ export class SecureStorageService {
       await this.initializeMetadata();
 
       this.isInitialized = true;
-      this.log.info("安全存储服务初始化成功");
+      this.log.debug("安全存储服务初始化成功");
     } catch (error) {
       this.log.error("安全存储服务初始化失败", error);
       throw error;
@@ -84,7 +84,7 @@ export class SecureStorageService {
       // 更新元数据
       await this.updateMetadata();
 
-      this.log.info("安全存储项目已保存", { key });
+      this.log.debug("安全存储项目已保存", { key });
     } catch (error) {
       this.log.error(`保存安全存储项目失败 (${key})`, error);
       throw new Error(
@@ -144,7 +144,7 @@ export class SecureStorageService {
 
       try {
         await fs.unlink(filePath);
-        this.log.info("安全存储项目已删除", { key });
+        this.log.debug("安全存储项目已删除", { key });
       } catch (error: unknown) {
         if (error && typeof error === 'object' && 'code' in error && error.code !== "ENOENT") {
           throw error;
@@ -226,7 +226,7 @@ export class SecureStorageService {
         await this.removeItem(key);
       }
 
-      this.log.info("所有安全存储项目已清空");
+      this.log.debug("所有安全存储项目已清空");
     } catch (error) {
       this.log.error("清空安全存储失败", error);
       throw new Error(

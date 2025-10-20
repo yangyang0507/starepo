@@ -8,7 +8,7 @@ import { getLogger } from '../utils/logger';
  * 搜索相关的 IPC 处理器
  */
 
-const searchLogger = getLogger('ipc:search');
+const log = getLogger('ipc:search');
 
 // 搜索仓库
 ipcMain.handle(SEARCH_CHANNELS.SEARCH_REPOSITORIES, async (_, options: {
@@ -44,7 +44,7 @@ ipcMain.handle(SEARCH_CHANNELS.SEARCH_REPOSITORIES, async (_, options: {
       message: `找到 ${result.totalCount} 个仓库`
     };
   } catch (error) {
-    searchLogger.error('搜索仓库失败', error);
+    log.error('搜索仓库失败', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : '搜索失败'
@@ -68,7 +68,7 @@ ipcMain.handle(SEARCH_CHANNELS.GET_SEARCH_SUGGESTIONS, async (_, input: string, 
       message: '获取搜索建议成功'
     };
   } catch (error) {
-    searchLogger.error('获取搜索建议失败', error);
+    log.error('获取搜索建议失败', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : '获取搜索建议失败'
@@ -91,7 +91,7 @@ ipcMain.handle(SEARCH_CHANNELS.GET_POPULAR_SEARCH_TERMS, async (_, limit: number
       message: '获取热门搜索词成功'
     };
   } catch (error) {
-    searchLogger.error('获取热门搜索词失败', error);
+    log.error('获取热门搜索词失败', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : '获取热门搜索词失败'
@@ -115,7 +115,7 @@ ipcMain.handle(SEARCH_CHANNELS.GET_SEARCH_STATS, async (): Promise<APIResponse<{
       message: '获取搜索统计成功'
     };
   } catch (error) {
-    searchLogger.error('获取搜索统计失败', error);
+    log.error('获取搜索统计失败', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : '获取搜索统计失败'
@@ -123,4 +123,4 @@ ipcMain.handle(SEARCH_CHANNELS.GET_SEARCH_STATS, async (): Promise<APIResponse<{
   }
 });
 
-searchLogger.info('搜索 IPC 处理器已注册');
+log.debug('搜索 IPC 处理器已注册');

@@ -1,4 +1,5 @@
 import { octokitManager } from "./octokit-manager";
+import type { Endpoints } from "@octokit/types";
 import { lancedbService } from "../database/lancedb-service";
 import { lancedbSearchService } from "../search";
 import { getLogger } from "../../utils/logger";
@@ -7,9 +8,14 @@ import type {
   GitHubError,
   PaginationInfo,
   StarredRepository,
-  GitHubAPIStarredItem,
 } from "./types";
 import type { SearchResult } from "../database/types";
+
+// 使用 @octokit/types 定义的标准类型
+type ListStarredReposResponse = Endpoints["GET /user/starred"]["response"];
+type ListUserStarredReposResponse = Endpoints["GET /users/{username}/starred"]["response"];
+type StarredRepoItem = ListStarredReposResponse["data"][0];
+type UserStarredRepoItem = ListUserStarredReposResponse["data"][0];
 
 /**
  * GitHub Star 服务类
@@ -45,7 +51,7 @@ export class GitHubStarService {
         page = 1,
       } = options;
 
-      const { data } =
+      const response: ListStarredReposResponse =
         await octokit.rest.activity.listReposStarredByAuthenticatedUser({
           sort,
           direction,
@@ -56,7 +62,7 @@ export class GitHubStarService {
           },
         });
 
-      const repositories: StarredRepository[] = data.map((item: GitHubAPIStarredItem) => ({
+      const repositories: StarredRepository[] = response.data.map((item: any) => ({
         ...this.mapToGitHubRepository(item.repo || item),
         starred_at: item.starred_at || new Date().toISOString(),
       }));
@@ -64,7 +70,7 @@ export class GitHubStarService {
       const pagination: PaginationInfo = {
         page,
         per_page,
-        has_next_page: data.length === per_page,
+        has_next_page: response.data.length === per_page,
         has_prev_page: page > 1,
       };
 
@@ -113,7 +119,7 @@ export class GitHubStarService {
         page,
       });
 
-      const repositories: GitHubRepository[] = data.map((repo: GitHubRepository) =>
+      const repositories = data.map((repo) =>
         this.mapToGitHubRepository(repo),
       );
 
@@ -590,8 +596,8 @@ export class GitHubStarService {
               bValue = new Date(b.starred_at).getTime();
               break;
             case "updated":
-              aValue = new Date(a.updated_at).getTime();
-              bValue = new Date(b.updated_at).getTime();
+              aValue = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+              bValue = b.updated_at ? new Date(b.updated_at).getTime() : 0;
               break;
             case "stars":
               aValue = a.stargazers_count;
@@ -601,7 +607,9 @@ export class GitHubStarService {
               return 0;
           }
 
-          const result = aValue - bValue;
+          const result = typeof aValue === 'number' && typeof bValue === 'number' 
+            ? aValue - bValue 
+            : 0;
           return options.direction === "asc" ? result : -result;
         });
       }
@@ -618,43 +626,44 @@ export class GitHubStarService {
   /**
    * 将API返回的仓库数据映射为GitHubRepository接口
    */
-  private mapToGitHubRepository(repo: GitHubRepository | GitHubAPIStarredItem): GitHubRepository {
-    // 处理 GitHubAPIStarredItem 类型
-    if ('repo' in repo) {
-      const starredItem = repo as GitHubAPIStarredItem;
-      return {
-        id: starredItem.repo.id,
-        name: starredItem.repo.name,
-        full_name: starredItem.repo.full_name,
-        description: starredItem.repo.description,
-        html_url: starredItem.repo.html_url,
-        clone_url: starredItem.repo.clone_url,
-        ssh_url: starredItem.repo.ssh_url,
-        language: starredItem.repo.language,
-        stargazers_count: starredItem.repo.stargazers_count,
-        watchers_count: starredItem.repo.watchers_count,
-        forks_count: starredItem.repo.forks_count,
-        open_issues_count: starredItem.repo.open_issues_count,
-        created_at: starredItem.repo.created_at,
-        updated_at: starredItem.repo.updated_at,
-        pushed_at: starredItem.repo.pushed_at,
-        size: starredItem.repo.size,
-        default_branch: starredItem.repo.default_branch,
-        topics: starredItem.repo.topics || [],
-        archived: starredItem.repo.archived,
-        disabled: starredItem.repo.disabled,
-        private: starredItem.repo.private,
-        fork: starredItem.repo.fork,
-        owner: {
-          id: starredItem.repo.owner.id,
-          login: starredItem.repo.owner.login,
-          avatar_url: starredItem.repo.owner.avatar_url,
-        },
-      };
-    }
+  /**
+   * 将 GitHub API 返回的仓库数据映射为 GitHubRepository
+   * 使用标准的 @octokit/types 定义，简化类型转换逻辑
+   */
+  private mapToGitHubRepository(item: StarredRepoItem | UserStarredRepoItem): GitHubRepository {
+    // 处理包含 starred_at 的格式 (当使用 Accept: application/vnd.github.v3.star+json 时)
+    const repo = 'repo' in item ? item.repo : item;
     
-    // 处理 GitHubRepository 类型
-    return repo as GitHubRepository;
+    return {
+      id: repo.id,
+      name: repo.name,
+      full_name: repo.full_name,
+      description: repo.description ?? null,
+      html_url: repo.html_url,
+      clone_url: repo.clone_url,
+      ssh_url: repo.ssh_url,
+      homepage: repo.homepage ?? null,
+      language: repo.language ?? null,
+      stargazers_count: repo.stargazers_count,
+      watchers_count: repo.watchers_count,
+      forks_count: repo.forks_count,
+      open_issues_count: repo.open_issues_count,
+      created_at: repo.created_at ?? null,
+      updated_at: repo.updated_at ?? null,
+      pushed_at: repo.pushed_at ?? '',
+      size: repo.size,
+      default_branch: repo.default_branch,
+      topics: repo.topics ?? [],
+      archived: repo.archived,
+      disabled: repo.disabled,
+      private: repo.private,
+      fork: repo.fork,
+      owner: {
+        id: repo.owner.id,
+        login: repo.owner.login,
+        avatar_url: repo.owner.avatar_url,
+      },
+    };
   }
 
   /**

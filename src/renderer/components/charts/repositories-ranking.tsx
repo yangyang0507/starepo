@@ -11,7 +11,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Star, GitFork, Eye, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
-import type { GitHubRepository } from "@shared/types"
+import type { GitHubRepository } from "@shared/types";
+import { useExternalLink } from "@/hooks/use-external-link";
 
 interface RepositoriesRankingProps {
   repositories: GitHubRepository[];
@@ -33,6 +34,7 @@ export const RepositoriesRanking: React.FC<RepositoriesRankingProps> = ({
 }) => {
   const [sortField, setSortField] = useState<SortField>('stargazers_count');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const { openExternal } = useExternalLink();
 
   // 排序仓库
   const sortedRepositories = React.useMemo(() => {
@@ -237,7 +239,7 @@ export const RepositoriesRanking: React.FC<RepositoriesRankingProps> = ({
                       className="h-8 w-8 p-0"
                       onClick={(e) => {
                         e.stopPropagation();
-                        window.open(repo.html_url, '_blank');
+                        openExternal(repo.html_url);
                       }}
                     >
                       <ExternalLink className="h-4 w-4" />
@@ -270,7 +272,7 @@ export const RepositoriesRanking: React.FC<RepositoriesRankingProps> = ({
                   className="h-6 w-6 p-0 flex-shrink-0"
                   onClick={(e) => {
                     e.stopPropagation();
-                    window.open(repo.html_url, '_blank');
+                    openExternal(repo.html_url);
                   }}
                 >
                   <ExternalLink className="h-3 w-3" />

@@ -9,7 +9,8 @@ import {
   Lock,
   Tag,
 } from "lucide-react";
-import type { GitHubRepository, ViewOptions } from "@shared/types"
+import type { GitHubRepository, ViewOptions } from "@shared/types";
+import { useExternalLink } from "@/hooks/use-external-link";
 
 interface RepositoryCardProps {
   repository: GitHubRepository;
@@ -84,6 +85,7 @@ const RepositoryCard: React.FC<RepositoryCardProps> = ({
 }) => {
   const [isStarring, setIsStarring] = useState(false);
   const [showRemainingTopics, setShowRemainingTopics] = useState(false);
+  const { openExternal } = useExternalLink();
 
   const handleStarToggle = useCallback(
     async (e: React.MouseEvent) => {
@@ -110,30 +112,9 @@ const RepositoryCard: React.FC<RepositoryCardProps> = ({
     [isStarred, isStarring, loading, onStar, onUnstar, repository],
   );
 
-  // 处理外部链接跳转
-  const handleExternalLink = useCallback(async (url: string) => {
-    try {
-      if (window.electronAPI?.shell?.openExternal) {
-        const result = await window.electronAPI.shell.openExternal(url);
-        if (!result.success) {
-          console.error("打开外部链接失败:", result.error);
-          // 如果 Electron API 失败，尝试备用方案
-          window.open(url, '_blank');
-        }
-      } else {
-        // 备用方案：在默认浏览器中打开
-        window.open(url, '_blank');
-      }
-    } catch (error) {
-      console.error("打开链接时发生错误:", error);
-      // 最后的备用方案
-      window.open(url, '_blank');
-    }
-  }, []);
-
   const handleCardClick = useCallback(() => {
-    handleExternalLink(repository.html_url);
-  }, [repository.html_url, handleExternalLink]);
+    openExternal(repository.html_url);
+  }, [repository.html_url, openExternal]);
 
   const cardContent = (
     <>

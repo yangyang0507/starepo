@@ -4,10 +4,12 @@ import * as os from 'os';
 import type { ThemeMode, Language, AppSettings, LogLevel } from '../../../shared/types/index.js';
 import { getLogger, getLogLevel as getCurrentLogLevel, setLogLevel as setLoggerLevel } from '../../utils/logger';
 
+const DEFAULT_DEVELOPER_MODE = process.env.NODE_ENV === 'development';
+
 const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   language: 'en',
-  developerMode: false,
+  developerMode: DEFAULT_DEVELOPER_MODE,
   logLevel: getCurrentLogLevel(),
   autoSyncEnabled: false,
   autoSyncIntervalMinutes: 15,
@@ -160,7 +162,9 @@ export class SettingsService {
 
     const theme = this.isValidTheme(settings.theme) ? settings.theme! : DEFAULT_SETTINGS.theme;
     const language = this.isValidLanguage(settings.language) ? settings.language! : DEFAULT_SETTINGS.language;
-    const developerMode = typeof settings.developerMode === 'boolean' ? settings.developerMode : DEFAULT_SETTINGS.developerMode;
+    const developerMode = typeof settings.developerMode === 'boolean'
+      ? settings.developerMode
+      : DEFAULT_DEVELOPER_MODE;
     const logLevel = this.isValidLogLevel(settings.logLevel) ? settings.logLevel! : DEFAULT_SETTINGS.logLevel;
     const autoSyncEnabled = typeof settings.autoSyncEnabled === 'boolean' ? settings.autoSyncEnabled : DEFAULT_SETTINGS.autoSyncEnabled;
     const autoSyncIntervalMinutes = this.normalizeAutoSyncInterval(settings.autoSyncIntervalMinutes);

@@ -10,6 +10,7 @@ export { languageAPI } from './language';
 export { githubAPI } from './github';
 export { enhancedAuthAPI } from './enhanced-auth';
 export { searchAPI } from './search';
+export { shellAPI } from './shell';
 
 // 重新导出共享类型
 export type { GitHubRepository } from "@shared/types";

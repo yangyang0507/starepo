@@ -50,7 +50,7 @@ test.describe('E2E: 完整认证流程', () => {
       await page.evaluate(() => {
         return window.electronAPI?.github?.clearAuth?.();
       });
-    } catch (error) {
+    } catch (_error) {
       // 忽略清理错误
     }
 
@@ -63,7 +63,7 @@ test.describe('E2E: 完整认证流程', () => {
       await page.evaluate(() => {
         return window.electronAPI?.github?.clearAuth?.();
       });
-    } catch (error) {
+    } catch (_error) {
       // 忽略清理错误
     }
   });
