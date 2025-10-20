@@ -15,6 +15,7 @@ import {
   CheckCircle,
   ChevronLeft,
   ChevronRight,
+  BookOpen,
   ExternalLink,
   Github,
   Loader2,
@@ -335,6 +336,7 @@ const GitHubRepositoriesPage: React.FC = () => {
                       }
                       className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer group"
                     >
+                      <BookOpen className="h-4 w-4 flex-shrink-0" />
                       <span className="font-medium">
                         {user.public_repos || 0}
                       </span>
