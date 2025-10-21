@@ -305,7 +305,6 @@ export class GitHubStarService {
         throw new Error("GitHub客户端未初始化，请先进行认证");
       }
 
-      this.log.debug("从 GitHub API 获取仓库数据");
       const allRepositories: StarredRepository[] = [];
       let page = 1;
       let hasNextPage = true;
@@ -389,15 +388,12 @@ export class GitHubStarService {
     };
   }> {
     try {
-      this.log.info('[统计服务] 开始获取所有收藏仓库数据进行统计');
-      
       // 优先从数据库获取所有数据，这样更高效
       let repositories: GitHubRepository[];
       try {
         // 首先尝试从数据库获取
         repositories = await this.getRepositoriesFromDatabase();
-        this.log.debug('[统计服务] 从数据库获取仓库数据', { count: repositories.length });
-        
+
         // 如果数据库中数据较少，尝试从API获取全部数据
         if (repositories.length < 1000) {
           this.log.info('[统计服务] 数据库数据较少，准备从 GitHub API 获取完整数据');
@@ -510,7 +506,7 @@ export class GitHubStarService {
         ? monthlyData.reduce((prev, current) => prev.count > current.count ? prev : current).date
         : '';
 
-      this.log.info('[统计服务] 统计分析完成', {
+      this.log.debug('[统计服务] 统计分析完成', {
         total: totalRepos,
         languageCount: Object.keys(languages).length,
         topicCount: Object.keys(topics).length
