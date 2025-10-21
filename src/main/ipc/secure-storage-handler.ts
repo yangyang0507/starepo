@@ -1,4 +1,5 @@
 import { ipcMain } from "electron";
+import { IPC_CHANNELS } from "@shared/constants/ipc-channels";
 import {
   secureStorageService,
   githubTokenStorage,
@@ -7,34 +8,10 @@ import { getLogger } from "../utils/logger";
 
 const secureStorageLogger = getLogger("ipc:secure-storage");
 
-// 安全存储相关的 IPC 通道
-export const SECURE_STORAGE_CHANNELS = {
-  // GitHub Token 相关
-  SAVE_GITHUB_TOKEN: "secure-storage:save-github-token",
-  GET_GITHUB_TOKEN: "secure-storage:get-github-token",
-  SAVE_USER_INFO: "secure-storage:save-user-info",
-  GET_USER_INFO: "secure-storage:get-user-info",
-  GET_AUTH_METHOD: "secure-storage:get-auth-method",
-  HAS_VALID_AUTH: "secure-storage:has-valid-auth",
-  CLEAR_AUTH: "secure-storage:clear-auth",
-
-  // 通用安全存储
-  SET_ITEM: "secure-storage:set-item",
-  GET_ITEM: "secure-storage:get-item",
-  REMOVE_ITEM: "secure-storage:remove-item",
-  HAS_ITEM: "secure-storage:has-item",
-  GET_ALL_KEYS: "secure-storage:get-all-keys",
-  CLEAR_ALL: "secure-storage:clear-all",
-  GET_STATS: "secure-storage:get-stats",
-
-  // 系统检查
-  IS_ENCRYPTION_AVAILABLE: "secure-storage:is-encryption-available",
-} as const;
-
 export function registerSecureStorageHandlers(): void {
   // GitHub Token 相关处理器
   ipcMain.handle(
-    SECURE_STORAGE_CHANNELS.SAVE_GITHUB_TOKEN,
+    IPC_CHANNELS.SECURE_STORAGE.SAVE_GITHUB_TOKEN,
     async (event, token: string, authMethod: "token") => {
       try {
         await githubTokenStorage.saveToken(token, authMethod);
@@ -49,7 +26,7 @@ export function registerSecureStorageHandlers(): void {
     },
   );
 
-  ipcMain.handle(SECURE_STORAGE_CHANNELS.GET_GITHUB_TOKEN, async () => {
+  ipcMain.handle(IPC_CHANNELS.SECURE_STORAGE.GET_GITHUB_TOKEN, async () => {
     try {
       const token = await githubTokenStorage.getToken();
       return { success: true, data: token };
@@ -63,7 +40,7 @@ export function registerSecureStorageHandlers(): void {
   });
 
   ipcMain.handle(
-    SECURE_STORAGE_CHANNELS.SAVE_USER_INFO,
+    IPC_CHANNELS.SECURE_STORAGE.SAVE_USER_INFO,
     async (event, userInfo: import("@shared/types").GitHubUser) => {
       try {
         await githubTokenStorage.saveUserInfo(userInfo);
@@ -78,7 +55,7 @@ export function registerSecureStorageHandlers(): void {
     },
   );
 
-  ipcMain.handle(SECURE_STORAGE_CHANNELS.GET_USER_INFO, async () => {
+  ipcMain.handle(IPC_CHANNELS.SECURE_STORAGE.GET_USER_INFO, async () => {
     try {
       const userInfo = await githubTokenStorage.getUserInfo();
       return { success: true, data: userInfo };
@@ -91,7 +68,7 @@ export function registerSecureStorageHandlers(): void {
     }
   });
 
-  ipcMain.handle(SECURE_STORAGE_CHANNELS.GET_AUTH_METHOD, async () => {
+  ipcMain.handle(IPC_CHANNELS.SECURE_STORAGE.GET_AUTH_METHOD, async () => {
     try {
       const authMethod = await githubTokenStorage.getAuthMethod();
       return { success: true, data: authMethod };
@@ -104,7 +81,7 @@ export function registerSecureStorageHandlers(): void {
     }
   });
 
-  ipcMain.handle(SECURE_STORAGE_CHANNELS.HAS_VALID_AUTH, async () => {
+  ipcMain.handle(IPC_CHANNELS.SECURE_STORAGE.HAS_VALID_AUTH, async () => {
     try {
       const hasAuth = await githubTokenStorage.hasValidAuth();
       return { success: true, data: hasAuth };
@@ -117,7 +94,7 @@ export function registerSecureStorageHandlers(): void {
     }
   });
 
-  ipcMain.handle(SECURE_STORAGE_CHANNELS.CLEAR_AUTH, async () => {
+  ipcMain.handle(IPC_CHANNELS.SECURE_STORAGE.CLEAR_AUTH, async () => {
     try {
       await githubTokenStorage.clearAuth();
       return { success: true };
@@ -132,7 +109,7 @@ export function registerSecureStorageHandlers(): void {
 
   // 通用安全存储处理器
   ipcMain.handle(
-    SECURE_STORAGE_CHANNELS.SET_ITEM,
+    IPC_CHANNELS.SECURE_STORAGE.SET_ITEM,
     async (event, key: string, value: string, expiresIn?: number) => {
       try {
         await secureStorageService.setItem(key, value, expiresIn);
@@ -148,7 +125,7 @@ export function registerSecureStorageHandlers(): void {
   );
 
   ipcMain.handle(
-    SECURE_STORAGE_CHANNELS.GET_ITEM,
+    IPC_CHANNELS.SECURE_STORAGE.GET_ITEM,
     async (event, key: string) => {
       try {
         const value = await secureStorageService.getItem(key);
@@ -164,7 +141,7 @@ export function registerSecureStorageHandlers(): void {
   );
 
   ipcMain.handle(
-    SECURE_STORAGE_CHANNELS.REMOVE_ITEM,
+    IPC_CHANNELS.SECURE_STORAGE.REMOVE_ITEM,
     async (event, key: string) => {
       try {
         await secureStorageService.removeItem(key);
@@ -180,7 +157,7 @@ export function registerSecureStorageHandlers(): void {
   );
 
   ipcMain.handle(
-    SECURE_STORAGE_CHANNELS.HAS_ITEM,
+    IPC_CHANNELS.SECURE_STORAGE.HAS_ITEM,
     async (event, key: string) => {
       try {
         const hasItem = await secureStorageService.hasItem(key);
@@ -195,7 +172,7 @@ export function registerSecureStorageHandlers(): void {
     },
   );
 
-  ipcMain.handle(SECURE_STORAGE_CHANNELS.GET_ALL_KEYS, async () => {
+  ipcMain.handle(IPC_CHANNELS.SECURE_STORAGE.GET_ALL_KEYS, async () => {
     try {
       const keys = await secureStorageService.getAllKeys();
       return { success: true, data: keys };
@@ -208,7 +185,7 @@ export function registerSecureStorageHandlers(): void {
     }
   });
 
-  ipcMain.handle(SECURE_STORAGE_CHANNELS.CLEAR_ALL, async () => {
+  ipcMain.handle(IPC_CHANNELS.SECURE_STORAGE.CLEAR_ALL, async () => {
     try {
       await secureStorageService.clear();
       return { success: true };
@@ -221,7 +198,7 @@ export function registerSecureStorageHandlers(): void {
     }
   });
 
-  ipcMain.handle(SECURE_STORAGE_CHANNELS.GET_STATS, async () => {
+  ipcMain.handle(IPC_CHANNELS.SECURE_STORAGE.GET_STATS, async () => {
     try {
       const stats = await secureStorageService.getStorageStats();
       return { success: true, data: stats };
@@ -235,7 +212,7 @@ export function registerSecureStorageHandlers(): void {
   });
 
   // 系统检查
-  ipcMain.handle(SECURE_STORAGE_CHANNELS.IS_ENCRYPTION_AVAILABLE, async () => {
+  ipcMain.handle(IPC_CHANNELS.SECURE_STORAGE.IS_ENCRYPTION_AVAILABLE, async () => {
     try {
       const { safeStorage } = await import("electron");
       const isAvailable =
@@ -257,7 +234,7 @@ export function registerSecureStorageHandlers(): void {
 
 // 清理处理器
 export function cleanupSecureStorageHandlers(): void {
-  Object.values(SECURE_STORAGE_CHANNELS).forEach((channel) => {
+  Object.values(IPC_CHANNELS.SECURE_STORAGE).forEach((channel) => {
     ipcMain.removeAllListeners(channel);
   });
   secureStorageLogger.info("安全存储 IPC 处理器已清理");

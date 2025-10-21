@@ -225,78 +225,54 @@ const githubAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.GITHUB.SYNC_REPOSITORIES_TO_DATABASE, repositories),
 };
 
-// 安全存储通道常量
-const SECURE_STORAGE_CHANNELS = {
-  // GitHub Token 相关
-  SAVE_GITHUB_TOKEN: "secure-storage:save-github-token",
-  GET_GITHUB_TOKEN: "secure-storage:get-github-token",
-  SAVE_USER_INFO: "secure-storage:save-user-info",
-  GET_USER_INFO: "secure-storage:get-user-info",
-  GET_AUTH_METHOD: "secure-storage:get-auth-method",
-  HAS_VALID_AUTH: "secure-storage:has-valid-auth",
-  CLEAR_AUTH: "secure-storage:clear-auth",
-
-  // 通用安全存储
-  SET_ITEM: "secure-storage:set-item",
-  GET_ITEM: "secure-storage:get-item",
-  REMOVE_ITEM: "secure-storage:remove-item",
-  HAS_ITEM: "secure-storage:has-item",
-  GET_ALL_KEYS: "secure-storage:get-all-keys",
-  CLEAR_ALL: "secure-storage:clear-all",
-  GET_STATS: "secure-storage:get-stats",
-
-  // 系统检查
-  IS_ENCRYPTION_AVAILABLE: "secure-storage:is-encryption-available",
-} as const;
-
 // 安全存储 API
 const secureStorageAPI = {
   // GitHub Token 相关
   saveGitHubToken: (token: string, authMethod: "token") =>
     ipcRenderer.invoke(
-      SECURE_STORAGE_CHANNELS.SAVE_GITHUB_TOKEN,
+      IPC_CHANNELS.SECURE_STORAGE.SAVE_GITHUB_TOKEN,
       token,
       authMethod,
     ),
 
   getGitHubToken: () =>
-    ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.GET_GITHUB_TOKEN),
+    ipcRenderer.invoke(IPC_CHANNELS.SECURE_STORAGE.GET_GITHUB_TOKEN),
 
   saveUserInfo: (userInfo: import("@shared/types").GitHubUser) =>
-    ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.SAVE_USER_INFO, userInfo),
+    ipcRenderer.invoke(IPC_CHANNELS.SECURE_STORAGE.SAVE_USER_INFO, userInfo),
 
-  getUserInfo: () => ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.GET_USER_INFO),
+  getUserInfo: () => ipcRenderer.invoke(IPC_CHANNELS.SECURE_STORAGE.GET_USER_INFO),
 
   getAuthMethod: () =>
-    ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.GET_AUTH_METHOD),
+    ipcRenderer.invoke(IPC_CHANNELS.SECURE_STORAGE.GET_AUTH_METHOD),
 
   hasValidAuth: () =>
-    ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.HAS_VALID_AUTH),
+    ipcRenderer.invoke(IPC_CHANNELS.SECURE_STORAGE.HAS_VALID_AUTH),
 
-  clearAuth: () => ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.CLEAR_AUTH),
+  clearAuth: () => ipcRenderer.invoke(IPC_CHANNELS.SECURE_STORAGE.CLEAR_AUTH),
 
   // 通用安全存储
   setItem: (key: string, value: string, expiresIn?: number) =>
-    ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.SET_ITEM, key, value, expiresIn),
+    ipcRenderer.invoke(IPC_CHANNELS.SECURE_STORAGE.SET_ITEM, key, value, expiresIn),
 
   getItem: (key: string) =>
-    ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.GET_ITEM, key),
+    ipcRenderer.invoke(IPC_CHANNELS.SECURE_STORAGE.GET_ITEM, key),
 
   removeItem: (key: string) =>
-    ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.REMOVE_ITEM, key),
+    ipcRenderer.invoke(IPC_CHANNELS.SECURE_STORAGE.REMOVE_ITEM, key),
 
   hasItem: (key: string) =>
-    ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.HAS_ITEM, key),
+    ipcRenderer.invoke(IPC_CHANNELS.SECURE_STORAGE.HAS_ITEM, key),
 
-  getAllKeys: () => ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.GET_ALL_KEYS),
+  getAllKeys: () => ipcRenderer.invoke(IPC_CHANNELS.SECURE_STORAGE.GET_ALL_KEYS),
 
-  clearAll: () => ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.CLEAR_ALL),
+  clearAll: () => ipcRenderer.invoke(IPC_CHANNELS.SECURE_STORAGE.CLEAR_ALL),
 
-  getStats: () => ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.GET_STATS),
+  getStats: () => ipcRenderer.invoke(IPC_CHANNELS.SECURE_STORAGE.GET_STATS),
 
   // 系统检查
   isEncryptionAvailable: () =>
-    ipcRenderer.invoke(SECURE_STORAGE_CHANNELS.IS_ENCRYPTION_AVAILABLE),
+    ipcRenderer.invoke(IPC_CHANNELS.SECURE_STORAGE.IS_ENCRYPTION_AVAILABLE),
 };
 
 const databaseAPI = {
@@ -344,11 +320,11 @@ const aiAPI = {
 // Shell API - 用于打开外部链接
 const shellAPI = {
   openExternal: (url: string): Promise<APIResponse> =>
-    ipcRenderer.invoke("shell:openExternal", url),
+    ipcRenderer.invoke(IPC_CHANNELS.SHELL.OPEN_EXTERNAL, url),
   openPath: (path: string): Promise<APIResponse<string>> =>
-    ipcRenderer.invoke("shell:openPath", path),
+    ipcRenderer.invoke(IPC_CHANNELS.SHELL.OPEN_PATH, path),
   showItemInFolder: (fullPath: string): Promise<APIResponse> =>
-    ipcRenderer.invoke("shell:showItemInFolder", fullPath),
+    ipcRenderer.invoke(IPC_CHANNELS.SHELL.SHOW_ITEM_IN_FOLDER, fullPath),
 };
 
 // 通用的IPC调用方法（用于新的认证API）

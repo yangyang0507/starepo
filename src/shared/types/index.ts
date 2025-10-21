@@ -1,168 +1,112 @@
 /**
- * 共享类型定义
- * 主进程和渲染进程都可以使用的类型
+ * 共享类型定义 - 导出聚合
+ *
+ * 此文件作为类型定义的统一导出入口,按功能模块组织导出
  */
 
-// 主题相关类型
-export type ThemeMode = "light" | "dark" | "system";
+// ============================================================
+// 通用类型
+// ============================================================
+export type {
+  APIResponse,
+  AppError,
+  LogLevel,
+  Language,
+  ThemeMode,
+} from "./common";
 
-// 语言相关类型
-export type Language = "en" | "zh-CN";
+// ============================================================
+// 应用设置
+// ============================================================
+export type { AppSettings } from "./app-settings";
 
-// 窗口状态类型
-export interface WindowState {
-  isMaximized: boolean;
-  isFullscreen: boolean;
-  isMinimized: boolean;
-  bounds: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
-}
+// ============================================================
+// 窗口管理
+// ============================================================
+export type { WindowState } from "./window";
 
-export type LogLevel = "debug" | "info" | "warn" | "error";
+// ============================================================
+// GitHub 相关(实体 + API)
+// ============================================================
+export type {
+  // GitHub 实体
+  GitHubUser,
+  GitHubRepositoryOwner,
+  GitHubLicense,
+  GitHubRepository,
+  GitHubRepositorySimple,
+  GitHubError,
+  // GitHub API 选项
+  GitHubPaginationOptions,
+  GitHubSearchOptions,
+  RepositorySyncFilters,
+  BatchRepositoryOperation,
+} from "./github";
 
-// 应用设置类型
-export interface AppSettings {
-  theme: ThemeMode;
-  language: Language;
-  developerMode: boolean;
-  logLevel: LogLevel;
-  autoSyncEnabled: boolean;
-  autoSyncIntervalMinutes: number;
-  updatedAt: string;
-}
+// ============================================================
+// 认证
+// ============================================================
+export type {
+  GitHubUser as AuthGitHubUser, // 重导出以保持兼容性
+  AuthState,
+  TokenInfo,
+  RateLimitInfo,
+  TokenValidationResult,
+  AuthError,
+  AuthStore,
+  AuthenticateWithTokenRequest,
+  AuthenticateWithTokenResponse,
+  GetAuthStateRequest,
+  GetAuthStateResponse,
+  RefreshAuthRequest,
+  RefreshAuthResponse,
+  ClearAuthRequest,
+  ClearAuthResponse,
+  ValidateTokenRequest,
+  ValidateTokenResponse,
+  AuthErrorCode,
+  AuthIpcChannel,
+  AuthStateTransition,
+  AuthStoreConfig,
+  LegacyAuthContextType,
+} from "./auth";
 
-// GitHub 相关类型
-export interface GitHubUser {
-  id: number;
-  login: string;
-  name: string | null;
-  html_url: string;
-  avatar_url: string;
-  email: string | null;
-  bio?: string | null;
-  blog?: string | null;
-  company?: string | null;
-  location?: string | null;
-  public_repos: number;
-  public_gists: number;
-  followers: number;
-  following: number;
-  created_at: string;
-  updated_at: string;
-}
+export {
+  AUTH_IPC_CHANNELS,
+  AUTH_ERROR_CODES,
+  DEFAULT_AUTH_STORE_CONFIG,
+} from "./auth";
 
-// GitHub 认证相关类型
-export interface GitHubAuthInfo {
-  token: string;
-  authMethod: "token";
-  user: GitHubUser;
-  scopes?: string[];
-  expiresAt?: number;
-}
+// ============================================================
+// AI 功能
+// ============================================================
+export type {
+  AIProvider,
+  ChatRole,
+  ChatMessage,
+  RepositoryReference,
+  AISettings,
+  AISafeSettings,
+  AIResponse,
+  EmbeddingConfig,
+  VectorSearchResult,
+  IPCRequest,
+  IPCResponse,
+  AIChatPayload,
+  AISettingsPayload,
+  AITestConnectionPayload,
+  ChatContext,
+  APIUsageStats,
+  EmbeddingCacheEntry,
+  LLMModelConfig,
+  EmbeddingModelConfig,
+} from "./ai";
 
-export interface AuthState {
-  isAuthenticated: boolean;
-  authMethod?: "token";
-  user?: GitHubUser;
-  token?: string;
-  scopes?: string[];
-  expiresAt?: Date;
-}
+export { AIError, AIErrorCode, PREDEFINED_MODELS, PREDEFINED_EMBEDDING_MODELS } from "./ai";
 
-// 认证步骤类型
-export type AuthStep = "selector" | "token" | "success";
-
-
-// 安全存储相关类型
-export interface SecureStorageItem {
-  key: string;
-  value: string;
-  createdAt: number;
-  updatedAt: number;
-  expiresAt?: number;
-}
-
-export interface StorageMetadata {
-  version: string;
-  createdAt: number;
-  lastAccessed: number;
-}
-
-export interface GitHubRepo {
-  id: number;
-  name: string;
-  full_name: string;
-  description: string | null;
-  html_url: string;
-  stargazers_count: number;
-  language: string | null;
-  topics: string[];
-  updated_at: string;
-  created_at: string;
-}
-
-export interface GitHubRepository {
-  id: number;
-  name: string;
-  full_name: string;
-  description: string | null;
-  html_url: string;
-  clone_url: string;
-  ssh_url: string;
-  homepage: string | null;
-  language: string | null;
-  stargazers_count: number;
-  watchers_count: number;
-  forks_count: number;
-  open_issues_count: number;
-  created_at: string | null;
-  updated_at: string | null;
-  pushed_at: string;
-  size: number;
-  default_branch: string;
-  topics: string[];
-  archived: boolean;
-  disabled: boolean;
-  private: boolean;
-  fork: boolean;
-  owner: {
-    id: number;
-    login: string;
-    avatar_url: string;
-  };
-  license?: {
-    key: string;
-    name: string;
-    spdx_id: string;
-    url: string;
-  };
-}
-
-// 数据库相关类型 (未来功能)
-export interface SearchResult<T = GitHubRepo> {
-  items: T[];
-  totalCount: number;
-  query?: string;
-  scores?: number[];
-  page?: number;
-  pageSize?: number;
-  offset?: number;
-  hasMore?: boolean;
-  nextOffset?: number;
-  cached?: boolean;
-}
-
-// Re-export GitHub API 相关类型
-export * from "./github-api";
-
-// Re-export AI 相关类型
-export * from "./ai";
-
-// ChatConversation 相关类型
+// ============================================================
+// 聊天会话
+// ============================================================
 export interface ChatConversation {
   id: string;
   title: string;
@@ -171,53 +115,37 @@ export interface ChatConversation {
   updated_at: number;
 }
 
-// API 响应类型
-export interface APIResponse<T = unknown> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  message?: string;
-}
+// ============================================================
+// 存储
+// ============================================================
+export type { SecureStorageItem, StorageMetadata } from "./storage";
 
-// 错误类型
-export interface AppError {
-  code: string;
-  message: string;
-  details?: Record<string, unknown>;
-}
+// ============================================================
+// 搜索
+// ============================================================
+export type { SearchResult, SearchHistoryItem } from "./search";
 
-export interface GitHubError {
-  message: string;
-  status?: number;
-  code?: string;
-  documentation_url?: string;
-}
+// ============================================================
+// UI 相关
+// ============================================================
+export type { FilterOptions, ViewOptions, AuthStep } from "./ui";
 
-// UI 相关类型
-export interface FilterOptions {
-  search?: string;
-  language?: string;
-  topic?: string;
-  minStars?: number;
-  maxStars?: number;
-  sortBy?: "name" | "stars" | "updated" | "created";
-  sortOrder?: "asc" | "desc";
-  showArchived?: boolean;
-  showForks?: boolean;
-}
+// ============================================================
+// 向后兼容的别名 (Deprecated - 建议使用新的类型名)
+// ============================================================
 
-export interface ViewOptions {
-  layout: "grid" | "list";
-  itemsPerPage: number;
-  showDescription: boolean;
-  showLanguage: boolean;
-  showStats: boolean;
-  showTopics: boolean;
-}
+/**
+ * @deprecated 使用 GitHubRepositorySimple 替代
+ */
+export type GitHubRepo = import("./github").GitHubRepositorySimple;
 
-export interface SearchHistoryItem {
-  id: string;
-  query: string;
-  timestamp: number;
-  resultsCount: number;
+/**
+ * @deprecated 使用 GitHubAuthInfo 从 auth 模块导入
+ */
+export interface GitHubAuthInfo {
+  token: string;
+  authMethod: "token";
+  user: import("./github").GitHubUser;
+  scopes?: string[];
+  expiresAt?: number;
 }

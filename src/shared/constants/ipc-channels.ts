@@ -110,6 +110,37 @@ export const IPC_CHANNELS = {
     RESET_SETTINGS: "settings:resetSettings",
     CLEAR_CACHE: "settings:clearCache",
   },
+
+  // 安全存储
+  SECURE_STORAGE: {
+    // GitHub Token 相关
+    SAVE_GITHUB_TOKEN: "secure-storage:save-github-token",
+    GET_GITHUB_TOKEN: "secure-storage:get-github-token",
+    SAVE_USER_INFO: "secure-storage:save-user-info",
+    GET_USER_INFO: "secure-storage:get-user-info",
+    GET_AUTH_METHOD: "secure-storage:get-auth-method",
+    HAS_VALID_AUTH: "secure-storage:has-valid-auth",
+    CLEAR_AUTH: "secure-storage:clear-auth",
+
+    // 通用安全存储
+    SET_ITEM: "secure-storage:set-item",
+    GET_ITEM: "secure-storage:get-item",
+    REMOVE_ITEM: "secure-storage:remove-item",
+    HAS_ITEM: "secure-storage:has-item",
+    GET_ALL_KEYS: "secure-storage:get-all-keys",
+    CLEAR_ALL: "secure-storage:clear-all",
+    GET_STATS: "secure-storage:get-stats",
+
+    // 系统检查
+    IS_ENCRYPTION_AVAILABLE: "secure-storage:is-encryption-available",
+  },
+
+  // Shell 操作
+  SHELL: {
+    OPEN_EXTERNAL: "shell:openExternal",
+    OPEN_PATH: "shell:openPath",
+    SHOW_ITEM_IN_FOLDER: "shell:showItemInFolder",
+  },
 } as const;
 
 // 提取所有通道名称的类型
@@ -121,9 +152,11 @@ export type IPCChannelName =
   | (typeof IPC_CHANNELS.GITHUB)[keyof typeof IPC_CHANNELS.GITHUB]
   | (typeof IPC_CHANNELS.DATABASE)[keyof typeof IPC_CHANNELS.DATABASE]
   | (typeof IPC_CHANNELS.AI)[keyof typeof IPC_CHANNELS.AI]
-  | (typeof IPC_CHANNELS.SETTINGS)[keyof typeof IPC_CHANNELS.SETTINGS];
+  | (typeof IPC_CHANNELS.SETTINGS)[keyof typeof IPC_CHANNELS.SETTINGS]
+  | (typeof IPC_CHANNELS.SECURE_STORAGE)[keyof typeof IPC_CHANNELS.SECURE_STORAGE]
+  | (typeof IPC_CHANNELS.SHELL)[keyof typeof IPC_CHANNELS.SHELL];
 
-// 为了方便使用，也可以单独导出各个模块
+// 为了方便使用,也可以单独导出各个模块
 export const WINDOW_CHANNELS = IPC_CHANNELS.WINDOW;
 export const THEME_CHANNELS = IPC_CHANNELS.THEME;
 export const LANGUAGE_CHANNELS = IPC_CHANNELS.LANGUAGE;
@@ -132,3 +165,5 @@ export const GITHUB_CHANNELS = IPC_CHANNELS.GITHUB;
 export const DATABASE_CHANNELS = IPC_CHANNELS.DATABASE;
 export const AI_CHANNELS = IPC_CHANNELS.AI;
 export const SETTINGS_CHANNELS = IPC_CHANNELS.SETTINGS;
+export const SECURE_STORAGE_CHANNELS = IPC_CHANNELS.SECURE_STORAGE;
+export const SHELL_CHANNELS = IPC_CHANNELS.SHELL;

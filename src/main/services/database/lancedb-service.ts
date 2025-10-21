@@ -494,6 +494,7 @@ export class LanceDBService {
       html_url: record.html_url,
       clone_url: record.html_url.replace('github.com', 'github.com') + '.git',
       ssh_url: `git@github.com:${record.full_name}.git`,
+      homepage: null, // 默认值
       language: record.language || null,
       stargazers_count: record.stargazers_count,
       watchers_count: record.stargazers_count, // 假设相等

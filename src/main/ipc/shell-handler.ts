@@ -1,5 +1,6 @@
 import { ipcMain, shell } from "electron";
 import type { APIResponse } from "@shared/types";
+import { IPC_CHANNELS } from "@shared/constants/ipc-channels";
 import { getLogger } from "../utils/logger";
 
 const shellLogger = getLogger("ipc:shell");
@@ -11,7 +12,7 @@ const shellLogger = getLogger("ipc:shell");
 
 export function registerShellHandlers(): void {
   // 打开外部链接
-  ipcMain.handle("shell:openExternal", async (_, url: string): Promise<APIResponse> => {
+  ipcMain.handle(IPC_CHANNELS.SHELL.OPEN_EXTERNAL, async (_, url: string): Promise<APIResponse> => {
     try {
       // 验证 URL 格式
       const urlObj = new URL(url);
@@ -37,7 +38,7 @@ export function registerShellHandlers(): void {
   });
 
   // 打开文件路径
-  ipcMain.handle("shell:openPath", async (_, path: string): Promise<APIResponse<string>> => {
+  ipcMain.handle(IPC_CHANNELS.SHELL.OPEN_PATH, async (_, path: string): Promise<APIResponse<string>> => {
     try {
       const result = await shell.openPath(path);
       return { success: true, data: result };
@@ -51,7 +52,7 @@ export function registerShellHandlers(): void {
   });
 
   // 在文件夹中显示文件
-  ipcMain.handle("shell:showItemInFolder", async (_, fullPath: string): Promise<APIResponse> => {
+  ipcMain.handle(IPC_CHANNELS.SHELL.SHOW_ITEM_IN_FOLDER, async (_, fullPath: string): Promise<APIResponse> => {
     try {
       shell.showItemInFolder(fullPath);
       return { success: true };

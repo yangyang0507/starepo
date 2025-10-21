@@ -3,11 +3,17 @@
  * 基于data-model.md设计文档
  */
 
-// 导入共享的 GitHubUser 类型
-import type { GitHubUser } from './index';
+// 导入 GitHub 用户类型
+import type { GitHubUser } from "./github";
+
+/**
+ * Re-export GitHubUser for backward compatibility
+ */
 export type { GitHubUser };
 
-// 核心认证状态类型
+/**
+ * 核心认证状态类型
+ */
 export interface AuthState {
   isAuthenticated: boolean;
   user?: GitHubUser;
@@ -16,16 +22,20 @@ export interface AuthState {
   expiresAt?: Date;
 }
 
-// Token信息类型
+/**
+ * Token 信息类型
+ */
 export interface TokenInfo {
   scopes: string[];
-  tokenType: 'personal' | 'app';
+  tokenType: "personal" | "app";
   createdAt: Date;
   lastUsed: Date;
   rateLimit?: RateLimitInfo;
 }
 
-// 速率限制信息类型
+/**
+ * 速率限制信息类型
+ */
 export interface RateLimitInfo {
   limit: number;
   remaining: number;
@@ -33,7 +43,9 @@ export interface RateLimitInfo {
   used: number;
 }
 
-// Token验证结果类型
+/**
+ * Token 验证结果类型
+ */
 export interface TokenValidationResult {
   valid: boolean;
   user?: GitHubUser;
@@ -41,16 +53,20 @@ export interface TokenValidationResult {
   error?: string;
 }
 
-// 认证错误类型
+/**
+ * 认证错误类型
+ */
 export interface AuthError {
   code: string;
   message: string;
   timestamp: Date;
   recoverable: boolean;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
-// Zustand认证状态存储接口
+/**
+ * Zustand 认证状态存储接口
+ */
 export interface AuthStore {
   authState: AuthState;
   isLoading: boolean;
@@ -69,7 +85,9 @@ export interface AuthStore {
   _setError?: (error: AuthError | null) => void;
 }
 
-// IPC通信类型定义
+/**
+ * IPC 通信类型定义
+ */
 export interface AuthenticateWithTokenRequest {
   token: string;
 }

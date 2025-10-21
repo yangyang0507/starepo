@@ -3,10 +3,11 @@
  * 封装GitHub相关功能（包含认证和仓库管理）
  */
 
-import type { 
-  GitHubRepository, 
-  GitHubPaginationOptions, 
-  GitHubSearchOptions 
+import type {
+  GitHubRepository,
+  GitHubPaginationOptions,
+  GitHubSearchOptions,
+  AuthState
 } from "@shared/types";
 import { deserializeDates } from "@/utils/serialization";
 
