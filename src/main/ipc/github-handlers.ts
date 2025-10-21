@@ -511,5 +511,5 @@ export function registerGitHubHandlers(): void {
     }
   );
 
-  githubLogger.info("GitHub IPC 处理器已注册（包含向量数据库功能）");
+  githubLogger.debug("GitHub IPC 处理器已注册（包含向量数据库功能）");
 }

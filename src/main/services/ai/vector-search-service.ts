@@ -26,7 +26,7 @@ export class VectorSearchService {
       // TODO: 与 LanceDB 连接
       // 这里应该连接到现有的 LanceDB 实例
       this.isInitialized = true;
-      logger.info("Vector search service initialized");
+      logger.debug("Vector search service initialized");
     } catch (error) {
       logger.error("Failed to initialize vector search service:", error);
       throw new AIError(
@@ -200,6 +200,6 @@ export class VectorSearchService {
   async close(): Promise<void> {
     // TODO: 关闭 LanceDB 连接
     this.isInitialized = false;
-    logger.info("Vector search service closed");
+    logger.debug("Vector search service closed");
   }
 }

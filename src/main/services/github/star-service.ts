@@ -396,7 +396,7 @@ export class GitHubStarService {
 
         // 如果数据库中数据较少，尝试从API获取全部数据
         if (repositories.length < 1000) {
-          this.log.info('[统计服务] 数据库数据较少，准备从 GitHub API 获取完整数据');
+          this.log.debug('[统计服务] 数据库数据较少，准备从 GitHub API 获取完整数据');
           const apiResult = await this.getAllStarredRepositories({
             batchSize: 100,
           });
@@ -405,7 +405,7 @@ export class GitHubStarService {
           // 同步到数据库以便后续使用
           try {
             await this.syncRepositoriesToDatabase(repositories);
-            this.log.info('[统计服务] 已将仓库数据同步到向量数据库', { count: repositories.length });
+            this.log.debug('[统计服务] 已将仓库数据同步到向量数据库', { count: repositories.length });
           } catch (syncError) {
             this.log.warn('[统计服务] 同步到向量数据库失败', syncError);
           }
@@ -417,13 +417,13 @@ export class GitHubStarService {
           batchSize: 100,
         });
         repositories = apiResult.repositories as GitHubRepository[];
-        this.log.info('[统计服务] 从 GitHub API 获取仓库数据', { count: repositories.length });
+        this.log.debug('[统计服务] 从 GitHub API 获取仓库数据', { count: repositories.length });
         
         // 尝试将API数据同步到数据库
         try {
           await this.initializeDatabase();
           await this.syncRepositoriesToDatabase(repositories);
-          this.log.info('[统计服务] 已将仓库数据同步到向量数据库', { count: repositories.length });
+          this.log.debug('[统计服务] 已将仓库数据同步到向量数据库', { count: repositories.length });
         } catch (syncError) {
           this.log.warn('[统计服务] 同步到向量数据库失败', syncError);
         }
@@ -697,7 +697,7 @@ export class GitHubStarService {
   async syncRepositoriesToDatabase(repositories: GitHubRepository[]): Promise<void> {
     try {
       await lancedbService.upsertRepositories(repositories);
-      this.log.info('已同步仓库到向量数据库', { count: repositories.length });
+      this.log.debug('已同步仓库到向量数据库', { count: repositories.length });
       lancedbSearchService.clearCache();
     } catch (error) {
       this.log.error('同步仓库到数据库失败', error);
@@ -891,7 +891,7 @@ export class GitHubStarService {
       await lancedbService.initialize();
       await lancedbService.reset();
       lancedbSearchService.clearCache();
-      this.log.info('已清理本地缓存数据');
+      this.log.debug('已清理本地缓存数据');
     } catch (error) {
       this.log.error('清理缓存失败', error);
       throw error;

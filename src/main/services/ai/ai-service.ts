@@ -49,7 +49,7 @@ export class AIService {
       });
       await this.vectorSearchService.initialize();
 
-      logger.info("AI service initialized with provider:", settings.provider);
+      logger.debug("AI service initialized with provider:", settings.provider);
     } catch (error) {
       logger.error("Failed to initialize AI service:", error);
       throw error;
@@ -385,7 +385,7 @@ ${index + 1}. ${repo.repositoryName} (${repo.owner})
       });
 
       if (response.ok) {
-        logger.info("OpenAI connection test successful");
+        logger.debug("OpenAI connection test successful");
         return true;
       } else if (response.status === 401) {
         throw new AIError(AIErrorCode.INVALID_API_KEY, "Invalid API Key");
@@ -426,7 +426,7 @@ ${index + 1}. ${repo.repositoryName} (${repo.owner})
       }
     }
 
-    logger.info("AI service settings updated");
+    logger.debug("AI service settings updated");
   }
 
   /**
@@ -446,6 +446,6 @@ ${index + 1}. ${repo.repositoryName} (${repo.owner})
     this.embeddingService = null;
     this.vectorSearchService = null;
     this.conversationHistory.clear();
-    logger.info("AI service closed");
+    logger.debug("AI service closed");
   }
 }

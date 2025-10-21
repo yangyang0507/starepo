@@ -229,7 +229,7 @@ export function registerSecureStorageHandlers(): void {
     }
   });
 
-  secureStorageLogger.info("安全存储 IPC 处理器已设置");
+  secureStorageLogger.debug("安全存储 IPC 处理器已设置");
 }
 
 // 清理处理器
@@ -237,5 +237,5 @@ export function cleanupSecureStorageHandlers(): void {
   Object.values(IPC_CHANNELS.SECURE_STORAGE).forEach((channel) => {
     ipcMain.removeAllListeners(channel);
   });
-  secureStorageLogger.info("安全存储 IPC 处理器已清理");
+  secureStorageLogger.debug("安全存储 IPC 处理器已清理");
 }

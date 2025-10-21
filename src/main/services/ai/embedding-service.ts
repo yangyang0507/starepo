@@ -226,7 +226,7 @@ export class EmbeddingService {
    */
   clearCache(): void {
     this.cache.clear();
-    logger.info("Embedding cache cleared");
+    logger.debug("Embedding cache cleared");
   }
 
   /**

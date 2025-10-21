@@ -113,7 +113,7 @@ function registerAIHandlers(): void {
     // 设置 AI 服务实例
     setAIService(aiService);
 
-    aiLogger.info('AI IPC 处理器已成功注册');
+    aiLogger.debug('AI IPC 处理器已成功注册');
   } catch (error) {
     aiLogger.error('AI IPC 处理器初始化失败:', error);
   }

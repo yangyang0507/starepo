@@ -15,7 +15,7 @@ async function createApplication(): Promise<void> {
   // 初始化认证服务，尝试从存储恢复认证状态
   try {
     await enhancedGitHubAuthService.initialize();
-    appLogger.info("认证服务初始化完成");
+    appLogger.debug("认证服务初始化完成");
   } catch (error) {
     appLogger.warn("认证服务初始化失败，但不影响应用启动", error);
   }

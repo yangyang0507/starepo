@@ -162,7 +162,7 @@ export function registerAuthIPCHandlers(): void {
     }
   );
 
-  authLogger.info('Enhanced Auth IPC handlers registered');
+  authLogger.debug('Enhanced Auth IPC handlers registered');
 }
 
 /**
@@ -175,5 +175,5 @@ export function unregisterAuthIPCHandlers(): void {
   ipcMain.removeHandler(AUTH_IPC_CHANNELS.VALIDATE_TOKEN);
   ipcMain.removeHandler(AUTH_IPC_CHANNELS.CLEAR_AUTH);
 
-  authLogger.info('Enhanced Auth IPC handlers unregistered');
+  authLogger.debug('Enhanced Auth IPC handlers unregistered');
 }

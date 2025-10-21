@@ -193,7 +193,7 @@ export class EnhancedGitHubAuthService {
           userAgent: 'Starepo/1.0.0',
           timeout: 10000,
         });
-        this.log.info('octokitManager 已同步认证状态');
+        this.log.debug('octokitManager 已同步认证状态');
       } catch (octokitError) {
         this.log.warn('octokitManager 初始化失败，但不影响主认证流程', octokitError);
       }

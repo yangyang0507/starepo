@@ -37,13 +37,13 @@ export class LanceDBService {
     try {
       // 连接到 LanceDB
       this.db = await lancedb.connect(this.dbPath);
-      this.log.info('LanceDB 连接成功', { path: this.dbPath });
+      this.log.debug('LanceDB 连接成功', { path: this.dbPath });
 
       // 初始化表（如果不存在则创建）
       await this.initializeTables();
 
       this.initialized = true;
-      this.log.info('LanceDB 服务初始化成功');
+      this.log.debug('LanceDB 服务初始化成功');
     } catch (error) {
       this.log.error('LanceDB 服务初始化失败', error);
       throw error;
@@ -110,7 +110,7 @@ export class LanceDBService {
     // 删除占位符数据
     await this.repositoriesTable.delete('id = 0');
 
-    this.log.info('仓库表创建成功');
+    this.log.debug('仓库表创建成功');
   }
 
   /**
@@ -142,7 +142,7 @@ export class LanceDBService {
     // 删除占位符数据
     await this.usersTable.delete('id = 0');
 
-    this.log.info('用户表创建成功');
+    this.log.debug('用户表创建成功');
   }
 
   /**
@@ -194,7 +194,7 @@ export class LanceDBService {
 
     // 直接插入数据数组
     await this.repositoriesTable!.add(data);
-    this.log.info('仓库写入完成', { count: uniqueRepositories.length });
+    this.log.debug('仓库写入完成', { count: uniqueRepositories.length });
   }
 
   /**
@@ -358,7 +358,7 @@ export class LanceDBService {
     const whereClause = `id IN (${sanitizedIds.join(',')})`;
     await this.repositoriesTable!.delete(whereClause);
 
-    this.log.info('仓库删除完成', { count: ids.length });
+    this.log.debug('仓库删除完成', { count: ids.length });
   }
 
   /**
@@ -383,7 +383,7 @@ export class LanceDBService {
     }];
 
     await this.usersTable!.add(data);
-    this.log.info('用户写入完成', { login: user.login });
+    this.log.debug('用户写入完成', { login: user.login });
   }
 
   /**

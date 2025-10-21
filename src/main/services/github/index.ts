@@ -51,7 +51,7 @@ export class GitHubServiceManager {
    * 初始化所有服务
    */
   async initialize() {
-    this.log.info("GitHub 服务管理器初始化完成");
+    this.log.debug("GitHub 服务管理器初始化完成");
   }
 
   /**
@@ -60,7 +60,7 @@ export class GitHubServiceManager {
   async cleanup() {
     octokitManager.reset();
     await enhancedGitHubAuthService.clearAuth();
-    this.log.info("GitHub 服务管理器已清理");
+    this.log.debug("GitHub 服务管理器已清理");
   }
 }
 

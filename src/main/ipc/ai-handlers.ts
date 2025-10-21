@@ -219,7 +219,7 @@ export function initializeAIHandlers(): void {
     }
   );
 
-  logger.info("AI IPC handlers initialized");
+  logger.debug("AI IPC handlers initialized");
 }
 
 /**

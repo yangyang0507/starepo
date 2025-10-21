@@ -59,7 +59,7 @@ export class LanceDBSearchService {
     await lancedbService.initialize();
 
     this.initialized = true;
-    this.log.info('LanceDB 搜索服务初始化成功');
+    this.log.debug('LanceDB 搜索服务初始化成功');
   }
 
   /**

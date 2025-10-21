@@ -348,7 +348,7 @@ export class OctokitManager {
     this.config = null;
     this.rateLimitInfo = null;
     this.isInitialized = false;
-    this.log.info("Octokit 客户端已重置");
+    this.log.debug("Octokit 客户端已重置");
   }
 
   // 获取 Octokit 实例（用于高级操作）

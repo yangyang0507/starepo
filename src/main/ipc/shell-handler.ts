@@ -65,6 +65,6 @@ export function registerShellHandlers(): void {
     }
   });
 
-  shellLogger.info("Shell IPC 处理器已设置");
+  shellLogger.debug("Shell IPC 处理器已设置");
 }
 
