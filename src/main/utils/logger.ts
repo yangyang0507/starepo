@@ -20,8 +20,11 @@ function resolveLogLevel(): LogLevel {
     return envLevel;
   }
 
+  // 桌面应用默认使用 warn 级别,减少日志噪音
+  // 生产环境只记录 warn 和 error
+  // 开发环境可通过环境变量 STAREPO_LOG_LEVEL=debug 开启详细日志
   const isProduction = process.env.NODE_ENV === 'production';
-  return isProduction ? 'info' : 'debug';
+  return isProduction ? 'warn' : 'warn';
 }
 
 const logLevelState = { level: resolveLogLevel() };
