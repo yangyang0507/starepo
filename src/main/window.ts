@@ -1,6 +1,7 @@
 import { BrowserWindow } from "electron";
 import path from "path";
 import { settingsService } from "./services/settings";
+import { getLogger } from "./utils/logger";
 
 // Vite 插件注入的全局变量
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
@@ -9,6 +10,7 @@ declare const MAIN_WINDOW_VITE_NAME: string;
 export class WindowManager {
   private static instance: WindowManager;
   private mainWindow: BrowserWindow | null = null;
+  private readonly log = getLogger('window');
 
   private constructor() {}
 
@@ -36,8 +38,8 @@ export class WindowManager {
           const updated = await settingsService.updateSettings({ developerMode: true });
           developerModeEnabled = updated.developerMode;
         } catch (updateError) {
-          console.warn(
-            "[window] Failed to sync developer mode with development environment:",
+          this.log.warn(
+            "Failed to sync developer mode with development environment",
             updateError,
           );
           developerModeEnabled = true;
@@ -45,7 +47,7 @@ export class WindowManager {
       }
     } catch (error) {
       // 如果读取设置失败，保持默认的开发者模式关闭状态
-      console.warn("[window] Failed to load settings before window creation:", error);
+      this.log.warn("Failed to load settings before window creation", error);
       if (isDevelopment) {
         developerModeEnabled = true;
       }
