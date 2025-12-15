@@ -4,7 +4,7 @@
  * 通过 Electron preload 脚本暴露的 electronAPI 进行调用
  */
 
-import { IPC_CHANNELS } from '@shared/constants/ipc-channels';
+import { IPC_CHANNELS } from '@shared/constants';
 import {
   AIResponse,
   AISafeSettings,
@@ -13,6 +13,12 @@ import {
   AITestConnectionPayload,
   IPCResponse,
 } from '@shared/types';
+import type {
+  ProviderAccountConfig,
+  ModelListResponse,
+  ProviderOption,
+  ConnectionTestResult,
+} from '@shared/types/ai-provider';
 
 const getInvoke = () => {
   if (typeof window !== 'undefined' && window.electronAPI?.invoke) {
@@ -126,6 +132,77 @@ export async function clearChatHistory(conversationId: string): Promise<void> {
   if (!response.success) {
     throw new Error(response.error || 'Failed to clear chat history');
   }
+}
+
+/**
+ * 获取 Provider 列表
+ */
+export async function getProviderList(): Promise<ProviderOption[]> {
+  const invoke = getInvoke();
+  const response: IPCResponse<ProviderOption[]> = await invoke(
+    IPC_CHANNELS.AI.GET_PROVIDER_LIST
+  ) as IPCResponse<ProviderOption[]>;
+
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to get provider list');
+  }
+
+  return response.data || [];
+}
+
+/**
+ * 获取模型列表
+ */
+export async function getModelList(
+  config: ProviderAccountConfig,
+  forceRefresh: boolean = false
+): Promise<ModelListResponse> {
+  const invoke = getInvoke();
+  const response: IPCResponse<ModelListResponse> = await invoke(
+    IPC_CHANNELS.AI.GET_MODEL_LIST,
+    config,
+    forceRefresh
+  ) as IPCResponse<ModelListResponse>;
+
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to get model list');
+  }
+
+  return response.data!;
+}
+
+/**
+ * 清除模型缓存
+ */
+export async function clearModelCache(providerId?: string): Promise<void> {
+  const invoke = getInvoke();
+  const response: IPCResponse = await invoke(
+    IPC_CHANNELS.AI.CLEAR_MODEL_CACHE,
+    providerId
+  ) as IPCResponse;
+
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to clear model cache');
+  }
+}
+
+/**
+ * 测试 Provider 连接
+ */
+export async function testProviderConnection(
+  config: ProviderAccountConfig
+): Promise<ConnectionTestResult> {
+  const invoke = getInvoke();
+  const response: IPCResponse<ConnectionTestResult> = await invoke(
+    IPC_CHANNELS.AI.TEST_PROVIDER_CONNECTION,
+    config
+  ) as IPCResponse<ConnectionTestResult>;
+
+  if (!response.success) {
+    throw new Error(response.error || 'Connection test failed');
+  }
+
+  return response.data!;
 }
 
 /**

@@ -5,7 +5,9 @@
 
 import { ipcMain } from "electron";
 import { AIService } from "@main/services/ai";
-import { IPC_CHANNELS } from "@shared/constants/ipc-channels";
+import { modelDiscoveryService } from "@main/services/ai/model-discovery-service";
+import { IPC_CHANNELS, AI_MODEL_CACHE_TTL } from "@shared/constants";
+import { getProviderOptions } from "@shared/data/ai-providers";
 import {
   AIResponse,
   AIChatPayload,
@@ -14,7 +16,9 @@ import {
   AISafeSettings,
   AISettings,
   IPCResponse,
+  ProviderAccountConfig,
 } from "@shared/types";
+import type { AIProviderId } from "@shared/types/ai-provider";
 import { logger } from "@main/utils/logger";
 
 let aiService: AIService | null = null;
@@ -212,6 +216,91 @@ export function initializeAIHandlers(): void {
         return {
           success: false,
           error: "Failed to clear chat history",
+        } as IPCResponse;
+      }
+    }
+  );
+
+  // 获取 Provider 列表
+  ipcMain.handle(
+    IPC_CHANNELS.AI.GET_PROVIDER_LIST,
+    async (_event) => {
+      try {
+        const providers = getProviderOptions();
+        return {
+          success: true,
+          data: providers,
+        } as IPCResponse<typeof providers>;
+      } catch (error) {
+        logger.error("Get provider list handler error:", error);
+        return {
+          success: false,
+          error: "Failed to get provider list",
+        } as IPCResponse;
+      }
+    }
+  );
+
+  // 获取模型列表
+  ipcMain.handle(
+    IPC_CHANNELS.AI.GET_MODEL_LIST,
+    async (_event, config: ProviderAccountConfig, forceRefresh: boolean = false) => {
+      try {
+        await modelDiscoveryService.initialize();
+        const modelList = await modelDiscoveryService.getModels(config, forceRefresh);
+
+        return {
+          success: true,
+          data: modelList,
+        } as IPCResponse<typeof modelList>;
+      } catch (error) {
+        logger.error("Get model list handler error:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to get model list",
+        } as IPCResponse;
+      }
+    }
+  );
+
+  // 清除模型缓存
+  ipcMain.handle(
+    IPC_CHANNELS.AI.CLEAR_MODEL_CACHE,
+    async (_event, providerId?: AIProviderId) => {
+      try {
+        await modelDiscoveryService.initialize();
+        await modelDiscoveryService.clearCache(providerId);
+
+        return {
+          success: true,
+        } as IPCResponse;
+      } catch (error) {
+        logger.error("Clear model cache handler error:", error);
+        return {
+          success: false,
+          error: "Failed to clear model cache",
+        } as IPCResponse;
+      }
+    }
+  );
+
+  // 测试 Provider 连接
+  ipcMain.handle(
+    IPC_CHANNELS.AI.TEST_PROVIDER_CONNECTION,
+    async (_event, config: ProviderAccountConfig) => {
+      try {
+        await modelDiscoveryService.initialize();
+        const result = await modelDiscoveryService.testConnection(config);
+
+        return {
+          success: true,
+          data: result,
+        } as IPCResponse<typeof result>;
+      } catch (error) {
+        logger.error("Test provider connection handler error:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Connection test failed",
         } as IPCResponse;
       }
     }

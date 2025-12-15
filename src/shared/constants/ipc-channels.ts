@@ -94,6 +94,12 @@ export const IPC_CHANNELS = {
     GET_SAFE_SETTINGS: "ai:getSafeSettings",
     TEST_CONNECTION: "ai:testConnection",
 
+    // Provider 和模型相关
+    GET_PROVIDER_LIST: "ai:getProviderList",
+    GET_MODEL_LIST: "ai:getModelList",
+    CLEAR_MODEL_CACHE: "ai:clearModelCache",
+    TEST_PROVIDER_CONNECTION: "ai:testProviderConnection",
+
     // 统计相关
     GET_API_USAGE_STATS: "ai:getAPIUsageStats",
   },

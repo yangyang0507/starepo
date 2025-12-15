@@ -12,14 +12,13 @@ import {
   ChatContext,
   RepositoryReference,
 } from "@shared/types";
+import type { AIProviderId, ProviderAccountConfig } from "@shared/types/ai-provider";
 import { logger } from "@main/utils/logger";
 import { generateText, tool } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createDeepSeek } from "@ai-sdk/deepseek";
 import { z } from "zod";
 import { initializeTools, getToolRegistry } from "./tools";
 import { LanceDBSearchService } from "@main/services/search/lancedb-search-service";
+import { providerRegistry } from "./adapters/provider-registry";
 
 export class AIService {
   private settings: AISettings | null = null;
@@ -36,11 +35,19 @@ export class AIService {
    */
   async initialize(settings: AISettings): Promise<void> {
     try {
-      if (!settings.enabled || !settings.apiKey) {
-        throw new AIError(
-          AIErrorCode.NOT_CONFIGURED,
-          "AI service not configured"
-        );
+      if (!settings.enabled) {
+        throw new AIError(AIErrorCode.NOT_CONFIGURED, "AI service not configured");
+      }
+
+      const account = this.toProviderAccountConfig(settings);
+      const provider = providerRegistry.getProviderDefinitionOrThrow(account.providerId);
+
+      if (provider.validation.apiKeyRequired && !account.apiKey) {
+        throw new AIError(AIErrorCode.NOT_CONFIGURED, "AI service not configured");
+      }
+
+      if (provider.validation.baseUrlRequired && !account.baseUrl) {
+        throw new AIError(AIErrorCode.NOT_CONFIGURED, "AI service not configured");
       }
 
       this.settings = settings;
@@ -203,36 +210,11 @@ export class AIService {
       throw new AIError(AIErrorCode.NOT_CONFIGURED, "Settings not available");
     }
 
-    const { provider, model: modelName, apiKey, baseURL } = this.settings;
-
-    switch (provider) {
-      case "openai": {
-        const openaiProvider = baseURL
-          ? createOpenAI({ apiKey, baseURL })
-          : createOpenAI({ apiKey });
-        return openaiProvider(modelName || "gpt-4o");
-      }
-
-      case "anthropic": {
-        const anthropicProvider = baseURL
-          ? createAnthropic({ apiKey, baseURL })
-          : createAnthropic({ apiKey });
-        return anthropicProvider(modelName || "claude-sonnet-4-5-20250929");
-      }
-
-      case "deepseek": {
-        const deepseekProvider = baseURL
-          ? createDeepSeek({ apiKey, baseURL })
-          : createDeepSeek({ apiKey });
-        return deepseekProvider(modelName || "deepseek-chat");
-      }
-
-      default:
-        throw new AIError(
-          AIErrorCode.CONFIGURATION_ERROR,
-          `Unsupported provider: ${provider}`
-        );
-    }
+    const account = this.toProviderAccountConfig(this.settings);
+    const provider = providerRegistry.getProviderDefinitionOrThrow(account.providerId);
+    const adapter = providerRegistry.getAdapterForProvider(account.providerId);
+    const modelId = this.settings.model?.trim() || undefined;
+    return adapter.createLanguageModel({ provider, account, modelId });
   }
 
   /**
@@ -446,36 +428,24 @@ export class AIService {
    * 根据设置获取模型实例（用于测试连接）
    */
   private getModelForSettings(settings: AISettings) {
-    const { provider, model: modelName, apiKey, baseURL } = settings;
+    const account = this.toProviderAccountConfig(settings);
+    const provider = providerRegistry.getProviderDefinitionOrThrow(account.providerId);
+    const adapter = providerRegistry.getAdapterForProvider(account.providerId);
+    const modelId = settings.model?.trim() || undefined;
+    return adapter.createLanguageModel({ provider, account, modelId });
+  }
 
-    switch (provider) {
-      case "openai": {
-        const openaiProvider = baseURL
-          ? createOpenAI({ apiKey, baseURL })
-          : createOpenAI({ apiKey });
-        return openaiProvider(modelName || "gpt-4o");
-      }
-
-      case "anthropic": {
-        const anthropicProvider = baseURL
-          ? createAnthropic({ apiKey, baseURL })
-          : createAnthropic({ apiKey });
-        return anthropicProvider(modelName || "claude-sonnet-4-5-20250929");
-      }
-
-      case "deepseek": {
-        const deepseekProvider = baseURL
-          ? createDeepSeek({ apiKey, baseURL })
-          : createDeepSeek({ apiKey });
-        return deepseekProvider(modelName || "deepseek-chat");
-      }
-
-      default:
-        throw new AIError(
-          AIErrorCode.CONFIGURATION_ERROR,
-          `Unsupported provider: ${provider}`
-        );
-    }
+  private toProviderAccountConfig(settings: AISettings): ProviderAccountConfig {
+    return {
+      providerId: settings.provider as AIProviderId,
+      baseUrl: settings.baseURL,
+      apiKey: settings.apiKey?.trim() || undefined,
+      timeout: 30000,
+      retries: 3,
+      strictTLS: true,
+      defaultModel: settings.model,
+      enabled: settings.enabled,
+    };
   }
 
   /**

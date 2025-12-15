@@ -10,6 +10,12 @@ export { AIService } from "./ai-service";
 // 导出工具系统
 export * from "./tools";
 
+// 导出模型发现服务
+export { modelDiscoveryService } from "./model-discovery-service";
+
+// 导出 Provider 适配器系统
+export * from "./adapters";
+
 // 为了方便使用，可以创建一个单例
 let aiServiceInstance: AIService | null = null;
 

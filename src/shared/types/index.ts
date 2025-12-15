@@ -102,6 +102,27 @@ export type {
 export { AIError, AIErrorCode, PREDEFINED_MODELS } from "./ai";
 
 // ============================================================
+// AI Provider 配置系统
+// ============================================================
+export type {
+  AIProtocol,
+  AIProviderId,
+  ProviderCapability,
+  AuthType,
+  ProviderDefinition,
+  ProviderAccountConfig,
+  AIModel,
+  ModelCapabilities,
+  ModelListResponse,
+  ProviderOption,
+  ModelSelectionState,
+  ConnectionTestResult,
+  AIProviderSystemConfig,
+  LegacyAISettings,
+  MigrationResult,
+} from "./ai-provider";
+
+// ============================================================
 // 聊天会话
 // ============================================================
 export interface ChatConversation {
