@@ -3,8 +3,6 @@ import { AppLayout } from "@/components/layout/app-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,
@@ -20,7 +18,6 @@ import { useExternalLink } from "@/hooks/use-external-link";
 import { useAuthStore } from "@/stores/auth-store";
 import { useRepositoryStore } from "@/stores/repository-store";
 import { setAppLanguage } from "@/utils/language-helpers";
-import { cn } from "@/utils/tailwind";
 import type { ThemeMode, LogLevel } from "@shared/types";
 import {
   AlertCircle,
@@ -29,8 +26,6 @@ import {
   ExternalLink,
   Github,
   Globe,
-  Eye,
-  EyeOff,
   Key,
   Loader2,
   LogOut,
@@ -42,41 +37,16 @@ import {
   Sun,
   User
 } from "lucide-react";
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { settingsAPI, logLevelLabels } from "@/api/settings";
 import { configureAutoSync, triggerAutoSyncNow } from "@/hooks/use-auto-sync";
-import { useAIApi } from "@/api/ai";
-import { AISafeSettings, AIProvider, PREDEFINED_MODELS } from "@shared/types";
-import { useLocation } from "@tanstack/react-router";
+import { AISettingsSection } from "@/components/ai";
 
-const AI_SETTINGS_HASH = "ai-settings";
-
-const PROVIDER_OPTIONS: { value: AIProvider; label: string; description: string }[] = [
-  { value: "openai", label: "OpenAI", description: "官方 GPT 系列模型，功能全面" },
-  { value: "anthropic", label: "Anthropic", description: "Claude 系列模型，擅长长文本理解" },
-  { value: "deepseek", label: "DeepSeek", description: "中国大陆可用的高性价比模型" },
-  { value: "ollama", label: "Ollama", description: "本地部署模型，需要手动配置" },
-];
-
-const getDefaultModelForProvider = (provider: AIProvider) => {
-  const options = PREDEFINED_MODELS[provider] ?? [];
-  return options[0]?.modelId ?? "gpt-4o";
-};
-
-const formatTimestamp = (timestamp?: number) => {
-  if (!timestamp) return null;
-  try {
-    return new Intl.DateTimeFormat("zh-CN", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(timestamp));
-  } catch {
-    return new Date(timestamp).toLocaleString();
-  }
-};
-
-function AISettingsSection() {
+// 旧的 AISettingsSection 已移至 @/components/ai/ai-settings-section.tsx
+// 下面的旧代码已被注释，保留作为参考
+/*
+function _OldAISettingsSection() {
   const {
     getAISettings: fetchAISettings,
     updateAISettings: persistAISettings,
@@ -518,6 +488,7 @@ function AISettingsSection() {
     </Card>
   );
 }
+*/
 
 export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(false);
