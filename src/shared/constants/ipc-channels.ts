@@ -94,11 +94,6 @@ export const IPC_CHANNELS = {
     GET_SAFE_SETTINGS: "ai:getSafeSettings",
     TEST_CONNECTION: "ai:testConnection",
 
-    // Embedding 和搜索
-    GENERATE_EMBEDDING: "ai:generateEmbedding",
-    SEARCH_SEMANTIC: "ai:searchSemantic",
-    CLEAR_EMBEDDING_CACHE: "ai:clearEmbeddingCache",
-
     // 统计相关
     GET_API_USAGE_STATS: "ai:getAPIUsageStats",
   },

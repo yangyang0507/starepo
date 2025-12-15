@@ -37,7 +37,7 @@ export interface AISettings {
   provider: AIProvider;
   apiKey: string; // 通过 IPC 时不发送，只在 Main Process 使用
   model: string;
-  embeddingModel: string;
+  baseURL?: string; // 自定义 API 端点（可选）
   maxTokens?: number;
   temperature?: number;
   topP?: number;
@@ -59,14 +59,6 @@ export interface AIResponse {
     totalTokens: number;
   };
   error?: string;
-}
-
-// Embedding 配置
-export interface EmbeddingConfig {
-  modelName: string;
-  provider: AIProvider;
-  dimension?: number;
-  costPerMillion?: number; // 每百万 tokens 的成本
 }
 
 // 向量搜索结果
@@ -99,7 +91,6 @@ export interface AIChatPayload {
 export interface AISettingsPayload {
   provider?: AIProvider;
   model?: string;
-  embeddingModel?: string;
   maxTokens?: number;
   temperature?: number;
   topP?: number;
@@ -130,13 +121,6 @@ export interface APIUsageStats {
   lastSyncTime: number;
 }
 
-// Embedding 缓存项
-export interface EmbeddingCacheEntry {
-  text: string;
-  embedding: number[];
-  model: string;
-  timestamp: number;
-}
 
 // AI 错误类型
 export class AIError extends Error {
@@ -158,7 +142,6 @@ export enum AIErrorCode {
   NETWORK_ERROR = 'NETWORK_ERROR',
   TIMEOUT = 'TIMEOUT',
   INVALID_MODEL = 'INVALID_MODEL',
-  EMBEDDING_FAILED = 'EMBEDDING_FAILED',
   SEARCH_FAILED = 'SEARCH_FAILED',
   LLM_ERROR = 'LLM_ERROR',
   CONFIGURATION_ERROR = 'CONFIGURATION_ERROR',
@@ -250,30 +233,3 @@ export const PREDEFINED_MODELS: Record<AIProvider, LLMModelConfig[]> = {
   ],
 };
 
-// Embedding 模型配置
-export interface EmbeddingModelConfig {
-  provider: AIProvider;
-  modelId: string;
-  label: string;
-  dimension: number;
-  costPerMillion?: number;
-  recommended?: boolean;
-}
-
-export const PREDEFINED_EMBEDDING_MODELS: EmbeddingModelConfig[] = [
-  {
-    provider: 'openai',
-    modelId: 'text-embedding-3-small',
-    label: 'Text Embedding 3 Small',
-    dimension: 1536,
-    costPerMillion: 0.02,
-    recommended: true,
-  },
-  {
-    provider: 'openai',
-    modelId: 'text-embedding-3-large',
-    label: 'Text Embedding 3 Large',
-    dimension: 3072,
-    costPerMillion: 0.13,
-  },
-];

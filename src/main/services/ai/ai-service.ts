@@ -1,26 +1,35 @@
 /**
  * AI 服务
- * 核心 AI 对话功能，集成 LLM 和 Embedding
+ * 基于 AI SDK V5 的 AI 对话功能，支持工具调用
  */
 
-import { EmbeddingService } from "./embedding-service";
-import { VectorSearchService } from "./vector-search-service";
 import {
   ChatMessage,
-  ChatRole,
   AISettings,
   AIResponse,
   AIError,
   AIErrorCode,
   ChatContext,
+  RepositoryReference,
 } from "@shared/types";
 import { logger } from "@main/utils/logger";
+import { generateText, tool } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createDeepSeek } from "@ai-sdk/deepseek";
+import { z } from "zod";
+import { initializeTools, getToolRegistry } from "./tools";
+import { LanceDBSearchService } from "@main/services/search/lancedb-search-service";
 
 export class AIService {
-  private embeddingService: EmbeddingService | null = null;
-  private vectorSearchService: VectorSearchService | null = null;
   private settings: AISettings | null = null;
   private conversationHistory: Map<string, ChatMessage[]> = new Map();
+  private searchService: LanceDBSearchService;
+  private toolsInitialized = false;
+
+  constructor() {
+    this.searchService = new LanceDBSearchService();
+  }
 
   /**
    * 初始化 AI 服务
@@ -36,18 +45,11 @@ export class AIService {
 
       this.settings = settings;
 
-      // 初始化 Embedding 服务
-      this.embeddingService = new EmbeddingService({
-        apiKey: settings.apiKey,
-        provider: settings.provider,
-        model: settings.embeddingModel || "text-embedding-3-small",
-      });
-
-      // 初始化向量搜索服务
-      this.vectorSearchService = new VectorSearchService({
-        topK: 5,
-      });
-      await this.vectorSearchService.initialize();
+      // 初始化工具系统
+      if (!this.toolsInitialized) {
+        await initializeTools(this.searchService);
+        this.toolsInitialized = true;
+      }
 
       logger.debug("AI service initialized with provider:", settings.provider);
     } catch (error) {
@@ -64,7 +66,7 @@ export class AIService {
     conversationId: string = "default",
     userId?: string
   ): Promise<AIResponse> {
-    if (!this.settings || !this.embeddingService || !this.vectorSearchService) {
+    if (!this.settings) {
       throw new AIError(
         AIErrorCode.NOT_CONFIGURED,
         "AI service not initialized"
@@ -72,27 +74,14 @@ export class AIService {
     }
 
     try {
-      // 生成输入的 Embedding
-      const embedding = await this.embeddingService.embed(message);
-
-      // 执行向量搜索获取相关仓库
-      const searchResults = await this.vectorSearchService.hybridSearch(
-        embedding,
-        message
-      );
-
       // 构建上下文
       const context: ChatContext = {
         conversationHistory: this.getConversationHistory(conversationId),
-        searchResults: {
-          repositories: searchResults,
-          totalTime: 0,
-        },
         userId,
       };
 
-      // 调用 LLM
-      const response = await this.callLLM(message, context);
+      // 调用 LLM（可能包含工具调用）
+      const response = await this.callLLMWithTools(message, context);
 
       // 保存对话历史
       this.addMessageToHistory(conversationId, {
@@ -107,7 +96,7 @@ export class AIService {
         role: "assistant",
         content: response.content,
         timestamp: Date.now(),
-        references: searchResults,
+        references: response.references,
       });
 
       return response;
@@ -124,35 +113,9 @@ export class AIService {
   }
 
   /**
-   * 调用 LLM
+   * 调用 LLM 并处理工具调用
    */
-  private async callLLM(message: string, context: ChatContext): Promise<AIResponse> {
-    if (!this.settings) {
-      throw new AIError(AIErrorCode.NOT_CONFIGURED, "Settings not available");
-    }
-
-    const provider = this.settings.provider;
-
-    if (provider === "openai") {
-      return this.callOpenAILLM(message, context);
-    } else if (provider === "anthropic") {
-      return this.callAnthropicLLM(message, context);
-    } else if (provider === "deepseek") {
-      return this.callDeepSeekLLM(message, context);
-    } else if (provider === "ollama") {
-      return this.callOllamaLLM(message, context);
-    } else {
-      throw new AIError(
-        AIErrorCode.CONFIGURATION_ERROR,
-        `Unsupported provider: ${provider}`
-      );
-    }
-  }
-
-  /**
-   * 调用 OpenAI LLM
-   */
-  private async callOpenAILLM(
+  private async callLLMWithTools(
     message: string,
     context: ChatContext
   ): Promise<AIResponse> {
@@ -161,55 +124,64 @@ export class AIService {
     }
 
     try {
-      const systemPrompt = this.buildSystemPrompt(context);
+      // 获取模型实例
+      const model = this.getModel();
+
+      // 获取工具定义并转换为 AI SDK 格式
+      const toolRegistry = getToolRegistry();
+      const toolDefinitions = toolRegistry.getDefinitions();
+      const tools = this.convertToolsToAISDKFormat(toolDefinitions);
+
+      // 构建消息
+      const systemPrompt = this.buildSystemPrompt();
       const messages = this.buildMessages(message, context);
 
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.settings.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: this.settings.model || "gpt-4o",
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...messages,
-          ],
-          max_tokens: this.settings.maxTokens || 1024,
-          temperature: this.settings.temperature || 0.7,
-          top_p: this.settings.topP || 1.0,
-        }),
+      // 使用 generateText 进行对话（支持工具调用）
+      const result = await generateText({
+        model,
+        system: systemPrompt,
+        messages: messages.map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+        })),
+        tools,
+        maxSteps: 5, // 允许多轮工具调用
+        temperature: this.settings.temperature || 0.7,
+        topP: this.settings.topP || 1.0,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        const errorMessage = errorData.error?.message || "Unknown error";
-
-        if (response.status === 401) {
-          throw new AIError(AIErrorCode.INVALID_API_KEY, "Invalid API Key", 401);
-        } else if (response.status === 429) {
-          throw new AIError(AIErrorCode.RATE_LIMITED, "Rate limited", 429);
+      // 收集仓库引用
+      const allReferences: RepositoryReference[] = [];
+      if (result.steps && result.steps.length > 0) {
+        for (const step of result.steps) {
+          if (step.toolResults && step.toolResults.length > 0) {
+            for (const toolResult of step.toolResults) {
+              if (
+                toolResult.result &&
+                typeof toolResult.result === "object"
+              ) {
+                const resultObj = toolResult.result as {
+                  repositories?: RepositoryReference[];
+                };
+                if (
+                  resultObj.repositories &&
+                  Array.isArray(resultObj.repositories)
+                ) {
+                  allReferences.push(...resultObj.repositories);
+                }
+              }
+            }
+          }
         }
-
-        throw new AIError(
-          AIErrorCode.LLM_ERROR,
-          `OpenAI API error: ${errorMessage}`,
-          response.status,
-          errorData
-        );
       }
 
-      const data = await response.json();
-      const content = data.choices[0]?.message?.content || "";
-
       return {
-        content,
-        references: context.searchResults?.repositories || [],
+        content: result.text,
+        references: allReferences,
         usage: {
-          promptTokens: data.usage?.prompt_tokens || 0,
-          completionTokens: data.usage?.completion_tokens || 0,
-          totalTokens: data.usage?.total_tokens || 0,
+          promptTokens: result.usage.promptTokens,
+          completionTokens: result.usage.completionTokens,
+          totalTokens: result.usage.totalTokens,
         },
       };
     } catch (error) {
@@ -218,80 +190,170 @@ export class AIService {
       }
       throw new AIError(
         AIErrorCode.LLM_ERROR,
-        `Failed to call OpenAI: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to call LLM: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
 
   /**
-   * 调用 Anthropic LLM
+   * 获取模型实例
    */
-  private async callAnthropicLLM(
-    _message: string,
-    _context: ChatContext
-  ): Promise<AIResponse> {
-    // TODO: 实现 Anthropic 调用
-    logger.warn("Anthropic LLM not yet implemented");
-    throw new AIError(
-      AIErrorCode.CONFIGURATION_ERROR,
-      "Anthropic LLM not yet implemented"
-    );
+  private getModel() {
+    if (!this.settings) {
+      throw new AIError(AIErrorCode.NOT_CONFIGURED, "Settings not available");
+    }
+
+    const { provider, model: modelName, apiKey, baseURL } = this.settings;
+
+    switch (provider) {
+      case "openai": {
+        const openaiProvider = baseURL
+          ? createOpenAI({ apiKey, baseURL })
+          : createOpenAI({ apiKey });
+        return openaiProvider(modelName || "gpt-4o");
+      }
+
+      case "anthropic": {
+        const anthropicProvider = baseURL
+          ? createAnthropic({ apiKey, baseURL })
+          : createAnthropic({ apiKey });
+        return anthropicProvider(modelName || "claude-sonnet-4-5-20250929");
+      }
+
+      case "deepseek": {
+        const deepseekProvider = baseURL
+          ? createDeepSeek({ apiKey, baseURL })
+          : createDeepSeek({ apiKey });
+        return deepseekProvider(modelName || "deepseek-chat");
+      }
+
+      default:
+        throw new AIError(
+          AIErrorCode.CONFIGURATION_ERROR,
+          `Unsupported provider: ${provider}`
+        );
+    }
   }
 
   /**
-   * 调用 DeepSeek LLM
+   * 将工具定义转换为 AI SDK 格式
    */
-  private async callDeepSeekLLM(
-    _message: string,
-    _context: ChatContext
-  ): Promise<AIResponse> {
-    // TODO: 实现 DeepSeek 调用
-    logger.warn("DeepSeek LLM not yet implemented");
-    throw new AIError(
-      AIErrorCode.CONFIGURATION_ERROR,
-      "DeepSeek LLM not yet implemented"
-    );
+  private convertToolsToAISDKFormat(
+    toolDefinitions: Array<{
+      name: string;
+      description: string;
+      parameters: {
+        type: "object";
+        properties: Record<string, unknown>;
+        required?: string[];
+      };
+    }>
+  ) {
+    const tools: Record<string, ReturnType<typeof tool>> = {};
+    const toolRegistry = getToolRegistry();
+
+    for (const toolDef of toolDefinitions) {
+      // 将 JSON Schema 转换为 Zod schema
+      const zodSchema = this.jsonSchemaToZod(toolDef.parameters);
+
+      tools[toolDef.name] = tool({
+        description: toolDef.description,
+        parameters: zodSchema,
+        execute: async (args: Record<string, unknown>) => {
+          const result = await toolRegistry.execute({
+            id: `tool_${Date.now()}`,
+            name: toolDef.name,
+            arguments: args,
+          });
+
+          if (result.error) {
+            throw new Error(result.error);
+          }
+
+          return result.result;
+        },
+      });
+    }
+
+    return tools;
   }
 
   /**
-   * 调用 Ollama LLM（本地）
+   * 将 JSON Schema 转换为 Zod schema
    */
-  private async callOllamaLLM(
-    _message: string,
-    _context: ChatContext
-  ): Promise<AIResponse> {
-    // TODO: 实现 Ollama 调用
-    logger.warn("Ollama LLM not yet implemented");
-    throw new AIError(
-      AIErrorCode.CONFIGURATION_ERROR,
-      "Ollama LLM not yet implemented"
-    );
+  private jsonSchemaToZod(
+    schema: {
+      type: "object";
+      properties: Record<string, unknown>;
+      required?: string[];
+    }
+  ): z.ZodObject<Record<string, z.ZodTypeAny>> {
+    const shape: Record<string, z.ZodTypeAny> = {};
+
+    for (const [key, value] of Object.entries(schema.properties)) {
+      const prop = value as {
+        type: string;
+        description?: string;
+        enum?: string[];
+      };
+
+      let zodType: z.ZodTypeAny;
+
+      switch (prop.type) {
+        case "string":
+          zodType = prop.enum ? z.enum(prop.enum as [string, ...string[]]) : z.string();
+          break;
+        case "number":
+          zodType = z.number();
+          break;
+        case "boolean":
+          zodType = z.boolean();
+          break;
+        case "array":
+          zodType = z.array(z.unknown());
+          break;
+        case "object":
+          zodType = z.record(z.unknown());
+          break;
+        default:
+          zodType = z.unknown();
+      }
+
+      if (prop.description) {
+        zodType = zodType.describe(prop.description);
+      }
+
+      // 如果不在 required 列表中，则设为可选
+      if (!schema.required?.includes(key)) {
+        zodType = zodType.optional();
+      }
+
+      shape[key] = zodType;
+    }
+
+    return z.object(shape);
   }
 
   /**
    * 构建系统提示
    */
-  private buildSystemPrompt(context: ChatContext): string {
-    const repositories = context.searchResults?.repositories || [];
+  private buildSystemPrompt(): string {
+    return `你是一个 GitHub 仓库助手，专门帮助用户查找和理解优质的开源项目。
 
-    let prompt = `你是一个 GitHub 仓库助手，专门帮助用户查找和理解优质的开源项目。
+你可以使用以下工具来查询仓库信息：
+- search_repositories: 搜索仓库（关键词匹配）
+- filter_repositories: 按条件筛选仓库（语言、星数、时间等）
+- get_repository_details: 获取仓库详情
+- get_popular_repositories: 获取热门仓库
+- get_repositories_by_topic: 按主题查询仓库
 
-使用用户提供的仓库信息来回答问题和提供建议。如果有相关的仓库，请在回答中提及。`;
+请根据用户的问题，智能选择合适的工具来获取信息，然后用中文给出清晰、有帮助的回答。
 
-    if (repositories.length > 0) {
-      prompt += "\n\n相关的仓库信息：\n";
-      repositories.forEach((repo, index) => {
-        prompt += `
-${index + 1}. ${repo.repositoryName} (${repo.owner})
-   描述: ${repo.description || "无"}
-   星数: ${repo.stars || 0}
-   语言: ${repo.language || "未知"}
-   链接: ${repo.url}`;
-      });
-    }
-
-    prompt += "\n\n请用中文回答用户的问题，并在适当时引用上述仓库。";
-    return prompt;
+重要提示：
+1. 当用户询问仓库信息时，主动使用工具查询
+2. 在回答中引用具体的仓库信息
+3. 提供仓库的关键信息（名称、描述、星数、语言等）
+4. 如果查询结果为空，建议用户尝试其他关键词或条件`;
   }
 
   /**
@@ -300,8 +362,9 @@ ${index + 1}. ${repo.repositoryName} (${repo.owner})
   private buildMessages(
     currentMessage: string,
     context: ChatContext
-  ): Array<{ role: ChatRole; content: string }> {
-    const messages: Array<{ role: ChatRole; content: string }> = [];
+  ): Array<{ role: "user" | "assistant"; content: string }> {
+    const messages: Array<{ role: "user" | "assistant"; content: string }> =
+      [];
 
     // 添加对话历史（最近 10 条）
     const history = context.conversationHistory || [];
@@ -309,7 +372,7 @@ ${index + 1}. ${repo.repositoryName} (${repo.owner})
     recentHistory.forEach((msg) => {
       if (msg.role !== "system") {
         messages.push({
-          role: msg.role as ChatRole,
+          role: msg.role as "user" | "assistant",
           content: msg.content,
         });
       }
@@ -334,7 +397,10 @@ ${index + 1}. ${repo.repositoryName} (${repo.owner})
   /**
    * 添加消息到历史
    */
-  private addMessageToHistory(conversationId: string, message: ChatMessage): void {
+  private addMessageToHistory(
+    conversationId: string,
+    message: ChatMessage
+  ): void {
     const history = this.conversationHistory.get(conversationId) || [];
     history.push(message);
     this.conversationHistory.set(conversationId, history);
@@ -360,45 +426,81 @@ ${index + 1}. ${repo.repositoryName} (${repo.owner})
    */
   async testConnection(settings: AISettings): Promise<boolean> {
     try {
-      if (settings.provider === "openai") {
-        return await this.testOpenAIConnection(settings);
-      } else if (settings.provider === "anthropic") {
-        // TODO: 实现 Anthropic 连接测试
-        return true;
-      }
-      return false;
+      // 使用 AI SDK 进行简单的测试调用
+      const model = this.getModelForSettings(settings);
+
+      const result = await generateText({
+        model,
+        prompt: "ping",
+      });
+
+      logger.debug("Connection test successful:", result.text);
+      return true;
     } catch (error) {
       logger.error("Connection test failed:", error);
-      throw error;
+      throw this.handleConnectionError(error);
     }
   }
 
   /**
-   * 测试 OpenAI 连接
+   * 根据设置获取模型实例（用于测试连接）
    */
-  private async testOpenAIConnection(settings: AISettings): Promise<boolean> {
-    try {
-      const response = await fetch("https://api.openai.com/v1/models", {
-        headers: {
-          Authorization: `Bearer ${settings.apiKey}`,
-        },
-      });
+  private getModelForSettings(settings: AISettings) {
+    const { provider, model: modelName, apiKey, baseURL } = settings;
 
-      if (response.ok) {
-        logger.debug("OpenAI connection test successful");
-        return true;
-      } else if (response.status === 401) {
-        throw new AIError(AIErrorCode.INVALID_API_KEY, "Invalid API Key");
-      } else {
-        throw new AIError(
-          AIErrorCode.LLM_ERROR,
-          `OpenAI connection test failed: ${response.status}`
-        );
+    switch (provider) {
+      case "openai": {
+        const openaiProvider = baseURL
+          ? createOpenAI({ apiKey, baseURL })
+          : createOpenAI({ apiKey });
+        return openaiProvider(modelName || "gpt-4o");
       }
-    } catch (error) {
-      logger.error("OpenAI connection test failed:", error);
-      throw error;
+
+      case "anthropic": {
+        const anthropicProvider = baseURL
+          ? createAnthropic({ apiKey, baseURL })
+          : createAnthropic({ apiKey });
+        return anthropicProvider(modelName || "claude-sonnet-4-5-20250929");
+      }
+
+      case "deepseek": {
+        const deepseekProvider = baseURL
+          ? createDeepSeek({ apiKey, baseURL })
+          : createDeepSeek({ apiKey });
+        return deepseekProvider(modelName || "deepseek-chat");
+      }
+
+      default:
+        throw new AIError(
+          AIErrorCode.CONFIGURATION_ERROR,
+          `Unsupported provider: ${provider}`
+        );
     }
+  }
+
+  /**
+   * 处理连接错误
+   */
+  private handleConnectionError(error: unknown): AIError {
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase();
+
+      if (message.includes("401") || message.includes("unauthorized")) {
+        return new AIError(AIErrorCode.INVALID_API_KEY, "Invalid API Key", 401);
+      } else if (message.includes("429") || message.includes("rate limit")) {
+        return new AIError(AIErrorCode.RATE_LIMITED, "Rate limited", 429);
+      }
+
+      return new AIError(
+        AIErrorCode.LLM_ERROR,
+        `Connection test failed: ${error.message}`
+      );
+    }
+
+    return new AIError(
+      AIErrorCode.LLM_ERROR,
+      `Connection test failed: ${String(error)}`
+    );
   }
 
   /**
@@ -406,26 +508,13 @@ ${index + 1}. ${repo.repositoryName} (${repo.owner})
    */
   async updateSettings(settings: Partial<AISettings>): Promise<void> {
     if (!this.settings) {
-      throw new AIError(AIErrorCode.NOT_CONFIGURED, "AI service not initialized");
+      throw new AIError(
+        AIErrorCode.NOT_CONFIGURED,
+        "AI service not initialized"
+      );
     }
 
     this.settings = { ...this.settings, ...settings };
-
-    // 重新初始化 Embedding 服务
-    if (
-      settings.apiKey ||
-      settings.provider ||
-      settings.embeddingModel
-    ) {
-      if (this.embeddingService) {
-        this.embeddingService.updateConfig({
-          apiKey: this.settings.apiKey,
-          provider: this.settings.provider,
-          model: this.settings.embeddingModel || "text-embedding-3-small",
-        });
-      }
-    }
-
     logger.debug("AI service settings updated");
   }
 
@@ -440,11 +529,6 @@ ${index + 1}. ${repo.repositoryName} (${repo.owner})
    * 关闭服务
    */
   async close(): Promise<void> {
-    if (this.vectorSearchService) {
-      await this.vectorSearchService.close();
-    }
-    this.embeddingService = null;
-    this.vectorSearchService = null;
     this.conversationHistory.clear();
     logger.debug("AI service closed");
   }

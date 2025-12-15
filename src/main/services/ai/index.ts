@@ -4,21 +4,11 @@
 
 import { AIService } from "./ai-service";
 
+// 导出 AI 服务（基于 AI SDK V5）
 export { AIService } from "./ai-service";
-export { EmbeddingService } from "./embedding-service";
-export { VectorSearchService } from "./vector-search-service";
 
-// 导出类型定义
-export type {
-  VectorSearchConfig,
-  EmbeddingServiceConfig,
-  AIServiceStatus,
-  EnhancedRepositoryReference,
-  EmbeddingCacheStats,
-  SearchPerformanceMetrics,
-  ServiceConfigValidation,
-  EnhancedChatContext,
-} from "./types";
+// 导出工具系统
+export * from "./tools";
 
 // 为了方便使用，可以创建一个单例
 let aiServiceInstance: AIService | null = null;

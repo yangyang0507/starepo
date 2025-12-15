@@ -76,7 +76,6 @@ export function initializeAIHandlers(): void {
               enabled: settings.enabled,
               provider: settings.provider,
               model: settings.model,
-              embeddingModel: settings.embeddingModel,
               maxTokens: settings.maxTokens,
               temperature: settings.temperature,
               topP: settings.topP,
@@ -145,7 +144,6 @@ export function initializeAIHandlers(): void {
           provider: payload.provider,
           apiKey: payload.apiKey,
           model: payload.model,
-          embeddingModel: "text-embedding-3-small",
         });
 
         return {

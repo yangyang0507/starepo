@@ -47,7 +47,7 @@ import { useTranslation } from "react-i18next";
 import { settingsAPI, logLevelLabels } from "@/api/settings";
 import { configureAutoSync, triggerAutoSyncNow } from "@/hooks/use-auto-sync";
 import { useAIApi } from "@/api/ai";
-import { AISafeSettings, AIProvider, PREDEFINED_MODELS, PREDEFINED_EMBEDDING_MODELS } from "@shared/types";
+import { AISafeSettings, AIProvider, PREDEFINED_MODELS } from "@shared/types";
 import { useLocation } from "@tanstack/react-router";
 
 const AI_SETTINGS_HASH = "ai-settings";
@@ -62,14 +62,6 @@ const PROVIDER_OPTIONS: { value: AIProvider; label: string; description: string 
 const getDefaultModelForProvider = (provider: AIProvider) => {
   const options = PREDEFINED_MODELS[provider] ?? [];
   return options[0]?.modelId ?? "gpt-4o";
-};
-
-const getDefaultEmbeddingModelForProvider = (provider: AIProvider) => {
-  const options = PREDEFINED_EMBEDDING_MODELS.filter((item) => item.provider === provider);
-  if (options.length > 0) {
-    return options[0].modelId;
-  }
-  return "text-embedding-3-small";
 };
 
 const formatTimestamp = (timestamp?: number) => {
@@ -94,7 +86,6 @@ function AISettingsSection() {
   const [safeSettings, setSafeSettings] = useState<AISafeSettings | null>(null);
   const [provider, setProvider] = useState<AIProvider>("openai");
   const [model, setModel] = useState<string>(getDefaultModelForProvider("openai"));
-  const [embeddingModel, setEmbeddingModel] = useState<string>(getDefaultEmbeddingModelForProvider("openai"));
   const [maxTokens, setMaxTokens] = useState<string>("1024");
   const [temperature, setTemperature] = useState<string>("0.7");
   const [topP, setTopP] = useState<string>("1");
@@ -116,7 +107,6 @@ function AISettingsSection() {
     const nextProvider = settings?.provider ?? "openai";
     setProvider(nextProvider);
     setModel(settings?.model || getDefaultModelForProvider(nextProvider));
-    setEmbeddingModel(settings?.embeddingModel || getDefaultEmbeddingModelForProvider(nextProvider));
     setMaxTokens(String(settings?.maxTokens ?? 1024));
     setTemperature(String(settings?.temperature ?? 0.7));
     setTopP(String(settings?.topP ?? 1));
@@ -178,49 +168,10 @@ function AISettingsSection() {
     return defaults;
   }, [provider, model]);
 
-  const embeddingOptions = useMemo(() => {
-    const scoped = PREDEFINED_EMBEDDING_MODELS.filter((item) => item.provider === provider);
-    const base =
-      scoped.length > 0
-        ? scoped
-        : PREDEFINED_EMBEDDING_MODELS.filter((item) => item.provider === "openai");
-
-    if (embeddingModel && !base.some((item) => item.modelId === embeddingModel)) {
-      const existing = PREDEFINED_EMBEDDING_MODELS.find((item) => item.modelId === embeddingModel);
-      if (existing) {
-        return [...base, existing];
-      }
-      return [
-        ...base,
-        {
-          provider,
-          modelId: embeddingModel,
-          label: `${embeddingModel}（自定义）`,
-          dimension: 0,
-        },
-      ];
-    }
-
-    return base;
-  }, [provider, embeddingModel]);
-
   const selectedModelInfo = useMemo(
     () => availableModels.find((item) => item.modelId === model),
     [availableModels, model]
   );
-  const selectedEmbeddingInfo = useMemo(
-    () => PREDEFINED_EMBEDDING_MODELS.find((item) => item.modelId === embeddingModel),
-    [embeddingModel]
-  );
-
-  const embeddingNotice =
-    provider === "anthropic"
-      ? "Anthropic 暂无官方 Embedding 模型，建议搭配 OpenAI Embedding。"
-      : provider === "deepseek"
-        ? "DeepSeek 目前不提供 Embedding 服务，请选择兼容的第三方模型。"
-        : provider === "ollama"
-          ? "Ollama 需要本地部署 Embedding 模型，请确保与向量库维度一致。"
-          : null;
 
   const isConfigured = safeSettings?.configured ?? false;
   const lastUpdatedLabel = formatTimestamp(safeSettings?.lastUpdated);
@@ -228,7 +179,6 @@ function AISettingsSection() {
   const handleProviderChange = (nextProvider: AIProvider) => {
     setProvider(nextProvider);
     setModel(getDefaultModelForProvider(nextProvider));
-    setEmbeddingModel(getDefaultEmbeddingModelForProvider(nextProvider));
     setApiKey("");
     setApiKeyVisible(false);
     setHasStoredKey(false);
@@ -280,10 +230,6 @@ function AISettingsSection() {
         throw new Error("请选择 LLM 模型");
       }
 
-      if (!embeddingModel) {
-        throw new Error("请选择 Embedding 模型");
-      }
-
       const maxTokensValue = Number(maxTokens);
       if (Number.isNaN(maxTokensValue) || maxTokensValue <= 0) {
         throw new Error("Max Tokens 必须是正整数");
@@ -302,7 +248,6 @@ function AISettingsSection() {
       const payload = {
         provider,
         model,
-        embeddingModel,
         maxTokens: maxTokensValue,
         temperature: temperatureValue,
         topP: topPValue,
@@ -504,43 +449,6 @@ function AISettingsSection() {
                       </p>
                     </div>
                   </div>
-                </div>
-              </div>
-            </section>
-
-            <Separator />
-
-            <section className="space-y-6">
-              <div className="space-y-1">
-                <h3 className="text-lg font-semibold">Embedding 配置</h3>
-                <p className="text-sm text-muted-foreground">
-                  选择用于向量化的模型，影响语义搜索与 RAG 上下文质量。
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="embedding-model" className="text-base font-semibold">
-                  Embedding 模型
-                </Label>
-                <select
-                  id="embedding-model"
-                  value={embeddingModel}
-                  onChange={(event) => setEmbeddingModel(event.target.value)}
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                >
-                  {embeddingOptions.map((option) => (
-                    <option key={option.modelId} value={option.modelId}>
-                      {option.label}
-                      {option.recommended ? " ⭐" : ""}
-                    </option>
-                  ))}
-                </select>
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  <p>
-                    向量维度：{selectedEmbeddingInfo?.dimension ?? "未知"}{" "}
-                    {selectedEmbeddingInfo?.dimension ? "维" : ""}
-                  </p>
-                  {embeddingNotice ? <p>{embeddingNotice}</p> : null}
                 </div>
               </div>
             </section>

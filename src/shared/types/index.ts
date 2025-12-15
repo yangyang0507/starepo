@@ -88,7 +88,6 @@ export type {
   AISettings,
   AISafeSettings,
   AIResponse,
-  EmbeddingConfig,
   VectorSearchResult,
   IPCRequest,
   IPCResponse,
@@ -97,12 +96,10 @@ export type {
   AITestConnectionPayload,
   ChatContext,
   APIUsageStats,
-  EmbeddingCacheEntry,
   LLMModelConfig,
-  EmbeddingModelConfig,
 } from "./ai";
 
-export { AIError, AIErrorCode, PREDEFINED_MODELS, PREDEFINED_EMBEDDING_MODELS } from "./ai";
+export { AIError, AIErrorCode, PREDEFINED_MODELS } from "./ai";
 
 // ============================================================
 // 聊天会话

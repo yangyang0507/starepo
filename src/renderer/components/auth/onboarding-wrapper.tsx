@@ -113,7 +113,7 @@ export default function OnboardingWrapper({
   return (
     <div className="bg-background flex min-h-screen flex-col">
       {/* Main Content */}
-      <div className="flex flex-1 flex-col justify-center px-6 py-8">
+      <div className="flex flex-1 flex-col px-6 py-8 overflow-y-auto">
         <div className="mx-auto w-full max-w-lg">
           <div className="text-center">{renderHeaderAndProgress()}</div>
           <div className="mb-6 text-center">{renderErrorSection()}</div>
