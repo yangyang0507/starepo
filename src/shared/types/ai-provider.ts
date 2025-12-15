@@ -15,7 +15,6 @@ import { z } from 'zod';
 export const AI_PROTOCOL = {
   OPENAI_COMPATIBLE: 'openai_compatible',
   ANTHROPIC: 'anthropic',
-  OLLAMA: 'ollama',
 } as const;
 
 export type AIProtocol = (typeof AI_PROTOCOL)[keyof typeof AI_PROTOCOL];
@@ -27,9 +26,6 @@ export const AI_PROVIDER_ID = {
   OPENAI: 'openai',
   ANTHROPIC: 'anthropic',
   DEEPSEEK: 'deepseek',
-  OLLAMA: 'ollama',
-  CUSTOM_OPENAI: 'custom_openai',
-  CUSTOM_ANTHROPIC: 'custom_anthropic',
 } as const;
 
 export type AIProviderId = (typeof AI_PROVIDER_ID)[keyof typeof AI_PROVIDER_ID];
@@ -209,8 +205,6 @@ export interface ProviderOption {
   description: string;
   icon?: string;
   isNew?: boolean;
-  isBeta?: boolean;
-  isLocal?: boolean; // 是否为本地部署（如 Ollama）
 }
 
 /**

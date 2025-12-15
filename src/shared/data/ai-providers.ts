@@ -10,6 +10,7 @@ import {
   PROVIDER_CAPABILITIES,
   ProviderDefinition,
   AIProviderSystemConfig,
+  ProviderCapability,
 } from '@shared/types/ai-provider';
 
 // =============================================================================
@@ -45,13 +46,13 @@ export const OPENAI_PROVIDER: ProviderDefinition = {
   defaults: {
     baseUrl: 'https://api.openai.com/v1',
     models: [
-      'gpt-4o',
-      'gpt-4o-mini',
-      'gpt-4-turbo',
-      'gpt-4',
-      'gpt-3.5-turbo',
+      'gpt-5.2-2025-12-11',
+      'gpt-5.1-2025-11-13',
+      'gpt-5-2025-08-07',
+      'gpt-5-mini-2025-08-07',
+      'gpt-5-nano-2025-08-07'
     ],
-    recommendedModel: 'gpt-4o',
+    recommendedModel: 'gpt-5.2-2025-12-11',
     maxTokens: 4096,
     temperature: 0.7,
   },
@@ -103,13 +104,11 @@ export const ANTHROPIC_PROVIDER: ProviderDefinition = {
   defaults: {
     baseUrl: 'https://api.anthropic.com',
     models: [
-      'claude-3-5-sonnet-20241022',
-      'claude-3-5-haiku-20241022',
-      'claude-3-opus-20240229',
-      'claude-3-sonnet-20240229',
-      'claude-3-haiku-20240307',
+      'claude-sonnet-4-5-20250929',
+      'claude-haiku-4-5-20251001',
+      'claude-opus-4-5-20251101'
     ],
-    recommendedModel: 'claude-3-5-sonnet-20241022',
+    recommendedModel: 'claude-sonnet-4-5-20250929',
     maxTokens: 4096,
     temperature: 0.7,
   },
@@ -158,7 +157,7 @@ export const DEEPSEEK_PROVIDER: ProviderDefinition = {
     baseUrl: 'https://api.deepseek.com',
     models: [
       'deepseek-chat',
-      'deepseek-coder',
+      'deepseek-reasoner',
     ],
     recommendedModel: 'deepseek-chat',
     maxTokens: 4096,
@@ -173,146 +172,7 @@ export const DEEPSEEK_PROVIDER: ProviderDefinition = {
 };
 
 // =============================================================================
-// 4. Ollama Provider (本地部署)
-// =============================================================================
-
-export const OLLAMA_PROVIDER: ProviderDefinition = {
-  id: AI_PROVIDER_ID.OLLAMA,
-  protocol: AI_PROTOCOL.OLLAMA,
-  display: {
-    name: 'Ollama',
-    description: '本地部署的开源模型，需要先安装 Ollama',
-    icon: 'ollama',
-    website: 'https://ollama.com',
-    docsUrl: 'https://github.com/ollama/ollama',
-  },
-  capabilities: [
-    PROVIDER_CAPABILITIES.CHAT,
-    PROVIDER_CAPABILITIES.STREAMING,
-    PROVIDER_CAPABILITIES.SYSTEM_PROMPT,
-    PROVIDER_CAPABILITIES.TEMPERATURE,
-    PROVIDER_CAPABILITIES.TOP_P,
-  ],
-  auth: {
-    type: AUTH_TYPES.NO_AUTH,
-  },
-  defaults: {
-    baseUrl: 'http://localhost:11434',
-    models: [
-      'llama2',
-      'codellama',
-      'mistral',
-      'vicuna',
-    ],
-    maxTokens: 2048,
-    temperature: 0.7,
-  },
-  validation: {
-    baseUrlRequired: false,
-    apiKeyRequired: false,
-    supportsModelListing: true,
-    modelValidation: 'none',
-  },
-  healthCheck: {
-    endpoint: '/api/tags',
-    method: 'GET',
-    expectedStatus: 200,
-  },
-};
-
-// =============================================================================
-// 5. 自定义 OpenAI 兼容 Provider
-// =============================================================================
-
-export const CUSTOM_OPENAI_PROVIDER: ProviderDefinition = {
-  id: AI_PROVIDER_ID.CUSTOM_OPENAI,
-  protocol: AI_PROTOCOL.OPENAI_COMPATIBLE,
-  display: {
-    name: '自定义 OpenAI 兼容',
-    description: '任何兼容 OpenAI API 格式的服务',
-    icon: 'api',
-  },
-  capabilities: [
-    PROVIDER_CAPABILITIES.CHAT,
-    PROVIDER_CAPABILITIES.STREAMING,
-    PROVIDER_CAPABILITIES.TOOLS,
-    PROVIDER_CAPABILITIES.JSON_MODE,
-    PROVIDER_CAPABILITIES.SYSTEM_PROMPT,
-    PROVIDER_CAPABILITIES.TEMPERATURE,
-    PROVIDER_CAPABILITIES.TOP_P,
-    PROVIDER_CAPABILITIES.MAX_TOKENS,
-  ],
-  auth: {
-    type: AUTH_TYPES.BEARER_TOKEN,
-    keyHeader: 'Authorization',
-  },
-  defaults: {
-    models: [], // 用户必须手动指定
-    maxTokens: 4096,
-    temperature: 0.7,
-  },
-  validation: {
-    baseUrlRequired: true,
-    apiKeyRequired: false, // 某些本地服务可能不需要
-    supportsModelListing: true,
-    modelValidation: 'lenient',
-  },
-  healthCheck: {
-    endpoint: '/models',
-    method: 'GET',
-    expectedStatus: 200,
-  },
-};
-
-// =============================================================================
-// 6. 自定义 Anthropic 兼容 Provider
-// =============================================================================
-
-export const CUSTOM_ANTHROPIC_PROVIDER: ProviderDefinition = {
-  id: AI_PROVIDER_ID.CUSTOM_ANTHROPIC,
-  protocol: AI_PROTOCOL.ANTHROPIC,
-  display: {
-    name: '自定义 Anthropic 兼容',
-    description: '兼容 Anthropic API 格式的代理服务',
-    icon: 'api',
-  },
-  capabilities: [
-    PROVIDER_CAPABILITIES.CHAT,
-    PROVIDER_CAPABILITIES.STREAMING,
-    PROVIDER_CAPABILITIES.TOOLS,
-    PROVIDER_CAPABILITIES.VISION,
-    PROVIDER_CAPABILITIES.SYSTEM_PROMPT,
-    PROVIDER_CAPABILITIES.TEMPERATURE,
-    PROVIDER_CAPABILITIES.TOP_P,
-    PROVIDER_CAPABILITIES.MAX_TOKENS,
-  ],
-  auth: {
-    type: AUTH_TYPES.API_KEY_HEADER,
-    keyHeader: 'x-api-key',
-    customHeaders: {
-      'anthropic-version': '2023-06-01',
-    },
-  },
-  defaults: {
-    models: [], // 用户必须手动指定
-    maxTokens: 4096,
-    temperature: 0.7,
-  },
-  validation: {
-    baseUrlRequired: true,
-    apiKeyRequired: false,
-    supportsModelListing: false,
-    modelValidation: 'lenient',
-  },
-  healthCheck: {
-    endpoint: '/messages',
-    method: 'POST',
-    expectedStatus: 200,
-  },
-};
-
-// =============================================================================
-// 7. 系统配置
+// 4. 系统配置
 // =============================================================================
 
 export const AI_PROVIDER_SYSTEM_CONFIG: AIProviderSystemConfig = {
@@ -320,9 +180,6 @@ export const AI_PROVIDER_SYSTEM_CONFIG: AIProviderSystemConfig = {
     OPENAI_PROVIDER,
     ANTHROPIC_PROVIDER,
     DEEPSEEK_PROVIDER,
-    OLLAMA_PROVIDER,
-    CUSTOM_OPENAI_PROVIDER,
-    CUSTOM_ANTHROPIC_PROVIDER,
   ],
   defaultProvider: AI_PROVIDER_ID.OPENAI,
   globalSettings: {
@@ -355,16 +212,13 @@ export function getProviderOptions(): Array<{
   icon?: string;
   isNew?: boolean;
   isBeta?: boolean;
-  isLocal?: boolean;
 }> {
   return AI_PROVIDER_SYSTEM_CONFIG.providers.map(provider => ({
     value: provider.id,
     label: provider.display.name,
     description: provider.display.description,
     icon: provider.display.icon,
-    isLocal: provider.id === AI_PROVIDER_ID.OLLAMA,
-    isBeta: provider.id === AI_PROVIDER_ID.CUSTOM_OPENAI ||
-            provider.id === AI_PROVIDER_ID.CUSTOM_ANTHROPIC,
+    isNew: false,
   }));
 }
 
@@ -376,15 +230,5 @@ export function hasCapability(
   capability: string
 ): boolean {
   const provider = getProviderDefinition(providerId);
-  return provider?.capabilities.includes(capability as keyof typeof PROVIDER_CAPABILITIES) ?? false;
-}
-
-/**
- * 获取推荐的 Provider 列表
- */
-export function getRecommendedProviders(): ProviderDefinition[] {
-  return AI_PROVIDER_SYSTEM_CONFIG.providers.filter(p =>
-    p.id !== AI_PROVIDER_ID.CUSTOM_OPENAI &&
-    p.id !== AI_PROVIDER_ID.CUSTOM_ANTHROPIC
-  );
+  return provider?.capabilities.includes(capability as ProviderCapability) ?? false;
 }

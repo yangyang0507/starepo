@@ -62,16 +62,6 @@ export function ProviderSelector({
                     新
                   </span>
                 )}
-                {provider.isBeta && (
-                  <span className="rounded-full bg-orange-500 px-2 py-0.5 text-xs text-white">
-                    Beta
-                  </span>
-                )}
-                {provider.isLocal && (
-                  <span className="rounded-full bg-green-500 px-2 py-0.5 text-xs text-white">
-                    本地
-                  </span>
-                )}
               </Label>
               <p className="text-xs text-muted-foreground">
                 {provider.description}

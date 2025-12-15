@@ -14,6 +14,5 @@ export {
 
 export { OpenAICompatibleAdapter } from "./openai-compatible-adapter";
 export { AnthropicAdapter } from "./anthropic-adapter";
-export { OllamaAdapter } from "./ollama-adapter";
 
 export { ProviderRegistry, providerRegistry } from "./provider-registry";

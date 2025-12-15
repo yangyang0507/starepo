@@ -2,7 +2,6 @@ import { getProviderDefinition } from "@shared/data/ai-providers";
 import type { AIProtocol, AIProviderId, ProviderDefinition } from "@shared/types/ai-provider";
 import type { BaseAdapter } from "./base-adapter";
 import { AnthropicAdapter } from "./anthropic-adapter";
-import { OllamaAdapter } from "./ollama-adapter";
 import { OpenAICompatibleAdapter } from "./openai-compatible-adapter";
 
 export class ProviderRegistry {
@@ -12,7 +11,6 @@ export class ProviderRegistry {
     adapters: BaseAdapter[] = [
       new OpenAICompatibleAdapter(),
       new AnthropicAdapter(),
-      new OllamaAdapter(),
     ]
   ) {
     this.adaptersByProtocol = new Map();
