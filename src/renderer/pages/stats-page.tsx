@@ -339,28 +339,6 @@ export default function StatsPage() {
 
   return (
     <AppLayout title="统计分析">
-      <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-        <div className="flex items-center gap-2 px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator
-            orientation="vertical"
-            className="mr-2 data-[orientation=vertical]:h-4"
-          />
-          <h1 className="text-base font-medium">统计分析</h1>
-        </div>
-        <div className="ml-auto px-4">
-          <Button
-            className="w-full sm:w-auto sm:shrink-0"
-            onClick={loadStatsData}
-            disabled={state.loading}
-            variant="outline"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${state.loading ? 'animate-spin' : ''}`} />
-            刷新
-          </Button>
-        </div>
-      </header>
-
       <div className="flex flex-1 flex-col gap-4 p-2 sm:p-4 pt-0">
         {/* 错误状态 */}
         {renderErrorState()}

@@ -4,14 +4,13 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Eye, EyeOff, CheckCircle, AlertCircle, Key } from 'lucide-react';
+import { Separator } from "@/components/ui/separator";
+import { Loader2, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ProviderSelector } from './provider-selector';
 import { ModelSelector } from './model-selector';
 import {
   getProviderList,
@@ -256,7 +255,7 @@ export function AISettingsSection() {
       if (result.success) {
         setTestFeedback({
           type: 'success',
-          message: `连接成功！${result.modelCount ? `找到 ${result.modelCount} 个模型` : ''}`,
+          message: `连接成功！${result.details?.modelCount ? `找到 ${result.details.modelCount} 个模型` : ''}`,
         });
         // 测试成功后自动加载模型
         await loadModels(config, true);
@@ -358,264 +357,284 @@ export function AISettingsSection() {
   const isConfigured = safeSettings?.configured ?? false;
   const lastUpdatedLabel = formatTimestamp(safeSettings?.lastUpdated);
 
+  if (isLoadingSettings) {
+    return (
+      <div className="flex h-full items-center justify-center p-8 text-muted-foreground">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        正在加载 AI 设置...
+      </div>
+    );
+  }
+
   return (
-    <Card
-      id={AI_SETTINGS_HASH}
-      ref={sectionRef}
-      className={cn(
-        'transition-shadow duration-300',
-        highlight ? 'ring-2 ring-primary/60 shadow-lg' : undefined
-      )}
-    >
-      <CardHeader>
-        <CardTitle className="flex flex-wrap items-center justify-between gap-2">
-          <span className="flex items-center gap-2">
-            🤖 AI 助手设置
-            <Badge variant={isConfigured ? 'default' : 'secondary'}>
-              {isConfigured ? '已配置' : '未配置'}
-            </Badge>
-          </span>
-          {lastUpdatedLabel ? (
-            <span className="text-xs text-muted-foreground">最后更新：{lastUpdatedLabel}</span>
-          ) : null}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-3 text-sm text-muted-foreground">
-          <p>在此集中管理所有 AI 相关配置。支持多种 AI Provider 和自动模型发现。</p>
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-900 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-100">
-            💡 提示：保存后配置会立即生效，API Key 始终在本地安全存储。切换 Provider 时会自动加载已保存的配置。
+    <div className="flex h-full">
+      {/* Left Column: Provider List */}
+      <aside className="w-60 border-r bg-muted/10 flex flex-col">
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="space-y-4">
+            <div>
+              <h3 className="mb-1 text-sm font-semibold">AI 提供商</h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                选择要配置的模型服务商
+              </p>
+            </div>
+            <div className="space-y-0.5">
+              {providers.map((p) => {
+                const isActive = provider === p.value;
+                const isConfigured = configuredProviderIds.has(p.value);
+                return (
+                  <button
+                    key={p.value}
+                    onClick={() => !isSaving && !isTesting && setProvider(p.value)}
+                    disabled={isSaving || isTesting}
+                    className={cn(
+                      "w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                      isActive
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "hover:bg-muted text-muted-foreground hover:text-foreground",
+                      (isSaving || isTesting) && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      {p.label}
+                      {p.isNew && (
+                        <span className={cn(
+                          "text-[10px] px-1.5 py-0.5 rounded-full",
+                          isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300"
+                        )}>
+                          NEW
+                        </span>
+                      )}
+                    </span>
+                    {isConfigured && (
+                      <CheckCircle className={cn("h-4 w-4", isActive ? "text-primary-foreground" : "text-green-500")} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        {isLoadingSettings ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            正在加载 AI 设置...
+        <div className="p-4 border-t">
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-100">
+            💡 提示：API Key 始终在本地安全存储。
           </div>
-        ) : (
-          <>
-            <section className="space-y-6">
-              <div className="space-y-1">
-                <h3 className="text-lg font-semibold">LLM API 配置</h3>
-                <p className="text-sm text-muted-foreground">
-                  选择对话模型提供商并配置 API Key、模型与采样参数。
-                </p>
-              </div>
+        </div>
+      </aside>
 
-              {/* Provider 选择器 */}
-              <ProviderSelector
-                providers={providers}
-                value={provider}
-                onChange={setProvider}
-                disabled={isSaving || isTesting}
-                configuredProviders={configuredProviderIds}
-              />
+      {/* Right Column: Configuration Form */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-6 max-w-3xl mx-auto space-y-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">{providers.find(p => p.value === provider)?.label}</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                配置 API Key 和模型参数
+              </p>
+            </div>
+            <Badge variant={configuredProviderIds.has(provider) ? 'default' : 'outline'} className="mt-1">
+              {configuredProviderIds.has(provider) ? '已连接' : '未连接'}
+            </Badge>
+          </div>
 
-              {/* API Key 和 Base URL */}
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="ai-api-key" className="text-base font-semibold">
-                    <Key className="inline h-4 w-4 mr-1" />
-                    API Key
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="ai-api-key"
-                      type={apiKeyVisible ? 'text' : 'password'}
-                      value={apiKey}
-                      onChange={(event) => setApiKey(event.target.value)}
-                      placeholder={
-                        hasStoredKey
-                          ? '已保存的 API Key，输入新值可替换'
-                          : '输入您的 API Key'
-                      }
-                      className="font-mono text-sm"
-                      disabled={isSaving || isTesting}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setApiKeyVisible((visible) => !visible)}
-                      disabled={isSaving || isTesting}
-                    >
-                      {apiKeyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {isUsingSavedAccount ? '使用已保存的凭据' : '我们不会上传或记录您的 API Key，数据仅保存在本地加密存储。'}
-                  </p>
-                </div>
+          <Separator className="my-4" />
 
-                <div className="space-y-2">
-                  <Label htmlFor="ai-base-url" className="text-base font-semibold">
-                    Base URL（可选）
-                  </Label>
-                  <Input
-                    id="ai-base-url"
-                    type="text"
-                    value={baseUrl}
-                    onChange={(event) => setBaseUrl(event.target.value)}
-                    placeholder="自定义 API 端点（留空使用默认）"
-                    className="font-mono text-sm"
-                    disabled={isSaving || isTesting}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    用于自定义 API 端点或代理服务。
-                  </p>
-                </div>
-              </div>
-
-              {/* 模型选择器 */}
-              <ModelSelector
-                models={models}
-                value={model}
-                onChange={setModel}
-                onRefresh={() => {
-                  const effectiveApiKey = apiKey.trim();
-                  if (effectiveApiKey) {
-                    const config: ProviderAccountConfig = {
-                      providerId: provider,
-                      apiKey: effectiveApiKey,
-                      baseUrl: baseUrl.trim() || undefined,
-                      timeout: 30000,
-                      retries: 3,
-                      strictTLS: true,
-                      enabled: true,
-                    };
-                    void loadModels(config, true);
+          {/* API Key 和 Base URL */}
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="ai-api-key" className="text-sm font-medium">API Key</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="ai-api-key"
+                  type={apiKeyVisible ? 'text' : 'password'}
+                  value={apiKey}
+                  onChange={(event) => setApiKey(event.target.value)}
+                  placeholder={
+                    hasStoredKey
+                      ? '已保存的 API Key，输入新值可替换'
+                      : '输入您的 API Key'
                   }
-                }}
-                state={modelState}
-                error={modelError}
+                  className="font-mono text-sm"
+                  disabled={isSaving || isTesting}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setApiKeyVisible((visible) => !visible)}
+                  disabled={isSaving || isTesting}
+                >
+                  {apiKeyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ai-base-url" className="text-sm font-medium">Base URL（可选）</Label>
+              <Input
+                id="ai-base-url"
+                type="text"
+                value={baseUrl}
+                onChange={(event) => setBaseUrl(event.target.value)}
+                placeholder="自定义 API 端点（默认）"
+                className="font-mono text-sm"
                 disabled={isSaving || isTesting}
-                allowCustomInput={true}
               />
+              <p className="text-xs text-muted-foreground">
+                用于自定义 API 端点或代理服务
+              </p>
+            </div>
+          </div>
 
-              {/* 参数配置 */}
-              <div className="grid gap-4 lg:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="max-tokens" className="text-base font-semibold">
-                    Max Tokens
-                  </Label>
-                  <Input
-                    id="max-tokens"
-                    type="number"
-                    min={1}
-                    max={100000}
-                    value={maxTokens}
-                    onChange={(event) => setMaxTokens(event.target.value)}
-                    disabled={isSaving || isTesting}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    限制模型单次回复的最大 token 数。
-                  </p>
-                </div>
+          <Separator className="my-4" />
 
-                <div className="space-y-2">
-                  <Label htmlFor="temperature" className="text-base font-semibold">
-                    Temperature
-                  </Label>
-                  <Input
-                    id="temperature"
-                    type="number"
-                    step={0.1}
-                    min={0}
-                    max={2}
-                    value={temperature}
-                    onChange={(event) => setTemperature(event.target.value)}
-                    disabled={isSaving || isTesting}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    控制回答的随机性，0 更稳健，1 更具创造力。
-                  </p>
-                </div>
+          {/* 模型选择器 */}
+          <ModelSelector
+            models={models}
+            value={model}
+            onChange={setModel}
+            onRefresh={() => {
+              const effectiveApiKey = apiKey.trim();
+              if (effectiveApiKey) {
+                const config: ProviderAccountConfig = {
+                  providerId: provider,
+                  apiKey: effectiveApiKey,
+                  baseUrl: baseUrl.trim() || undefined,
+                  timeout: 30000,
+                  retries: 3,
+                  strictTLS: true,
+                  enabled: true,
+                };
+                void loadModels(config, true);
+              }
+            }}
+            state={modelState}
+            error={modelError}
+            disabled={isSaving || isTesting}
+            allowCustomInput={true}
+          />
 
-                <div className="space-y-2">
-                  <Label htmlFor="top-p" className="text-base font-semibold">
-                    Top P
-                  </Label>
-                  <Input
-                    id="top-p"
-                    type="number"
-                    step={0.05}
-                    min={0}
-                    max={1}
-                    value={topP}
-                    onChange={(event) => setTopP(event.target.value)}
-                    disabled={isSaving || isTesting}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    采样概率阈值，建议保持默认 1。
-                  </p>
-                </div>
+          {/* 参数配置 */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium">模型参数</h3>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="max-tokens" className="text-sm">Max Tokens</Label>
+                <Input
+                  id="max-tokens"
+                  type="number"
+                  min={1}
+                  max={100000}
+                  value={maxTokens}
+                  onChange={(event) => setMaxTokens(event.target.value)}
+                  disabled={isSaving || isTesting}
+                />
               </div>
 
-              {/* 操作按钮 */}
-              <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  onClick={handleTestConnection}
-                  disabled={isTesting || isSaving || !apiKey.trim()}
-                  variant="outline"
-                >
-                  {isTesting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      测试中...
-                    </>
-                  ) : (
-                    '测试连接'
-                  )}
-                </Button>
+              <div className="space-y-2">
+                <Label htmlFor="temperature" className="text-sm">Temperature</Label>
+                <Input
+                  id="temperature"
+                  type="number"
+                  step={0.1}
+                  min={0}
+                  max={2}
+                  value={temperature}
+                  onChange={(event) => setTemperature(event.target.value)}
+                  disabled={isSaving || isTesting}
+                />
+              </div>
 
-                <Button onClick={handleSave} disabled={isSaving || isTesting}>
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      保存中...
-                    </>
-                  ) : (
-                    '保存设置'
-                  )}
-                </Button>
+              <div className="space-y-2">
+                <Label htmlFor="top-p" className="text-sm">Top P</Label>
+                <Input
+                  id="top-p"
+                  type="number"
+                  step={0.05}
+                  min={0}
+                  max={1}
+                  value={topP}
+                  onChange={(event) => setTopP(event.target.value)}
+                  disabled={isSaving || isTesting}
+                />
+              </div>
+            </div>
+          </div>
 
+          {/* 操作按钮 */}
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleTestConnection}
+                disabled={isTesting || isSaving || !apiKey.trim()}
+                variant="outline"
+                size="default"
+              >
+                {isTesting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    测试中...
+                  </>
+                ) : (
+                  '测试连接'
+                )}
+              </Button>
+
+              <Button onClick={handleSave} disabled={isSaving || isTesting} size="default">
+                {isSaving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  '保存设置'
+                )}
+              </Button>
+            </div>
+
+            {(testFeedback || saveFeedback) && (
+              <div className="space-y-2">
                 {testFeedback && (
                   <div
                     className={cn(
-                      'flex items-center gap-2 text-sm',
-                      testFeedback.type === 'success' ? 'text-green-600' : 'text-red-600'
+                      'flex items-center gap-2 text-sm px-3 py-2 rounded-md',
+                      testFeedback.type === 'success'
+                        ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                        : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'
                     )}
                   >
                     {testFeedback.type === 'success' ? (
-                      <CheckCircle className="h-4 w-4" />
+                      <CheckCircle className="h-4 w-4 flex-shrink-0" />
                     ) : (
-                      <AlertCircle className="h-4 w-4" />
+                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
                     )}
-                    {testFeedback.message}
+                    <span>{testFeedback.message}</span>
                   </div>
                 )}
 
                 {saveFeedback && (
                   <div
                     className={cn(
-                      'flex items-center gap-2 text-sm',
-                      saveFeedback.type === 'success' ? 'text-green-600' : 'text-red-600'
+                      'flex items-center gap-2 text-sm px-3 py-2 rounded-md',
+                      saveFeedback.type === 'success'
+                        ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                        : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'
                     )}
                   >
                     {saveFeedback.type === 'success' ? (
-                      <CheckCircle className="h-4 w-4" />
+                      <CheckCircle className="h-4 w-4 flex-shrink-0" />
                     ) : (
-                      <AlertCircle className="h-4 w-4" />
+                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
                     )}
-                    {saveFeedback.message}
+                    <span>{saveFeedback.message}</span>
                   </div>
                 )}
               </div>
-            </section>
-          </>
-        )}
-      </CardContent>
-    </Card>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -62,7 +62,7 @@ export function TitleBar({ title: _title = "Starepo", className }: TitleBarProps
   return (
     <div
       className={cn(
-        "flex h-10 w-full items-center justify-between bg-background border-b border-border",
+        "flex h-10 w-full items-center justify-between bg-muted/30",
         "select-none", // 防止文本选择
         className
       )}
@@ -71,11 +71,14 @@ export function TitleBar({ title: _title = "Starepo", className }: TitleBarProps
         WebkitAppRegion: "drag",
       } as React.CSSProperties}
     >
-      {/* 左侧：应用图标和标题 */}
+      {/* 左侧：页面标题 */}
       <div className={cn(
         "flex items-center",
         isMac ? "pl-20 pr-3" : "px-3" // Mac 平台为交通灯按钮预留空间
       )}>
+        {_title && (
+          <h1 className="text-sm font-semibold text-foreground">{_title}</h1>
+        )}
       </div>
 
       {/* 中间：可拖拽区域 */}

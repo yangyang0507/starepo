@@ -7,12 +7,9 @@ import {
 } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
-import { Logo } from "@/components/logo";
 import {
   Sidebar,
   SidebarContent,
-  SidebarHeader,
-  SidebarRail,
 } from "@/components/ui/sidebar";
 
 // This is sample data.
@@ -42,16 +39,12 @@ const data = {
   ],
 };
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({ className, ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
-    <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
-        <Logo />
-      </SidebarHeader>
+    <Sidebar className={className} {...props}>
       <SidebarContent>
         <NavMain items={data.navMain} />
       </SidebarContent>
-      <SidebarRail />
     </Sidebar>
   );
 }

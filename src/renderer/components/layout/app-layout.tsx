@@ -12,20 +12,26 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, title, className }: AppLayoutProps) {
   return (
-    <div className={cn("flex h-screen flex-col bg-background", className)}>
+    <div className={cn("flex h-screen flex-col bg-muted/30", className)}>
       {/* 自定义标题栏 */}
       <TitleBar title={title} />
-      
+
       {/* 主要内容区域 */}
-      <div className="flex flex-1 overflow-hidden min-w-0">
-        <SidebarProvider>
-          <AppSidebar />
-          <SidebarInset className="flex flex-1 flex-col min-h-0 min-w-0">
+      <div className="flex flex-1 overflow-hidden">
+        <SidebarProvider
+          defaultOpen={false}
+          style={
+            {
+              "--sidebar-width": "3rem",
+              "--sidebar-width-icon": "3rem",
+            } as React.CSSProperties
+          }
+        >
+          <AppSidebar variant="inset" collapsible="icon" />
+          <SidebarInset>
             {/* 页面内容 */}
-            <div className="flex flex-1 flex-col overflow-hidden min-h-0 min-w-0">
-              <div className="flex-1 overflow-y-auto min-h-0 min-w-0">
-                {children}
-              </div>
+            <div className="flex flex-1 flex-col overflow-hidden">
+              {children}
             </div>
           </SidebarInset>
         </SidebarProvider>

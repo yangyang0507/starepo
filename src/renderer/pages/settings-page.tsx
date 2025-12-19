@@ -1,6 +1,5 @@
+import { useState } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { AISettingsSection } from "@/components/ai";
 import {
   GitHubAccountSection,
@@ -9,42 +8,72 @@ import {
   AdvancedSection,
   AppInfoSection,
 } from "@/components/settings";
+import {
+  Github,
+  Palette,
+  Bot,
+  RefreshCw,
+  Sliders,
+  Info,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+
+type SettingsTab = "ai" | "github" | "appearance" | "sync" | "advanced" | "about";
 
 export default function SettingsPage() {
+  const [activeTab, setActiveTab] = useState<SettingsTab>("ai");
+
+  const menuItems: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
+    { id: "ai", label: "AI 助手", icon: <Bot className="h-4 w-4" /> },
+    { id: "github", label: "GitHub 账户", icon: <Github className="h-4 w-4" /> },
+    { id: "appearance", label: "外观设置", icon: <Palette className="h-4 w-4" /> },
+    { id: "sync", label: "同步与备份", icon: <RefreshCw className="h-4 w-4" /> },
+    { id: "advanced", label: "高级选项", icon: <Sliders className="h-4 w-4" /> },
+    { id: "about", label: "关于应用", icon: <Info className="h-4 w-4" /> },
+  ];
+
   return (
     <AppLayout title="设置">
-      <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-        <div className="flex items-center gap-2 px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator
-            orientation="vertical"
-            className="mr-2 data-[orientation=vertical]:h-4"
-          />
-          <h1 className="text-base font-medium">设置</h1>
-        </div>
-      </header>
+      <div className="flex h-full overflow-hidden">
+        {/* Settings Sidebar */}
+        <aside className="w-56 border-r bg-muted/10 flex flex-col">
+          <div className="flex-1 overflow-y-auto py-6 px-3">
+            <div className="space-y-1">
+              <div className="mb-3 px-3 text-xs font-medium text-muted-foreground">
+                通用设置
+              </div>
+              <nav className="space-y-0.5">
+                {menuItems.map((item) => (
+                  <Button
+                    key={item.id}
+                    variant={activeTab === item.id ? "secondary" : "ghost"}
+                    className={cn(
+                      "w-full justify-start h-9 px-3",
+                      activeTab === item.id && "bg-secondary font-medium"
+                    )}
+                    onClick={() => setActiveTab(item.id)}
+                  >
+                    {item.icon}
+                    <span className="ml-2.5">{item.label}</span>
+                  </Button>
+                ))}
+              </nav>
+            </div>
+          </div>
+        </aside>
 
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        {/* GitHub 账户设置 */}
-        <GitHubAccountSection />
-
-        {/* 外观设置 */}
-        <AppearanceSection />
-
-        {/* AI 设置 */}
-        <AISettingsSection />
-
-        {/* 同步设置 */}
-        <SyncSection />
-
-        {/* 高级设置 */}
-        <AdvancedSection />
-
-        {/* 应用信息 */}
-        <AppInfoSection />
-
-        {/* 底部空间 */}
-        <div className="h-10" />
+        {/* Content Area */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="h-full">
+            {activeTab === "ai" && <AISettingsSection />}
+            {activeTab === "github" && <GitHubAccountSection />}
+            {activeTab === "appearance" && <AppearanceSection />}
+            {activeTab === "sync" && <SyncSection />}
+            {activeTab === "advanced" && <AdvancedSection />}
+            {activeTab === "about" && <AppInfoSection />}
+          </div>
+        </main>
       </div>
     </AppLayout>
   );
