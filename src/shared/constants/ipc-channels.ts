@@ -100,6 +100,12 @@ export const IPC_CHANNELS = {
     CLEAR_MODEL_CACHE: "ai:clearModelCache",
     TEST_PROVIDER_CONNECTION: "ai:testProviderConnection",
 
+    // Provider 账户管理
+    SAVE_PROVIDER_ACCOUNT: "ai:saveProviderAccount",
+    GET_PROVIDER_ACCOUNT: "ai:getProviderAccount",
+    DELETE_PROVIDER_ACCOUNT: "ai:deleteProviderAccount",
+    LIST_PROVIDER_ACCOUNTS: "ai:listProviderAccounts",
+
     // 统计相关
     GET_API_USAGE_STATS: "ai:getAPIUsageStats",
   },

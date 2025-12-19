@@ -4,8 +4,9 @@
  */
 
 import { ipcMain } from "electron";
-import { AIService } from "@main/services/ai";
+import { AIService, setAIService, getAIService } from "@main/services/ai";
 import { modelDiscoveryService } from "@main/services/ai/model-discovery-service";
+import { providerAccountService } from "@main/services/ai/provider-account-service";
 import { IPC_CHANNELS, AI_MODEL_CACHE_TTL } from "@shared/constants";
 import { getProviderOptions } from "@shared/data/ai-providers";
 import {
@@ -21,25 +22,27 @@ import {
 import type { AIProviderId } from "@shared/types/ai-provider";
 import { logger } from "@main/utils/logger";
 
-let aiService: AIService | null = null;
-
 /**
  * 初始化 AI IPC 处理程序
  */
 export function initializeAIHandlers(): void {
+  // 创建并设置 AI 服务实例
+  const aiServiceInstance = new AIService();
+  setAIService(aiServiceInstance);
+
   // 聊天处理
   ipcMain.handle(
     IPC_CHANNELS.AI.CHAT,
     async (_event, payload: AIChatPayload) => {
       try {
-        if (!aiService) {
+        if (!getAIService()) {
           return {
             success: false,
             error: "AI service not initialized",
           } as IPCResponse;
         }
 
-        const response = await aiService.chat(
+        const response = await getAIService().chat(
           payload.message,
           payload.conversationId,
           payload.userId
@@ -67,14 +70,14 @@ export function initializeAIHandlers(): void {
     IPC_CHANNELS.AI.GET_SAFE_SETTINGS,
     async (_event) => {
       try {
-        if (!aiService) {
+        if (!getAIService()) {
           return {
             success: false,
             error: "AI service not initialized",
           } as IPCResponse;
         }
 
-        const settings = aiService.getSettings();
+        const settings = getAIService().getSettings();
         const safeSettings: AISafeSettings | null = settings
           ? {
               enabled: settings.enabled,
@@ -106,14 +109,14 @@ export function initializeAIHandlers(): void {
     IPC_CHANNELS.AI.SET_SETTINGS,
     async (_event, payload: AISettingsPayload) => {
       try {
-        if (!aiService) {
+        if (!getAIService()) {
           return {
             success: false,
             error: "AI service not initialized",
           } as IPCResponse;
         }
 
-        await aiService.updateSettings(payload as Partial<AISettings>);
+        await getAIService().updateSettings(payload as Partial<AISettings>);
 
         return {
           success: true,
@@ -136,14 +139,14 @@ export function initializeAIHandlers(): void {
     IPC_CHANNELS.AI.TEST_CONNECTION,
     async (_event, payload: AITestConnectionPayload) => {
       try {
-        if (!aiService) {
+        if (!getAIService()) {
           return {
             success: false,
             error: "AI service not initialized",
           } as IPCResponse;
         }
 
-        const result = await aiService.testConnection({
+        const result = await getAIService().testConnection({
           enabled: true,
           provider: payload.provider,
           apiKey: payload.apiKey,
@@ -172,7 +175,7 @@ export function initializeAIHandlers(): void {
     IPC_CHANNELS.AI.GET_CHAT_HISTORY,
     async (_event, _conversationId: string) => {
       try {
-        if (!aiService) {
+        if (!getAIService()) {
           return {
             success: false,
             error: "AI service not initialized",
@@ -199,14 +202,14 @@ export function initializeAIHandlers(): void {
     IPC_CHANNELS.AI.CLEAR_CHAT_HISTORY,
     async (_event, conversationId: string) => {
       try {
-        if (!aiService) {
+        if (!getAIService()) {
           return {
             success: false,
             error: "AI service not initialized",
           } as IPCResponse;
         }
 
-        aiService.clearConversationHistory(conversationId);
+        getAIService().clearConversationHistory(conversationId);
 
         return {
           success: true,
@@ -306,19 +309,94 @@ export function initializeAIHandlers(): void {
     }
   );
 
+  // 保存 Provider 账户配置
+  ipcMain.handle(
+    IPC_CHANNELS.AI.SAVE_PROVIDER_ACCOUNT,
+    async (_event, config: ProviderAccountConfig) => {
+      try {
+        await providerAccountService.initialize();
+        await providerAccountService.saveAccount(config);
+
+        return {
+          success: true,
+        } as IPCResponse;
+      } catch (error) {
+        logger.error("Save provider account handler error:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to save provider account",
+        } as IPCResponse;
+      }
+    }
+  );
+
+  // 获取 Provider 账户配置
+  ipcMain.handle(
+    IPC_CHANNELS.AI.GET_PROVIDER_ACCOUNT,
+    async (_event, providerId: AIProviderId) => {
+      try {
+        await providerAccountService.initialize();
+        const account = await providerAccountService.getAccount(providerId);
+
+        return {
+          success: true,
+          data: account,
+        } as IPCResponse<ProviderAccountConfig | null>;
+      } catch (error) {
+        logger.error("Get provider account handler error:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to get provider account",
+        } as IPCResponse;
+      }
+    }
+  );
+
+  // 删除 Provider 账户配置
+  ipcMain.handle(
+    IPC_CHANNELS.AI.DELETE_PROVIDER_ACCOUNT,
+    async (_event, providerId: AIProviderId) => {
+      try {
+        await providerAccountService.initialize();
+        await providerAccountService.deleteAccount(providerId);
+
+        return {
+          success: true,
+        } as IPCResponse;
+      } catch (error) {
+        logger.error("Delete provider account handler error:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to delete provider account",
+        } as IPCResponse;
+      }
+    }
+  );
+
+  // 列出所有 Provider 账户
+  ipcMain.handle(
+    IPC_CHANNELS.AI.LIST_PROVIDER_ACCOUNTS,
+    async (_event) => {
+      try {
+        await providerAccountService.initialize();
+        const accounts = await providerAccountService.listAccounts();
+
+        return {
+          success: true,
+          data: accounts,
+        } as IPCResponse<typeof accounts>;
+      } catch (error) {
+        logger.error("List provider accounts handler error:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to list provider accounts",
+        } as IPCResponse;
+      }
+    }
+  );
+
   logger.debug("AI IPC handlers initialized");
 }
 
-/**
- * 设置 AI 服务实例
- */
-export function setAIService(service: AIService | null): void {
-  aiService = service;
-}
-
-/**
- * 获取 AI 服务实例
- */
-export function getAIService(): AIService | null {
-  return aiService;
-}
+// 重新导出 setAIService 以保持向后兼容
+export { setAIService } from "@main/services/ai";

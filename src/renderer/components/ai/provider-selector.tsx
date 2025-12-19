@@ -6,6 +6,7 @@
 import React from 'react';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { BadgeCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AIProviderId, ProviderOption } from '@shared/types';
 
@@ -14,6 +15,7 @@ interface ProviderSelectorProps {
   value: AIProviderId;
   onChange: (providerId: AIProviderId) => void;
   disabled?: boolean;
+  configuredProviders?: Set<AIProviderId>;
 }
 
 export function ProviderSelector({
@@ -21,6 +23,7 @@ export function ProviderSelector({
   value,
   onChange,
   disabled = false,
+  configuredProviders = new Set(),
 }: ProviderSelectorProps) {
   return (
     <div className="space-y-3">
@@ -31,44 +34,57 @@ export function ProviderSelector({
         disabled={disabled}
         className="grid gap-3"
       >
-        {providers.map((provider) => (
-          <div
-            key={provider.value}
-            className={cn(
-              'relative flex items-start space-x-3 rounded-lg border p-4 transition-colors',
-              value === provider.value
-                ? 'border-primary bg-primary/5'
-                : 'border-border hover:border-primary/50',
-              disabled && 'opacity-50 cursor-not-allowed'
-            )}
-          >
-            <RadioGroupItem
-              value={provider.value}
-              id={provider.value}
-              className="mt-1"
-              disabled={disabled}
-            />
-            <div className="flex-1 space-y-1">
-              <Label
-                htmlFor={provider.value}
-                className={cn(
-                  'flex items-center gap-2 text-sm font-medium cursor-pointer',
-                  disabled && 'cursor-not-allowed'
-                )}
-              >
-                {provider.label}
-                {provider.isNew && (
-                  <span className="rounded-full bg-blue-500 px-2 py-0.5 text-xs text-white">
-                    新
-                  </span>
-                )}
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                {provider.description}
-              </p>
+        {providers.map((provider) => {
+          const isConfigured = configuredProviders.has(provider.value);
+          return (
+            <div
+              key={provider.value}
+              className={cn(
+                'relative flex items-start space-x-3 rounded-lg border p-4 transition-all',
+                value === provider.value
+                  ? 'border-primary bg-primary/5 shadow-sm'
+                  : 'border-border hover:border-primary/50 hover:bg-muted/50',
+                disabled && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              <RadioGroupItem
+                value={provider.value}
+                id={provider.value}
+                className="mt-1"
+                disabled={disabled}
+              />
+              <div className="flex-1 space-y-1">
+                <div className="flex items-center gap-2">
+                  <Label
+                    htmlFor={provider.value}
+                    className={cn(
+                      'flex items-center gap-2 text-sm font-medium cursor-pointer',
+                      disabled && 'cursor-not-allowed'
+                    )}
+                  >
+                    {provider.label}
+                    {provider.isNew && (
+                      <span className="rounded-full bg-blue-500 px-2 py-0.5 text-xs text-white">
+                        新
+                      </span>
+                    )}
+                  </Label>
+                  {isConfigured ? (
+                    <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                      <BadgeCheck className="h-3 w-3" />
+                      已配置
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">未配置</span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {provider.description}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </RadioGroup>
     </div>
   );

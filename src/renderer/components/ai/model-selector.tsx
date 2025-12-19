@@ -1,19 +1,12 @@
 /**
  * AI 模型选择器组件
- * 支持异步加载、搜索和手动输入
+ * 使用原生 select 提供可靠的下拉选择体验
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { RefreshCw, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AIModel, ModelSelectionState } from '@shared/types';
@@ -43,17 +36,6 @@ export function ModelSelector({
   const [customValue, setCustomValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 检查当前值是否在模型列表中
-  useEffect(() => {
-    if (value && models.length > 0) {
-      const exists = models.some((m) => m.id === value);
-      setIsCustomInput(!exists);
-      if (!exists) {
-        setCustomValue(value);
-      }
-    }
-  }, [value, models]);
-
   // 过滤模型列表
   const filteredModels = React.useMemo(() => {
     if (!searchQuery) return models;
@@ -65,6 +47,29 @@ export function ModelSelector({
         model.description?.toLowerCase().includes(query)
     );
   }, [models, searchQuery]);
+
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newValue = e.target.value;
+    if (newValue === '__custom__') {
+      setIsCustomInput(true);
+      setCustomValue(value);
+    } else {
+      onChange(newValue);
+    }
+  };
+
+  const handleCustomInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCustomValue(e.target.value);
+    onChange(e.target.value);
+  };
+
+  const handleSwitchToSelect = () => {
+    setIsCustomInput(false);
+    setSearchQuery('');
+    if (value && !models.some((m) => m.id === value)) {
+      onChange(models[0]?.id || '');
+    }
+  };
 
   // 渲染状态指示器
   const renderStateIndicator = () => {
@@ -94,6 +99,13 @@ export function ModelSelector({
     }
   };
 
+  // 推荐模型标记
+  const RecommendedBadge = () => (
+    <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+      推荐
+    </span>
+  );
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -122,10 +134,7 @@ export function ModelSelector({
           <Input
             type="text"
             value={customValue}
-            onChange={(e) => {
-              setCustomValue(e.target.value);
-              onChange(e.target.value);
-            }}
+            onChange={handleCustomInputChange}
             placeholder="输入模型 ID（例如：gpt-4o）"
             disabled={disabled}
             className="font-mono text-sm"
@@ -135,7 +144,7 @@ export function ModelSelector({
               type="button"
               variant="link"
               size="sm"
-              onClick={() => setIsCustomInput(false)}
+              onClick={handleSwitchToSelect}
               className="h-auto p-0 text-xs"
             >
               从列表中选择
@@ -155,36 +164,49 @@ export function ModelSelector({
             />
           )}
 
-          <Select value={value} onValueChange={onChange} disabled={disabled}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="选择模型" />
-            </SelectTrigger>
-            <SelectContent>
+          <div className="relative">
+            <select
+              value={value}
+              onChange={handleSelectChange}
+              disabled={disabled || state === 'loading'}
+              className={cn(
+                'w-full appearance-none rounded-md border border-input bg-background px-3 py-2 text-sm',
+                'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                'disabled:cursor-not-allowed disabled:opacity-50',
+                'cursor-pointer'
+              )}
+              style={{
+                minHeight: '42px',
+                paddingRight: '32px',
+              }}
+            >
+              <option value="" disabled>
+                选择模型
+              </option>
               {filteredModels.length === 0 ? (
-                <div className="p-2 text-center text-sm text-muted-foreground">
+                <option value="" disabled>
                   {searchQuery ? '未找到匹配的模型' : '暂无可用模型'}
-                </div>
+                </option>
               ) : (
                 filteredModels.map((model) => (
-                  <SelectItem key={model.id} value={model.id}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{model.displayName}</span>
-                      {model.description && (
-                        <span className="text-xs text-muted-foreground">
-                          {model.description}
-                        </span>
-                      )}
-                      {model.capabilities?.maxTokens && (
-                        <span className="text-xs text-muted-foreground">
-                          最大 tokens: {model.capabilities.maxTokens.toLocaleString()}
-                        </span>
-                      )}
-                    </div>
-                  </SelectItem>
+                  <option key={model.id} value={model.id}>
+                    {model.displayName}
+                    {model.description ? ` - ${model.description.slice(0, 50)}` : ''}
+                  </option>
                 ))
               )}
-            </SelectContent>
-          </Select>
+              {allowCustomInput && (
+                <option value="__custom__" className="italic text-muted-foreground">
+                  ─ 手动输入模型 ID ─
+                </option>
+              )}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground">
+              <svg className="h-4 w-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
 
           {allowCustomInput && (
             <Button

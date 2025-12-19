@@ -1,6 +1,6 @@
 /**
  * AI 设置区域组件
- * 使用新的 Provider 和模型选择器
+ * 优化多 Provider 切换体验，支持自动加载已保存的凭据和模型
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
+import { Loader2, Eye, EyeOff, CheckCircle, AlertCircle, Key } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProviderSelector } from './provider-selector';
 import { ModelSelector } from './model-selector';
@@ -17,9 +17,9 @@ import {
   getProviderList,
   getModelList,
   testProviderConnection,
-  clearModelCache,
 } from '@/api/ai';
 import { useAIApi } from '@/api/ai';
+import { useAIAccountsStore } from '@/stores/ai-accounts-store';
 import type {
   AIProviderId,
   ProviderOption,
@@ -50,6 +50,8 @@ export function AISettingsSection() {
     updateAISettings: persistAISettings,
   } = useAIApi();
 
+  const { initAccounts, getAccount } = useAIAccountsStore();
+
   // 基础状态
   const [safeSettings, setSafeSettings] = useState<AISafeSettings | null>(null);
   const [providers, setProviders] = useState<ProviderOption[]>([]);
@@ -64,6 +66,7 @@ export function AISettingsSection() {
   const [baseUrl, setBaseUrl] = useState<string>('');
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
   const [hasStoredKey, setHasStoredKey] = useState(false);
+  const [isUsingSavedAccount, setIsUsingSavedAccount] = useState(false);
 
   // 参数配置
   const [maxTokens, setMaxTokens] = useState<string>('4096');
@@ -81,62 +84,101 @@ export function AISettingsSection() {
   const sectionRef = useRef<HTMLDivElement | null>(null);
   const { hash } = useLocation();
 
-  // 加载 Provider 列表
+  // 获取已配置的 Provider 集合
+  const configuredProviders = useAIAccountsStore((state) => state.accounts);
+  const configuredProviderIds = React.useMemo(
+    () => new Set(Array.from(configuredProviders.keys())),
+    [configuredProviders]
+  );
+
+  // 加载 Provider 列表和账户信息
   useEffect(() => {
-    const loadProviders = async () => {
+    const loadInitialData = async () => {
       try {
-        const list = await getProviderList();
-        setProviders(list);
+        const [providerList] = await Promise.all([
+          getProviderList(),
+          initAccounts(),
+        ]);
+        setProviders(providerList);
       } catch (error) {
         console.error('Failed to load providers:', error);
       }
     };
-    void loadProviders();
-  }, []);
+    void loadInitialData();
+  }, [initAccounts]);
+
+  // 加载指定 Provider 的账户配置
+  const loadProviderAccount = useCallback(async (providerId: AIProviderId) => {
+    const account = await getAccount(providerId);
+    if (account) {
+      setApiKey(account.apiKey || '');
+      setBaseUrl(account.baseUrl || '');
+      setHasStoredKey(true);
+      setIsUsingSavedAccount(true);
+      return account;
+    }
+    setApiKey('');
+    setBaseUrl('');
+    setHasStoredKey(false);
+    setIsUsingSavedAccount(false);
+    return null;
+  }, [getAccount]);
 
   // 加载模型列表
-  const loadModels = useCallback(async (forceRefresh = false) => {
-    if (!provider || !apiKey.trim()) {
-      setModels([]);
-      setModelState('idle');
-      return;
-    }
-
+  const loadModels = useCallback(async (config: ProviderAccountConfig, forceRefresh = false) => {
     setModelState('loading');
     setModelError('');
 
     try {
-      const config: ProviderAccountConfig = {
-        providerId: provider,
-        apiKey: apiKey.trim(),
-        baseUrl: baseUrl.trim() || undefined,
-        timeout: 30000,
-        retries: 3,
-        strictTLS: true,
-        enabled: true,
-      };
-
       const response = await getModelList(config, forceRefresh);
       setModels(response.models);
       setModelState(response.ttl > 0 ? 'success' : 'cached');
 
       // 如果当前没有选中模型，自动选择第一个
       if (!model && response.models.length > 0) {
-        setModel(response.models[0].id);
+        const recommendedModel = response.models.find((m) =>
+          m.capabilities?.maxTokens && m.capabilities.maxTokens > 0
+        )?.id || response.models[0].id;
+        setModel(recommendedModel);
       }
     } catch (error) {
       setModelError(error instanceof Error ? error.message : '加载模型列表失败');
       setModelState('error');
       setModels([]);
     }
-  }, [provider, apiKey, baseUrl, model]);
+  }, [model]);
 
-  // 当 Provider 或 API Key 变化时，自动加载模型
+  // 当 Provider 变化时，自动加载已保存的凭据并获取模型列表
   useEffect(() => {
-    if (provider && apiKey.trim()) {
-      void loadModels();
-    }
-  }, [provider, apiKey, loadModels]);
+    const handleProviderChange = async () => {
+      setTestFeedback(null);
+      setSaveFeedback(null);
+
+      // 尝试加载已保存的账户配置
+      const account = await loadProviderAccount(provider);
+
+      // 如果有已保存的配置，自动加载模型
+      if (account?.apiKey) {
+        const config: ProviderAccountConfig = {
+          providerId: provider,
+          apiKey: account.apiKey,
+          baseUrl: account.baseUrl || undefined,
+          timeout: 30000,
+          retries: 3,
+          strictTLS: true,
+          enabled: true,
+        };
+        await loadModels(config);
+      } else {
+        // 没有已保存的配置，清空模型列表
+        setModels([]);
+        setModelState('idle');
+        setModel('');
+      }
+    };
+
+    void handleProviderChange();
+  }, [provider, loadProviderAccount, loadModels]);
 
   // 水合设置
   const hydrateSettings = useCallback((settings: AISafeSettings | null) => {
@@ -147,9 +189,6 @@ export function AISettingsSection() {
     setMaxTokens(String(settings?.maxTokens ?? 4096));
     setTemperature(String(settings?.temperature ?? 0.7));
     setTopP(String(settings?.topP ?? 1));
-    setHasStoredKey(Boolean(settings?.configured));
-    setApiKey('');
-    setBaseUrl('');
     setApiKeyVisible(false);
   }, []);
 
@@ -192,20 +231,6 @@ export function AISettingsSection() {
     return undefined;
   }, [hash]);
 
-  // 处理 Provider 变更
-  const handleProviderChange = (nextProvider: AIProviderId) => {
-    setProvider(nextProvider);
-    setModel('');
-    setModels([]);
-    setApiKey('');
-    setBaseUrl('');
-    setApiKeyVisible(false);
-    setHasStoredKey(false);
-    setTestFeedback(null);
-    setSaveFeedback(null);
-    setModelState('idle');
-  };
-
   // 测试连接
   const handleTestConnection = async () => {
     setIsTesting(true);
@@ -234,7 +259,7 @@ export function AISettingsSection() {
           message: `连接成功！${result.modelCount ? `找到 ${result.modelCount} 个模型` : ''}`,
         });
         // 测试成功后自动加载模型
-        await loadModels(true);
+        await loadModels(config, true);
       } else {
         throw new Error(result.message);
       }
@@ -254,7 +279,34 @@ export function AISettingsSection() {
     setSaveFeedback(null);
     try {
       const trimmedKey = apiKey.trim();
-      if (!hasStoredKey && !trimmedKey) {
+      const trimmedUrl = baseUrl.trim();
+
+      // 如果是新输入的凭据，保存到 Provider 账户存储
+      if (trimmedKey && !isUsingSavedAccount) {
+        const accountConfig: ProviderAccountConfig = {
+          providerId: provider,
+          apiKey: trimmedKey,
+          baseUrl: trimmedUrl || undefined,
+          timeout: 30000,
+          retries: 3,
+          strictTLS: true,
+          enabled: true,
+        };
+        await useAIAccountsStore.getState().saveAccount(accountConfig);
+      } else if (trimmedKey && isUsingSavedAccount) {
+        // 更新已保存的账户
+        const existingAccount = await getAccount(provider);
+        if (existingAccount) {
+          const updatedConfig: ProviderAccountConfig = {
+            ...existingAccount,
+            apiKey: trimmedKey,
+            baseUrl: trimmedUrl || undefined,
+          };
+          await useAIAccountsStore.getState().saveAccount(updatedConfig);
+        }
+      }
+
+      if (!trimmedKey && !hasStoredKey) {
         throw new Error('首次配置需要输入有效的 API Key');
       }
 
@@ -284,14 +336,15 @@ export function AISettingsSection() {
         temperature: temperatureValue,
         topP: topPValue,
         ...(trimmedKey ? { apiKey: trimmedKey } : {}),
-        ...(baseUrl.trim() ? { baseURL: baseUrl.trim() } : {}),
+        ...(trimmedUrl ? { baseURL: trimmedUrl } : {}),
       };
 
       await persistAISettings(payload);
       const refreshed = await fetchAISettings();
       hydrateSettings(refreshed);
       setSaveFeedback({ type: 'success', message: 'AI 设置已保存' });
-      setHasStoredKey(Boolean(trimmedKey) || Boolean(refreshed?.configured));
+      setHasStoredKey(Boolean(trimmedKey) || isUsingSavedAccount);
+      setIsUsingSavedAccount(Boolean(trimmedKey) || isUsingSavedAccount);
     } catch (error) {
       setSaveFeedback({
         type: 'error',
@@ -331,7 +384,7 @@ export function AISettingsSection() {
         <div className="space-y-3 text-sm text-muted-foreground">
           <p>在此集中管理所有 AI 相关配置。支持多种 AI Provider 和自动模型发现。</p>
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-900 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-100">
-            💡 提示：保存后配置会立即生效，API Key 始终在本地安全存储。
+            💡 提示：保存后配置会立即生效，API Key 始终在本地安全存储。切换 Provider 时会自动加载已保存的配置。
           </div>
         </div>
 
@@ -354,14 +407,16 @@ export function AISettingsSection() {
               <ProviderSelector
                 providers={providers}
                 value={provider}
-                onChange={handleProviderChange}
+                onChange={setProvider}
                 disabled={isSaving || isTesting}
+                configuredProviders={configuredProviderIds}
               />
 
               {/* API Key 和 Base URL */}
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="ai-api-key" className="text-base font-semibold">
+                    <Key className="inline h-4 w-4 mr-1" />
                     API Key
                   </Label>
                   <div className="flex items-center gap-2">
@@ -372,7 +427,7 @@ export function AISettingsSection() {
                       onChange={(event) => setApiKey(event.target.value)}
                       placeholder={
                         hasStoredKey
-                          ? '已保存的 API Key 已隐藏，输入新值可替换'
+                          ? '已保存的 API Key，输入新值可替换'
                           : '输入您的 API Key'
                       }
                       className="font-mono text-sm"
@@ -389,7 +444,7 @@ export function AISettingsSection() {
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    我们不会上传或记录您的 API Key，数据仅保存在本地加密存储。
+                    {isUsingSavedAccount ? '使用已保存的凭据' : '我们不会上传或记录您的 API Key，数据仅保存在本地加密存储。'}
                   </p>
                 </div>
 
@@ -417,7 +472,21 @@ export function AISettingsSection() {
                 models={models}
                 value={model}
                 onChange={setModel}
-                onRefresh={() => loadModels(true)}
+                onRefresh={() => {
+                  const effectiveApiKey = apiKey.trim();
+                  if (effectiveApiKey) {
+                    const config: ProviderAccountConfig = {
+                      providerId: provider,
+                      apiKey: effectiveApiKey,
+                      baseUrl: baseUrl.trim() || undefined,
+                      timeout: 30000,
+                      retries: 3,
+                      strictTLS: true,
+                      enabled: true,
+                    };
+                    void loadModels(config, true);
+                  }
+                }}
                 state={modelState}
                 error={modelError}
                 disabled={isSaving || isTesting}

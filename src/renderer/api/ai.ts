@@ -18,6 +18,7 @@ import type {
   ModelListResponse,
   ProviderOption,
   ConnectionTestResult,
+  ProviderAccountMetadata,
 } from '@shared/types/ai-provider';
 
 const getInvoke = () => {
@@ -203,6 +204,71 @@ export async function testProviderConnection(
   }
 
   return response.data!;
+}
+
+/**
+ * 保存 Provider 账户配置
+ */
+export async function saveProviderAccount(config: ProviderAccountConfig): Promise<void> {
+  const invoke = getInvoke();
+  const response: IPCResponse = await invoke(
+    IPC_CHANNELS.AI.SAVE_PROVIDER_ACCOUNT,
+    config
+  ) as IPCResponse;
+
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to save provider account');
+  }
+}
+
+/**
+ * 获取 Provider 账户配置
+ */
+export async function getProviderAccount(
+  providerId: string
+): Promise<ProviderAccountConfig | null> {
+  const invoke = getInvoke();
+  const response: IPCResponse<ProviderAccountConfig | null> = await invoke(
+    IPC_CHANNELS.AI.GET_PROVIDER_ACCOUNT,
+    providerId
+  ) as IPCResponse<ProviderAccountConfig | null>;
+
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to get provider account');
+  }
+
+  return response.data || null;
+}
+
+/**
+ * 删除 Provider 账户配置
+ */
+export async function deleteProviderAccount(providerId: string): Promise<void> {
+  const invoke = getInvoke();
+  const response: IPCResponse = await invoke(
+    IPC_CHANNELS.AI.DELETE_PROVIDER_ACCOUNT,
+    providerId
+  ) as IPCResponse;
+
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to delete provider account');
+  }
+}
+
+/**
+ * 列出所有 Provider 账户
+ */
+export async function listProviderAccounts(): Promise<ProviderAccountMetadata[]> {
+  const invoke = getInvoke();
+  const response: IPCResponse<ProviderAccountMetadata[]> = await invoke(
+    IPC_CHANNELS.AI.LIST_PROVIDER_ACCOUNTS
+  ) as IPCResponse<ProviderAccountMetadata[]>;
+
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to list provider accounts');
+  }
+
+  return response.data || [];
 }
 
 /**

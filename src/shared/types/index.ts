@@ -122,6 +122,8 @@ export type {
   MigrationResult,
 } from "./ai-provider";
 
+export type { ProviderAccountMetadata } from "@main/services/ai/provider-account-service";
+
 // ============================================================
 // 聊天会话
 // ============================================================
