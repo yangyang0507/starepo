@@ -354,9 +354,6 @@ export function AISettingsSection() {
     }
   };
 
-  const isConfigured = safeSettings?.configured ?? false;
-  const lastUpdatedLabel = formatTimestamp(safeSettings?.lastUpdated);
-
   if (isLoadingSettings) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-muted-foreground">
@@ -370,7 +367,7 @@ export function AISettingsSection() {
     <div className="flex h-full">
       {/* Left Column: Provider List */}
       <aside className="w-60 border-r bg-muted/10 flex flex-col">
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="overflow-y-auto p-4 flex-1 min-h-0">
           <div className="space-y-4">
             <div>
               <h3 className="mb-1 text-sm font-semibold">AI 提供商</h3>
@@ -413,12 +410,6 @@ export function AISettingsSection() {
                 );
               })}
             </div>
-          </div>
-        </div>
-
-        <div className="p-4 border-t">
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-100">
-            💡 提示：API Key 始终在本地安全存储。
           </div>
         </div>
       </aside>

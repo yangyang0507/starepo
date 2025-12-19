@@ -38,12 +38,8 @@ export default function SettingsPage() {
       <div className="flex h-full overflow-hidden">
         {/* Settings Sidebar */}
         <aside className="w-56 border-r bg-muted/10 flex flex-col">
-          <div className="flex-1 overflow-y-auto py-6 px-3">
-            <div className="space-y-1">
-              <div className="mb-3 px-3 text-xs font-medium text-muted-foreground">
-                通用设置
-              </div>
-              <nav className="space-y-0.5">
+          <div className="flex-1 overflow-y-auto py-3 px-3">
+              <nav className="space-y-1">
                 {menuItems.map((item) => (
                   <Button
                     key={item.id}
@@ -59,7 +55,6 @@ export default function SettingsPage() {
                   </Button>
                 ))}
               </nav>
-            </div>
           </div>
         </aside>
 

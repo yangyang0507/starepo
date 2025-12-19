@@ -3,7 +3,6 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -14,7 +13,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { AlertCircle, Loader2, Shield } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { settingsAPI, logLevelLabels } from '@/api/settings';
 import type { LogLevel } from '@shared/types';
 
@@ -87,14 +86,17 @@ export function AdvancedSection() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Shield className="h-5 w-5" />
-          高级设置
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="p-6 max-w-3xl mx-auto space-y-6">
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">高级设置</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            开发者选项和日志配置
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-5">
         <div className="space-y-4">
           {/* 开发者模式 */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -187,7 +189,7 @@ export function AdvancedSection() {
             <span>{advancedError}</span>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

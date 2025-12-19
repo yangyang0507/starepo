@@ -3,7 +3,6 @@
  */
 
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -49,14 +48,17 @@ export function GitHubAccountSection() {
   if (!authState?.isAuthenticated) {
     return (
       <>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Github className="h-5 w-5" />
-              GitHub 连接
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <div className="p-6 max-w-3xl mx-auto space-y-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">GitHub 连接</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                连接你的 GitHub 账户
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
             <div className="flex items-center gap-2 text-muted-foreground">
               <AlertCircle className="h-4 w-4" />
               <span>未连接到 GitHub</span>
@@ -68,8 +70,8 @@ export function GitHubAccountSection() {
               <Key className="mr-2 h-4 w-4" />
               添加 GitHub Token
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {showTokenManagement && (
           <TokenManagement onClose={() => setShowTokenManagement(false)} />
@@ -80,18 +82,21 @@ export function GitHubAccountSection() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Github className="h-5 w-5" />
-            GitHub 连接
-            <Badge variant="outline" className="ml-auto text-green-600 border-green-600">
-              <CheckCircle className="mr-1 h-3 w-3" />
-              已连接
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
+      <div className="p-6 max-w-3xl mx-auto space-y-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">GitHub 连接</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              管理你的 GitHub 账户连接
+            </p>
+          </div>
+          <Badge variant="outline" className="text-green-600 border-green-600">
+            <CheckCircle className="mr-1 h-3 w-3" />
+            已连接
+          </Badge>
+        </div>
+
+        <div className="space-y-6">
           {/* 用户信息 */}
           <div className="flex items-start gap-4">
             <button
@@ -191,8 +196,8 @@ export function GitHubAccountSection() {
               退出登录
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {showTokenManagement && (
         <TokenManagement onClose={() => setShowTokenManagement(false)} />

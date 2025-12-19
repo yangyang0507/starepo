@@ -3,7 +3,6 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -123,14 +122,17 @@ export function SyncSection() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <RefreshCw className="h-5 w-5" />
-          同步设置
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <div className="p-6 max-w-3xl mx-auto space-y-6">
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">同步设置</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            管理自动同步和缓存设置
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-5">
         {/* 自动同步开关 */}
         <div className="flex items-center justify-between">
           <div className="space-y-1">
@@ -240,7 +242,7 @@ export function SyncSection() {
             <span>{cacheMessage}</span>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

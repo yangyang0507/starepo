@@ -2,7 +2,6 @@
  * 外观设置区块
  */
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -63,14 +62,17 @@ export function AppearanceSection() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Palette className="h-5 w-5" />
-          外观设置
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <div className="p-6 max-w-3xl mx-auto space-y-6">
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">外观设置</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            自定义应用的外观和语言
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-5">
         {/* 主题设置 */}
         <div className="flex items-center justify-between">
           <div className="space-y-1">
@@ -142,7 +144,7 @@ export function AppearanceSection() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
