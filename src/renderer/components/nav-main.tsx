@@ -21,7 +21,7 @@ export function NavMain({
         <Link
           key={item.title}
           to={item.url}
-          className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors [&.active]:bg-accent [&.active]:text-accent-foreground"
+          className="flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors [&.active]:bg-accent [&.active]:text-accent-foreground"
           activeProps={{
             className: "bg-accent text-accent-foreground"
           }}

@@ -1,153 +1,230 @@
-/**
- * 聊天界面主组件
- * 集成消息列表、输入区域和 AI 设置
- */
-
-import React, { useEffect, useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { AlertCircle, MessagesSquare, Copy, RefreshCw } from 'lucide-react';
 import { useChatStore } from '@/stores/chat-store';
-import MessageList from './message-list';
-import InputArea from './input-area';
-import { AISafeSettings } from '@shared/types';
-import { useAIApi } from '@/api/ai';
+import { useAIAccountsStore } from '@/stores/ai-accounts-store';
+import { ChatMessage } from '@shared/types';
 import { Button } from '@/components/ui/button';
-import { AlertCircle } from 'lucide-react';
-import { useRouter } from '@tanstack/react-router';
+import {
+  Conversation,
+  ConversationContent,
+  ConversationEmptyState,
+  ConversationScrollButton,
+} from '@/components/ai-elements/conversation';
+import {
+  Message,
+  MessageContent,
+  MessageResponse,
+  MessageToolbar,
+  MessageActions,
+  MessageAction,
+} from '@/components/ai-elements/message';
+import {
+  PromptInput,
+  PromptInputBody,
+  PromptInputTextarea,
+  PromptInputFooter,
+  PromptInputSubmit,
+} from '@/components/ai-elements/prompt-input';
+import { Loader } from '@/components/ai-elements/loader';
 
 interface ChatInterfaceProps {
-  conversationId?: string;
+  conversationId: string;
 }
 
-export default function ChatInterface({ conversationId = 'default' }: ChatInterfaceProps) {
+export function ChatInterface({ conversationId: _conversationId }: ChatInterfaceProps) {
   const { messages, addMessage } = useChatStore();
-  const { sendMessage, getAISettings, isLoading, error } = useAIApi();
-  const router = useRouter();
+  const { accounts, isLoading: isLoadingAccounts, initAccounts } = useAIAccountsStore();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [aiSettings, setAISettings] = useState<AISafeSettings | null>(null);
-  const [isInitializing, setIsInitializing] = useState(true);
-
-  // 初始化：获取 AI 设置
+  // 初始化账户
   useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        setIsInitializing(true);
-        const settings = await getAISettings();
-        setAISettings(settings);
-      } catch (err) {
-        console.error('Failed to load AI settings:', err);
-      } finally {
-        setIsInitializing(false);
-      }
-    };
+    initAccounts();
+  }, [initAccounts]);
 
-    loadSettings();
-  }, [getAISettings]);
+  // 检查是否有已启用的 Provider
+  const hasEnabledProvider = Array.from(accounts.values()).some((account) => account.enabled);
 
   // 处理发送消息
-  const handleSendMessage = async (content: string) => {
-    if (!content.trim()) return;
+  const handleSendMessage = useCallback(
+    async ({ text }: { text: string }) => {
+      if (!text.trim() || !hasEnabledProvider || isLoading) return;
 
-    // 添加用户消息到本地
-    addMessage({
-      id: `msg_${Date.now()}`,
-      role: 'user',
-      content: content.trim(),
-      timestamp: Date.now(),
-    });
-
-    try {
-      // 调用 AI API
-      const response = await sendMessage(content, conversationId);
-
-      // 添加 AI 响应
-      addMessage({
-        id: `msg_${Date.now() + 1}`,
-        role: 'assistant',
-        content: response.content,
+      const userMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: text.trim(),
         timestamp: Date.now(),
-        references: response.references,
-      });
-    } catch (err) {
-      console.error('Failed to send message:', err);
-      // 添加错误消息
-      addMessage({
-        id: `msg_${Date.now() + 1}`,
-        role: 'assistant',
-        content: `抱歉，处理您的请求时出错。请稍后重试。`,
-        timestamp: Date.now(),
-        error: err instanceof Error ? err.message : '未知错误',
-      });
-    }
-  };
+      };
 
-  const handleOpenSettings = React.useCallback(() => {
-    router.navigate({ to: '/settings', hash: 'ai-settings' });
-  }, [router]);
+      addMessage(userMessage);
+      setIsLoading(true);
+      setError(null);
 
-  // 检查是否已配置 AI
-  const isConfigured = aiSettings?.configured ?? false;
+      try {
+        // TODO: 调用 AI API
+        // 临时模拟响应
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
-  return (
-    <div className="flex flex-col h-full w-full bg-background">
-      <div className="flex-1 overflow-hidden">
-        {!isConfigured || isInitializing ? (
-          // 未配置或初始化中
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              {isInitializing ? (
-                <>
-                  <div className="animate-spin mb-4">⏳</div>
-                  <p className="text-gray-600 dark:text-gray-400">正在加载设置...</p>
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="w-12 h-12 text-yellow-600 dark:text-yellow-400 mx-auto mb-4" />
-                  <h2 className="text-lg font-semibold mb-2">需要配置 AI 设置</h2>
-                  <p className="text-gray-600 dark:text-gray-400 mb-4">
-                    请先配置 API Key 和模型选择
-                  </p>
-                  <Button onClick={handleOpenSettings}>
-                    前往配置
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-        ) : (
-          // 聊天界面
-          <div className="flex flex-col h-full">
-            {/* 消息列表 */}
-            <div className="flex-1 overflow-y-auto">
-              {messages.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center text-gray-500 dark:text-gray-400">
-                    <p className="text-lg mb-2">开始对话</p>
-                    <p className="text-sm">提问关于 GitHub 仓库的任何问题</p>
-                  </div>
-                </div>
-              ) : (
-                <MessageList messages={messages} />
-              )}
-            </div>
+        const assistantMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: '这是一个临时的模拟响应。AI 功能正在开发中...',
+          timestamp: Date.now(),
+        };
 
-            {/* 错误提示 */}
-            {error && (
-              <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-md mx-4 mb-4">
-                <p className="text-sm font-medium">错误: {error}</p>
-              </div>
-            )}
+        addMessage(assistantMessage);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '发送消息失败');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [hasEnabledProvider, isLoading, addMessage]
+  );
 
-            {/* 输入区域 */}
-            <div className="border-t p-4">
-              <InputArea
-                onSendMessage={handleSendMessage}
-                isLoading={isLoading}
-                disabled={!isConfigured}
-              />
-            </div>
-          </div>
-        )}
+  // 处理复制消息
+  const handleCopyMessage = useCallback((content: string) => {
+    navigator.clipboard.writeText(content);
+  }, []);
+
+  // 处理重试消息
+  const handleRetryMessage = useCallback(
+    (content: string) => {
+      handleSendMessage({ text: content });
+    },
+    [handleSendMessage]
+  );
+
+  // 打开设置页面
+  const handleOpenSettings = useCallback(() => {
+    // TODO: 导航到设置页面
+    console.log('Open settings');
+  }, []);
+
+  // 获取聊天状态
+  const chatStatus = isLoading ? 'streaming' : undefined;
+
+  // 未配置或初始化中
+  if (!hasEnabledProvider || isLoadingAccounts) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center">
+          {isLoadingAccounts ? (
+            <>
+              <Loader size={32} className="mb-4 mx-auto" />
+              <p className="text-muted-foreground">正在加载设置...</p>
+            </>
+          ) : (
+            <>
+              <AlertCircle className="w-12 h-12 text-yellow-600 dark:text-yellow-400 mx-auto mb-4" />
+              <h2 className="text-lg font-semibold mb-2">需要配置 AI 设置</h2>
+              <p className="text-muted-foreground mb-4">
+                请先配置 API Key 和模型选择
+              </p>
+              <Button onClick={handleOpenSettings}>前往配置</Button>
+            </>
+          )}
+        </div>
       </div>
+    );
+  }
 
+  // 聊天界面
+  return (
+    <div className="flex h-full flex-col">
+      {/* 消息列表区域 */}
+      <Conversation className="flex-1 min-h-0">
+        <ConversationContent className="h-full">
+          {messages.length === 0 ? (
+            <ConversationEmptyState
+              icon={<MessagesSquare className="w-16 h-16" />}
+              title="开始对话"
+              description="提问关于 GitHub 仓库的任何问题"
+            />
+          ) : (
+            <>
+              {messages.map((msg) => (
+                <Message key={msg.id} from={msg.role}>
+                  <MessageContent>
+                    {msg.role === 'user' ? (
+                      <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
+                    ) : (
+                      <MessageResponse>{msg.content}</MessageResponse>
+                    )}
+                  </MessageContent>
+
+                  <MessageToolbar>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(msg.timestamp).toLocaleTimeString('zh-CN')}
+                      </span>
+                    </div>
+
+                    <MessageActions>
+                      <MessageAction
+                        onClick={() => handleCopyMessage(msg.content)}
+                        tooltip="复制"
+                        label="复制消息"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </MessageAction>
+
+                      {msg.role === 'user' && (
+                        <MessageAction
+                          onClick={() => handleRetryMessage(msg.content)}
+                          tooltip="重试"
+                          label="重新发送"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </MessageAction>
+                      )}
+                    </MessageActions>
+                  </MessageToolbar>
+                </Message>
+              ))}
+
+              {isLoading && (
+                <Message from="assistant">
+                  <MessageContent>
+                    <div className="flex items-center gap-2">
+                      <Loader size={16} />
+                      <span className="text-sm text-muted-foreground">思考中...</span>
+                    </div>
+                  </MessageContent>
+                </Message>
+              )}
+            </>
+          )}
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
+
+      {/* 错误提示 */}
+      {error && (
+        <div className="flex-shrink-0 px-4 py-2 bg-destructive/10 border-t border-destructive/20 text-destructive">
+          <p className="text-sm font-medium">错误: {error}</p>
+        </div>
+      )}
+
+      {/* 输入区域 */}
+      <div className="flex-shrink-0 border-t bg-background p-4">
+        <PromptInput onSubmit={handleSendMessage} className="max-w-none">
+          <PromptInputBody>
+            <PromptInputTextarea
+              placeholder="提问关于 GitHub 仓库的任何问题..."
+              disabled={!hasEnabledProvider || isLoading}
+              className="!min-h-20"
+            />
+            <PromptInputFooter>
+              <div className="flex-1 text-xs text-muted-foreground">
+                {isLoading ? '正在处理...' : 'Enter 发送 · Shift+Enter 换行'}
+              </div>
+              <PromptInputSubmit status={chatStatus} disabled={!hasEnabledProvider} />
+            </PromptInputFooter>
+          </PromptInputBody>
+        </PromptInput>
+      </div>
     </div>
   );
 }

@@ -17,22 +17,20 @@ export function AppLayout({ children, title, className }: AppLayoutProps) {
       <TitleBar title={title} />
 
       {/* 主要内容区域 */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         <SidebarProvider
           defaultOpen={false}
           style={
             {
-              "--sidebar-width": "3rem",
-              "--sidebar-width-icon": "3rem",
+              "--sidebar-width": "2.25rem",
+              "--sidebar-width-icon": "2.25rem",
             } as React.CSSProperties
           }
         >
           <AppSidebar variant="inset" collapsible="icon" />
-          <SidebarInset>
-            {/* 页面内容 */}
-            <div className="flex flex-1 flex-col overflow-hidden">
-              {children}
-            </div>
+          <SidebarInset className="!m-0 min-h-0 overflow-hidden">
+            {/* 页面内容 - 移除 variant=inset 带来的 margin */}
+            {children}
           </SidebarInset>
         </SidebarProvider>
       </div>
