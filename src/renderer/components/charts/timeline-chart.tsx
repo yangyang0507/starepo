@@ -117,7 +117,7 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({
   }
 
   return (
-    <Card className={className}>
+    <Card className={`rounded-xl shadow-sm transition-all duration-300 hover:shadow-md ${className}`}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <TrendingUp className="h-5 w-5" />
@@ -138,12 +138,12 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({
             >
               <defs>
                 <linearGradient id="countGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8884d8" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#8884d8" stopOpacity={0.1}/>
+                  <stop offset="5%" stopColor="#8884d8" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#8884d8" stopOpacity={0.1} />
                 </linearGradient>
                 <linearGradient id="cumulativeGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#82ca9d" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#82ca9d" stopOpacity={0.1}/>
+                  <stop offset="5%" stopColor="#82ca9d" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#82ca9d" stopOpacity={0.1} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" className="opacity-30" />

@@ -136,7 +136,7 @@ const LanguageDistributionChart: React.FC<LanguageDistributionChartProps> = ({
   }
 
   return (
-    <Card className={className}>
+    <Card className={`rounded-xl shadow-sm transition-all duration-300 hover:shadow-md ${className}`}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Code className="h-5 w-5" />
@@ -203,7 +203,7 @@ const MemoizedLanguageDistributionChart = React.memo(LanguageDistributionChart, 
   if (prevProps.languages.length !== nextProps.languages.length) {
     return false;
   }
-  
+
   for (let i = 0; i < prevProps.languages.length; i++) {
     const prev = prevProps.languages[i];
     const next = nextProps.languages[i];
@@ -211,7 +211,7 @@ const MemoizedLanguageDistributionChart = React.memo(LanguageDistributionChart, 
       return false;
     }
   }
-  
+
   return prevProps.className === nextProps.className;
 });
 

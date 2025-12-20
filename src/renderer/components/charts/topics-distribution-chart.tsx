@@ -92,7 +92,7 @@ export const TopicsDistributionChart: React.FC<TopicsDistributionChartProps> = (
   }
 
   return (
-    <Card className={className}>
+    <Card className={`rounded-xl shadow-sm transition-all duration-300 hover:shadow-md ${className}`}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Tag className="h-5 w-5" />

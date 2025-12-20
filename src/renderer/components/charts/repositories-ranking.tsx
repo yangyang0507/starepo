@@ -56,8 +56,8 @@ export const RepositoriesRanking: React.FC<RepositoriesRankingProps> = ({
             bValue = b.watchers_count;
             break;
           case 'updated_at':
-            aValue = new Date(a.updated_at).getTime();
-            bValue = new Date(b.updated_at).getTime();
+            aValue = new Date(a.updated_at || 0).getTime();
+            bValue = new Date(b.updated_at || 0).getTime();
             break;
           case 'name':
             aValue = a.name.toLowerCase();
@@ -125,7 +125,7 @@ export const RepositoriesRanking: React.FC<RepositoriesRankingProps> = ({
   }
 
   return (
-    <Card className={className}>
+    <Card className={`rounded-xl shadow-sm transition-all duration-300 hover:shadow-md ${className}`}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Star className="h-5 w-5" />
@@ -229,7 +229,7 @@ export const RepositoriesRanking: React.FC<RepositoriesRankingProps> = ({
                   </TableCell>
                   <TableCell>
                     <span className="text-sm text-muted-foreground">
-                      {new Date(repo.updated_at).toLocaleDateString('zh-CN')}
+                      {new Date(repo.updated_at || new Date()).toLocaleDateString('zh-CN')}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -278,11 +278,11 @@ export const RepositoriesRanking: React.FC<RepositoriesRankingProps> = ({
                   <ExternalLink className="h-3 w-3" />
                 </Button>
               </div>
-              
+
               <div className="text-sm text-muted-foreground mb-2 truncate">
                 {repo.description || '暂无描述'}
               </div>
-              
+
               <div className="flex items-center gap-2 mb-2">
                 {repo.language && (
                   <Badge variant="secondary" className="text-xs">
@@ -300,7 +300,7 @@ export const RepositoriesRanking: React.FC<RepositoriesRankingProps> = ({
                   </Badge>
                 )}
               </div>
-              
+
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <div className="flex items-center gap-1">
                   <Star className="h-3 w-3 text-yellow-500" />
