@@ -14,7 +14,7 @@ export default function HomePage() {
 
   return (
     <AppLayout title={t("appName")}>
-      <div className="flex flex-1 flex-col gap-0 p-0 pt-0 overflow-hidden">
+      <div className="flex flex-1 flex-col gap-4 p-2 sm:p-4 pt-0">
         {/* AI 聊天界面 - 填充整个剩余空间 */}
         <ChatInterface conversationId="default" />
       </div>
