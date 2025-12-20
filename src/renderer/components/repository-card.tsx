@@ -144,11 +144,10 @@ const RepositoryCard: React.FC<RepositoryCardProps> = ({
           <button
             onClick={handleStarToggle}
             disabled={isStarring || loading}
-            className={`flex items-center gap-1 rounded-lg px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium transition-all duration-200 ${
-              isStarred
-                ? "bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-700 hover:from-yellow-200 hover:to-amber-200 hover:shadow-md dark:from-yellow-900/30 dark:to-amber-900/30 dark:text-yellow-300 dark:hover:from-yellow-900/40 dark:hover:to-amber-900/40"
-                : "bg-gradient-to-r from-gray-100 to-gray-50 text-gray-700 hover:from-gray-200 hover:to-gray-100 hover:shadow-md dark:from-gray-700 dark:to-gray-600 dark:text-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-500"
-            } ${isStarring || loading ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:scale-105"}`}
+            className={`flex items-center gap-1 rounded-lg px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium transition-all duration-200 ${isStarred
+              ? "bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-700 hover:from-yellow-200 hover:to-amber-200 hover:shadow-md dark:from-yellow-900/30 dark:to-amber-900/30 dark:text-yellow-300 dark:hover:from-yellow-900/40 dark:hover:to-amber-900/40"
+              : "bg-gradient-to-r from-gray-100 to-gray-50 text-gray-700 hover:from-gray-200 hover:to-gray-100 hover:shadow-md dark:from-gray-700 dark:to-gray-600 dark:text-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-500"
+              } ${isStarring || loading ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:scale-105"}`}
           >
             <Star className={`h-3 w-3 sm:h-4 sm:w-4 ${isStarred ? "fill-current" : ""}`} />
             <span className="hidden xs:inline">{isStarred ? "Starred" : "Star"}</span>
@@ -167,105 +166,82 @@ const RepositoryCard: React.FC<RepositoryCardProps> = ({
         </div>
       </div>
 
-      {/* 描述 */}
-      {viewOptions.showDescription && repository.description && (
-        <p className="mb-3 line-clamp-2 text-sm text-gray-600 dark:text-gray-400">
-          {repository.description}
-        </p>
-      )}
-
-      {/* 主题标签 */}
-      {viewOptions.showTopics &&
-        repository.topics &&
-        repository.topics.length > 0 && (
-          <div className="mb-3 flex flex-wrap gap-1.5">
-            {repository.topics.slice(0, 5).map((topic) => (
-              <span
-                key={topic}
-                className="inline-flex items-center rounded-full bg-gradient-to-r from-blue-50 to-indigo-50 px-2.5 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-200/50 transition-all duration-200 hover:from-blue-100 hover:to-indigo-100 hover:ring-blue-300/50 dark:from-blue-900/20 dark:to-indigo-900/20 dark:text-blue-300 dark:ring-blue-700/30 dark:hover:from-blue-900/30 dark:hover:to-indigo-900/30"
-              >
-                <Tag className="mr-1 h-3 w-3" />
-                {topic}
-              </span>
-            ))}
-            {repository.topics.length > 5 && (
-              <div className="relative inline-block">
-                <span
-                  className="inline-flex cursor-pointer items-center rounded-full bg-gradient-to-r from-gray-50 to-slate-50 px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-200/50 transition-all duration-200 hover:from-gray-100 hover:to-slate-100 hover:ring-gray-300/50 dark:from-gray-800/50 dark:to-slate-800/50 dark:text-gray-400 dark:ring-gray-600/30 dark:hover:from-gray-700/50 dark:hover:to-slate-700/50"
-                  onMouseEnter={() => setShowRemainingTopics(true)}
-                  onMouseLeave={() => setShowRemainingTopics(false)}
-                >
-                  +{repository.topics.length - 5}
-                </span>
-
-                {/* Hover 弹窗显示剩余标签 */}
-                {showRemainingTopics && (
-                  <div className="absolute bottom-full left-0 z-50 mb-2 max-w-xs rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                    <div className="flex flex-wrap gap-1.5">
-                      {repository.topics.slice(5).map((topic) => (
-                        <span
-                          key={topic}
-                          className="inline-flex items-center rounded-full bg-gradient-to-r from-blue-50 to-indigo-50 px-2.5 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-200/50 dark:from-blue-900/20 dark:to-indigo-900/20 dark:text-blue-300 dark:ring-blue-700/30"
-                        >
-                          <Tag className="mr-1 h-3 w-3" />
-                          {topic}
-                        </span>
-                      ))}
-                    </div>
-                    {/* 小箭头 */}
-                    <div className="absolute -bottom-1 left-3 h-2 w-2 rotate-45 border-b border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"></div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+      {/* 描述 - 固定高度以对齐 */}
+      <div className="mb-4 h-10">
+        {viewOptions.showDescription && repository.description ? (
+          <p className="line-clamp-2 text-sm text-muted-foreground leading-relaxed" title={repository.description}>
+            {repository.description}
+          </p>
+        ) : (
+          <span className="text-sm text-muted-foreground/30 italic">无描述</span>
         )}
+      </div>
 
-      {/* 底部信息 */}
-      <div className="flex flex-col gap-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-          {/* 编程语言 */}
-          {viewOptions.showLanguage && repository.language && (
-            <div className="flex items-center gap-1.5">
-              <div
-                className="h-2 w-2 sm:h-3 sm:w-3 rounded-full ring-1 ring-white/20 shadow-sm"
+      {/* 主题标签 - 固定高度 */}
+      <div className="mb-4 h-6 overflow-hidden">
+        {viewOptions.showTopics &&
+          repository.topics &&
+          repository.topics.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {repository.topics.slice(0, 3).map((topic) => (
+                <span
+                  key={topic}
+                  className="inline-flex items-center rounded-md bg-secondary/40 px-2 py-0.5 text-xs font-medium text-secondary-foreground/80"
+                >
+                  <Tag className="mr-1 h-3 w-3 opacity-50" />
+                  {topic}
+                </span>
+              ))}
+              {repository.topics.length > 3 && (
+                <span className="inline-flex items-center rounded-md bg-secondary/40 px-2 py-0.5 text-xs font-medium text-secondary-foreground/80">
+                  +{repository.topics.length - 3}
+                </span>
+              )}
+            </div>
+          )}
+      </div>
+
+      {/* 底部信息 - 左右分栏 */}
+      <div className="mt-auto pt-3 border-t border-border/40 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+
+        {/* 左侧：编程语言 */}
+        <div className="flex-shrink-0 min-w-0 max-w-[40%]">
+          {viewOptions.showLanguage && repository.language ? (
+            <div className="flex items-center gap-1.5" title={repository.language}>
+              <span
+                className="h-2 w-2 rounded-full ring-1 ring-background flex-shrink-0"
                 style={{
                   backgroundColor: getLanguageColor(repository.language),
                 }}
               />
-              <span className="truncate font-medium">{repository.language}</span>
+              <span className="font-medium truncate">{repository.language}</span>
             </div>
+          ) : (
+            <span>&nbsp;</span>
           )}
+        </div>
 
-          {/* 统计信息 */}
+        {/* 右侧：统计数据 和 日期 */}
+        <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
           {viewOptions.showStats && (
-            <>
-              <div className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
-                <Star className="h-3 w-3 sm:h-4 sm:w-4" />
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 text-yellow-600/90 dark:text-yellow-400">
+                <Star className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                 <span className="font-medium">{formatNumber(repository.stargazers_count)}</span>
               </div>
 
               {repository.forks_count > 0 && (
-                <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
-                  <GitFork className="h-3 w-3 sm:h-4 sm:w-4" />
+                <div className="flex items-center gap-1 text-blue-600/80 dark:text-blue-400">
+                  <GitFork className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   <span className="font-medium">{formatNumber(repository.forks_count)}</span>
                 </div>
               )}
-
-              {repository.watchers_count > 0 && (
-                <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                  <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="font-medium">{formatNumber(repository.watchers_count)}</span>
-                </div>
-              )}
-            </>
+            </div>
           )}
-        </div>
 
-        {/* 更新时间 */}
-        <div className="flex items-center gap-1 flex-shrink-0 text-gray-600 dark:text-gray-400">
-          <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
-          <span className="truncate font-medium">{formatDate(repository.updated_at)}</span>
+          <div className="flex items-center gap-1 text-muted-foreground/60 pl-1 border-l border-border/50">
+            <span className="truncate font-medium px-1">{formatDate(repository.updated_at || "")}</span>
+          </div>
         </div>
       </div>
     </>
@@ -285,10 +261,10 @@ const RepositoryCard: React.FC<RepositoryCardProps> = ({
   // 网格布局
   return (
     <div
-      className={`group flex h-full cursor-pointer flex-col rounded-xl border border-gray-200/60 bg-white/80 backdrop-blur-sm p-4 sm:p-5 transition-all duration-300 hover:shadow-lg hover:shadow-gray-200/50 hover:border-gray-300/60 hover:-translate-y-0.5 dark:border-gray-700/60 dark:bg-gray-800/80 dark:hover:shadow-xl dark:hover:shadow-gray-900/20 dark:hover:border-gray-600/60 ${className}`}
+      className={`group flex h-full cursor-pointer flex-col rounded-xl border bg-card text-card-foreground shadow-sm transition-all duration-300 hover:shadow-md hover:border-primary/20 hover:-translate-y-0.5 ${className}`}
       onClick={handleCardClick}
     >
-      <div className="flex-1">{cardContent}</div>
+      <div className="flex-1 p-4 sm:p-5">{cardContent}</div>
     </div>
   );
 };

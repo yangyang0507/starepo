@@ -339,7 +339,7 @@ export default function StatsPage() {
 
   return (
     <AppLayout title="统计分析">
-      <div className="flex flex-1 flex-col gap-4 p-2 sm:p-4 pt-0">
+      <div className="flex flex-col gap-4 p-2 sm:p-4 pt-0 h-full overflow-y-auto">
         {/* 错误状态 */}
         {renderErrorState()}
 

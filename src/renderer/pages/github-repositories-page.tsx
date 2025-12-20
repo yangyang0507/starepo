@@ -62,12 +62,8 @@ const GitHubRepositoriesPage: React.FC = () => {
 
   // 初始化 - 只有当全局认证状态确认已认证时才执行
   useEffect(() => {
-    console.log('全局认证状态:', authState);
     if (authState?.isAuthenticated && authState.user) {
-      console.log('认证状态确认，开始初始化数据...');
       initializeData(authState.user as any);
-    } else {
-      console.log('认证状态未确认，跳过数据初始化');
     }
   }, [initializeData, authState?.isAuthenticated, authState?.user]);
 
@@ -252,118 +248,85 @@ const GitHubRepositoriesPage: React.FC = () => {
 
   return (
     <AppLayout title="GitHub 仓库管理">
-      <div className="flex flex-1 flex-col gap-4 p-2 sm:p-4 pt-0">
+      <div className="flex flex-col gap-4 p-2 sm:p-4 pt-0 h-full overflow-y-auto">
         {/* 用户信息卡片 */}
         {user && (
-          <Card className="overflow-hidden">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
-                <Github className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                <span className="truncate">GitHub 连接状态</span>
-                <Badge
-                  variant="outline"
-                  className="ml-auto text-green-600 border-green-600 text-xs"
-                >
-                  <CheckCircle className="mr-1 h-3 w-3" />
-                  已连接
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
+          <div className="flex-shrink-0 bg-card rounded-lg border shadow-sm p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row gap-6 justify-between items-start sm:items-center">
+              {/* 左侧：用户信息 */}
+              <div className="flex items-center gap-4">
                 <button
-                  onClick={() =>
-                    openExternal(`https://github.com/${user?.login}`)
-                  }
-                  className="group flex-shrink-0"
+                  onClick={() => openExternal(`https://github.com/${user?.login}`)}
+                  className="group flex-shrink-0 relative"
                 >
-                  <Avatar className="h-12 w-12 sm:h-16 sm:w-16 ring-2 ring-transparent group-hover:ring-primary/20 transition-all">
+                  <Avatar className="h-16 w-16 sm:h-20 sm:w-20 ring-4 ring-background shadow-md group-hover:scale-105 transition-transform">
                     <AvatarImage src={user.avatar_url} alt={user.login} />
                     <AvatarFallback>
-                      <User className="h-6 w-6 sm:h-8 sm:w-8" />
+                      <User className="h-8 w-8 text-muted-foreground" />
                     </AvatarFallback>
                   </Avatar>
-                </button>
-                <div className="flex-1 min-w-0 space-y-2">
-                  <div>
-                    <button
-                      onClick={() =>
-                        openExternal(`https://github.com/${user?.login}`)
-                      }
-                      className="group text-left w-full"
-                    >
-                      <h3 className="font-semibold text-base sm:text-lg group-hover:text-primary transition-colors flex items-center gap-2 truncate">
-                        <span className="truncate">
-                          {user.name || user.login}
-                        </span>
-                        <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                      </h3>
-                    </button>
-                    <button
-                      onClick={() =>
-                        openExternal(`https://github.com/${user?.login}`)
-                      }
-                      className="text-muted-foreground hover:text-foreground text-sm transition-colors truncate block"
-                    >
-                      @{user.login}
-                    </button>
+                  <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-1 shadow-sm">
+                    <Github className="h-4 w-4 text-foreground" />
                   </div>
+                </button>
+
+                <div className="space-y-1">
+                  <div className="flex items-baseline gap-2">
+                    <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
+                      {user.name || user.login}
+                    </h2>
+                  </div>
+                  <p className="text-muted-foreground font-mono text-sm">@{user.login}</p>
                   {user.bio && (
-                    <p className="text-sm text-muted-foreground line-clamp-2">
+                    <p className="text-sm text-muted-foreground max-w-md line-clamp-1">
                       {user.bio}
                     </p>
                   )}
-                  <div className="flex flex-wrap gap-3 sm:gap-4 text-sm">
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <Star className="h-4 w-4 flex-shrink-0" />
-                      <span className="font-medium">{repositories.length}</span>
-                      <span className="hidden xs:inline">已标星</span>
-                    </div>
-                    <button
-                      onClick={() =>
-                        openExternal(`https://github.com/${user?.login}?tab=repositories`)
-                      }
-                      className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer group"
-                    >
-                      <BookOpen className="h-4 w-4 flex-shrink-0" />
-                      <span className="font-medium">
-                        {user.public_repos || 0}
-                      </span>
-                      <span className="hidden xs:inline">仓库</span>
-                      <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                    </button>
+                </div>
+              </div>
+
+              {/* 右侧：数据与操作 */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-8 w-full sm:w-auto">
+                <div className="flex items-center justify-around sm:justify-start gap-6 sm:gap-8">
+                  <div className="text-center sm:text-left">
+                    <p className="text-sm text-muted-foreground">已标星</p>
+                    <p className="text-2xl font-bold tracking-tight">{repositories.length}</p>
+                  </div>
+                  <div className="w-px h-10 bg-border hidden sm:block" />
+                  <div className="text-center sm:text-left">
+                    <p className="text-sm text-muted-foreground">公开仓库</p>
+                    <p className="text-2xl font-bold tracking-tight">{user.public_repos || 0}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 w-full sm:w-auto">
+
+                <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     onClick={handleRefresh}
                     disabled={syncing}
                     size="sm"
-                    className="flex-1 sm:flex-none"
+                    className="flex-1 sm:flex-none h-9"
                   >
                     {syncing ? (
                       <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
                       <RefreshCw className="mr-2 h-4 w-4" />
                     )}
-                    <span className="xs:inline">
-                      {syncing ? "刷新中" : "刷新"}
-                    </span>
+                    刷新
                   </Button>
                   <Button
-                    variant="destructive"
+                    variant="ghost"
+                    size="icon"
                     onClick={handleLogout}
-                    size="sm"
-                    className="flex-1 sm:flex-none"
+                    title="登出"
+                    className="h-9 w-9 text-muted-foreground hover:text-destructive"
                   >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span className="xs:inline">登出</span>
+                    <LogOut className="h-5 w-5" />
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {/* 加载进度指示器 */}
@@ -408,11 +371,10 @@ const GitHubRepositoriesPage: React.FC = () => {
                   <AlertCircle className="h-5 w-5 text-destructive" />
                 )}
                 <span
-                  className={`text-sm font-medium ${
-                    refreshMessage.includes("刷新完成")
-                      ? "text-green-600"
-                      : "text-destructive"
-                  }`}
+                  className={`text-sm font-medium ${refreshMessage.includes("刷新完成")
+                    ? "text-green-600"
+                    : "text-destructive"
+                    }`}
                 >
                   {refreshMessage}
                 </span>
@@ -421,48 +383,37 @@ const GitHubRepositoriesPage: React.FC = () => {
           </Card>
         )}
 
-        <SearchAndFilter
-          onSearch={handleSearch}
-          onFilterChange={handleFilterChange}
-          onViewChange={handleViewChange}
-          loading={loading || syncing}
-          totalCount={displayRepositories.length}
-        />
+        {/* 搜索和过滤区域 - 嵌入式设计 */}
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm pb-2 pt-1 border-b">
+          <SearchAndFilter
+            onSearch={handleSearch}
+            loading={loading || syncing}
+            totalCount={displayRepositories.length}
+            className="pb-2"
+          />
+        </div>
 
-        {/* 仓库列表卡片 */}
-        <Card className="flex-1 flex flex-col">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Star className="h-5 w-5" />
-              Star 仓库列表
-              {displayRepositories.length > 0 && (
-                <Badge variant="secondary" className="ml-auto">
-                  {displayRepositories.length} 个仓库
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0 flex-1 flex flex-col">
-            {error && (
-              <div className="p-6">
-                <div className="flex items-center gap-2 text-destructive mb-4">
-                  <AlertCircle className="h-4 w-4" />
-                  <span className="font-medium">错误提示</span>
-                </div>
-                <p className="text-sm text-muted-foreground">{error}</p>
-              </div>
-            )}
+        {/* 仓库列表区域 */}
+        <div className="flex-col min-h-0 space-y-4">
+          {error && (
+            <div className="p-4 rounded-lg bg-destructive/10 text-destructive text-sm flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              <span>{error}</span>
+            </div>
+          )}
 
-            <RepositoryList
-              repositories={paginatedRepositories}
-              starredRepoIds={starredRepoIds}
-              loading={loading}
-              onStar={handleStar}
-              onUnstar={handleUnstar}
-            />
-          </CardContent>
-          {renderPagination()}
-        </Card>
+          <RepositoryList
+            repositories={paginatedRepositories}
+            starredRepoIds={starredRepoIds}
+            loading={loading}
+            onStar={handleStar}
+            onUnstar={handleUnstar}
+          />
+
+          <div className="pt-4 pb-8">
+            {renderPagination()}
+          </div>
+        </div>
 
         {/* 底部间隙 */}
         <div className="h-20"></div>

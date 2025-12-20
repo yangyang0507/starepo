@@ -55,9 +55,9 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
   }
 
   return (
-    <div className={`flex h-full flex-col ${className}`}>
+    <div className={`flex flex-col ${className}`}>
       {/* 内容区域 */}
-      <div className="flex-1 p-3 sm:p-6">
+      <div className="p-1">
         {loading && repositories.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <Loader2 className="mb-4 h-8 w-8 animate-spin text-primary" />
@@ -75,11 +75,10 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
           <>
             {/* 仓库网格/列表 */}
             <div
-              className={`${
-                viewOptions.layout === "grid"
+              className={`${viewOptions.layout === "grid"
                   ? "grid grid-cols-1 gap-3 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
                   : "space-y-3 sm:space-y-4"
-              }`}
+                }`}
             >
               {repositories.map((repo) => (
                 <RepositoryCard
