@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -422,17 +423,16 @@ export function GitHubSection() {
                     定期自动同步 GitHub 星标仓库
                   </p>
                 </div>
-                <Button
-                  variant={autoSyncEnabled ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={handleAutoSyncToggle}
-                  disabled={autoSyncUpdating}
-                >
-                  {autoSyncUpdating ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : null}
-                  {autoSyncEnabled ? '已启用' : '已禁用'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  {autoSyncUpdating && (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                  <Switch
+                    checked={autoSyncEnabled}
+                    onCheckedChange={handleAutoSyncToggle}
+                    disabled={autoSyncUpdating}
+                  />
+                </div>
               </div>
 
               {/* 同步间隔 */}
