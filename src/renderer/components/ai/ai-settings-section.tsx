@@ -4,7 +4,6 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,18 +35,6 @@ import { useLocation } from '@tanstack/react-router';
 
 const AI_SETTINGS_HASH = 'ai-settings';
 
-const formatTimestamp = (timestamp?: number) => {
-  if (!timestamp) return null;
-  try {
-    return new Intl.DateTimeFormat('zh-CN', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    }).format(new Date(timestamp));
-  } catch {
-    return new Date(timestamp).toLocaleString();
-  }
-};
-
 export function AISettingsSection() {
   const {
     getAISettings: fetchAISettings,
@@ -57,7 +44,6 @@ export function AISettingsSection() {
   const { initAccounts, getAccount, saveAccount, disableOtherProviders } = useAIAccountsStore();
 
   // 基础状态
-  const [safeSettings, setSafeSettings] = useState<AISafeSettings | null>(null);
   const [providers, setProviders] = useState<ProviderOption[]>([]);
   const [provider, setProvider] = useState<AIProviderId>('openai');
   const [model, setModel] = useState<string>('');
@@ -85,7 +71,6 @@ export function AISettingsSection() {
   const [saveFeedback, setSaveFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [testFeedback, setTestFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [highlight, setHighlight] = useState(false);
 
   const sectionRef = useRef<HTMLDivElement | null>(null);
   const { hash } = useLocation();
@@ -221,7 +206,6 @@ export function AISettingsSection() {
 
   // 水合设置
   const hydrateSettings = useCallback((settings: AISafeSettings | null) => {
-    setSafeSettings(settings);
     const nextProvider = (settings?.provider as AIProviderId) ?? 'openai';
     setProvider(nextProvider);
     setModel(settings?.model || '');
@@ -264,9 +248,6 @@ export function AISettingsSection() {
     if (!sectionRef.current) return;
     if (hash === `#${AI_SETTINGS_HASH}`) {
       sectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setHighlight(true);
-      const timer = setTimeout(() => setHighlight(false), 1800);
-      return () => clearTimeout(timer);
     }
     return undefined;
   }, [hash]);

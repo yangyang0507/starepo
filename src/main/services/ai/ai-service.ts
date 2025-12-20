@@ -477,14 +477,9 @@ export class AIService {
    * 更新设置
    */
   async updateSettings(settings: Partial<AISettings>): Promise<void> {
-    if (!this.settings) {
-      throw new AIError(
-        AIErrorCode.NOT_CONFIGURED,
-        "AI service not initialized"
-      );
-    }
-
-    this.settings = { ...this.settings, ...settings };
+    this.settings = this.settings
+      ? { ...this.settings, ...settings }
+      : (settings as AISettings);
     logger.debug("AI service settings updated");
   }
 

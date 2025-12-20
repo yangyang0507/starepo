@@ -13,6 +13,9 @@ export * from "./tools";
 // 导出模型发现服务
 export { modelDiscoveryService } from "./model-discovery-service";
 
+// 导出 AI 设置持久化服务
+export { aiSettingsService } from "./ai-settings-service";
+
 // 导出 Provider 适配器系统
 export * from "./adapters";
 

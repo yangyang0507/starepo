@@ -7,7 +7,8 @@ import { ipcMain } from "electron";
 import { AIService, setAIService, getAIService } from "@main/services/ai";
 import { modelDiscoveryService } from "@main/services/ai/model-discovery-service";
 import { providerAccountService } from "@main/services/ai/provider-account-service";
-import { IPC_CHANNELS, AI_MODEL_CACHE_TTL } from "@shared/constants";
+import { aiSettingsService } from "@main/services/ai/ai-settings-service";
+import { IPC_CHANNELS } from "@shared/constants";
 import { getProviderOptions } from "@shared/data/ai-providers";
 import {
   AIResponse,
@@ -70,14 +71,8 @@ export function initializeAIHandlers(): void {
     IPC_CHANNELS.AI.GET_SAFE_SETTINGS,
     async (_event) => {
       try {
-        if (!getAIService()) {
-          return {
-            success: false,
-            error: "AI service not initialized",
-          } as IPCResponse;
-        }
-
-        const settings = getAIService().getSettings();
+        // 从持久化服务读取设置
+        const settings = await aiSettingsService.getSettings();
         const safeSettings: AISafeSettings | null = settings
           ? {
               enabled: settings.enabled,
@@ -109,14 +104,13 @@ export function initializeAIHandlers(): void {
     IPC_CHANNELS.AI.SET_SETTINGS,
     async (_event, payload: AISettingsPayload) => {
       try {
-        if (!getAIService()) {
-          return {
-            success: false,
-            error: "AI service not initialized",
-          } as IPCResponse;
-        }
+        // 保存到持久化服务
+        await aiSettingsService.updateSettings(payload as Partial<AISettings>);
 
-        await getAIService().updateSettings(payload as Partial<AISettings>);
+        // 同步更新 AIService 内存中的设置
+        if (getAIService()) {
+          await getAIService().updateSettings(payload as Partial<AISettings>);
+        }
 
         return {
           success: true,
