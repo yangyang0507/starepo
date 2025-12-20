@@ -304,37 +304,68 @@ export function AISettingsSection() {
       return;
     }
 
-    setEnabled(newEnabled);
-
-    // 保存当前 Provider 的启用状态
-    if (isUsingSavedAccount) {
-      const existingAccount = await getAccount(provider);
-      if (existingAccount) {
-        await saveAccount({
-          ...existingAccount,
-          enabled: newEnabled,
-        });
-      }
-    } else {
-      // 新配置的账户
-      const accountConfig: ProviderAccountConfig = {
-        providerId: provider,
-        protocol: apiProtocol,
-        apiKey: trimmedKey,
-        baseUrl: trimmedUrl || undefined,
-        timeout: 30000,
-        retries: 3,
-        strictTLS: true,
-        enabled: newEnabled,
-      };
-      await saveAccount(accountConfig);
-      setIsUsingSavedAccount(true);
-      setHasStoredKey(true);
+    if (!model) {
+      setSaveFeedback({ type: 'error', message: '请先选择模型' });
+      return;
     }
 
-    // 如果启用当前 Provider，禁用其他所有 Provider
-    if (newEnabled) {
-      await disableOtherProviders(provider);
+    setEnabled(newEnabled);
+
+    try {
+      // 保存当前 Provider 的启用状态
+      if (isUsingSavedAccount) {
+        const existingAccount = await getAccount(provider);
+        if (existingAccount) {
+          await saveAccount({
+            ...existingAccount,
+            enabled: newEnabled,
+          });
+        }
+      } else {
+        // 新配置的账户
+        const accountConfig: ProviderAccountConfig = {
+          providerId: provider,
+          protocol: apiProtocol,
+          apiKey: trimmedKey,
+          baseUrl: trimmedUrl || undefined,
+          timeout: 30000,
+          retries: 3,
+          strictTLS: true,
+          enabled: newEnabled,
+        };
+        await saveAccount(accountConfig);
+        setIsUsingSavedAccount(true);
+        setHasStoredKey(true);
+      }
+
+      // 如果启用当前 Provider，禁用其他所有 Provider
+      if (newEnabled) {
+        await disableOtherProviders(provider);
+      }
+
+      // 保存 AI 设置到持久化文件
+      const maxTokensValue = Number(maxTokens);
+      const temperatureValue = Number(temperature);
+      const topPValue = Number(topP);
+
+      const payload = {
+        provider,
+        model,
+        enabled: newEnabled,
+        maxTokens: maxTokensValue,
+        temperature: temperatureValue,
+        topP: topPValue,
+        ...(trimmedKey ? { apiKey: trimmedKey } : {}),
+        ...(trimmedUrl ? { baseURL: trimmedUrl } : {}),
+      };
+
+      await persistAISettings(payload);
+    } catch (error) {
+      setEnabled(!newEnabled); // 回滚状态
+      setSaveFeedback({
+        type: 'error',
+        message: error instanceof Error ? error.message : '切换失败',
+      });
     }
   };
 
