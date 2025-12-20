@@ -384,7 +384,7 @@ const GitHubRepositoriesPage: React.FC = () => {
         )}
 
         {/* 搜索和过滤区域 - 嵌入式设计 */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm pb-2 pt-1 border-b">
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm pb-1 pt-1">
           <SearchAndFilter
             onSearch={handleSearch}
             loading={loading || syncing}

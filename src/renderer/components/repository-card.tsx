@@ -11,6 +11,11 @@ import {
 } from "lucide-react";
 import type { GitHubRepository, ViewOptions } from "@shared/types";
 import { useExternalLink } from "@/hooks/use-external-link";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 
 interface RepositoryCardProps {
   repository: GitHubRepository;
@@ -84,7 +89,7 @@ const RepositoryCard: React.FC<RepositoryCardProps> = ({
   className = "",
 }) => {
   const [isStarring, setIsStarring] = useState(false);
-  const [showRemainingTopics, setShowRemainingTopics] = useState(false);
+
   const { openExternal } = useExternalLink();
 
   const handleStarToggle = useCallback(
@@ -193,9 +198,26 @@ const RepositoryCard: React.FC<RepositoryCardProps> = ({
                 </span>
               ))}
               {repository.topics.length > 3 && (
-                <span className="inline-flex items-center rounded-md bg-secondary/40 px-2 py-0.5 text-xs font-medium text-secondary-foreground/80">
-                  +{repository.topics.length - 3}
-                </span>
+                <HoverCard>
+                  <HoverCardTrigger asChild>
+                    <span className="inline-flex cursor-default items-center rounded-md bg-secondary/40 px-2 py-0.5 text-xs font-medium text-secondary-foreground/80 hover:bg-secondary/60">
+                      +{repository.topics.length - 3}
+                    </span>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-64 p-3" align="start">
+                    <div className="flex flex-wrap gap-1.5">
+                      {repository.topics.slice(3).map((topic) => (
+                        <span
+                          key={topic}
+                          className="inline-flex items-center rounded-md bg-secondary/40 px-2 py-0.5 text-xs font-medium text-secondary-foreground"
+                        >
+                          <Tag className="mr-1 h-3 w-3 opacity-50" />
+                          {topic}
+                        </span>
+                      ))}
+                    </div>
+                  </HoverCardContent>
+                </HoverCard>
               )}
             </div>
           )}
