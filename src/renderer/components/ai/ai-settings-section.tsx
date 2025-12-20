@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from "@/components/ui/separator";
+import { Switch } from '@/components/ui/switch';
 import { Loader2, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ModelSelector } from './model-selector';
@@ -30,7 +31,7 @@ import type {
   AIProtocol,
 } from '@shared/types';
 import { AI_PROTOCOL } from '@shared/types/ai-provider';
-import { AI_PROVIDER_SYSTEM_CONFIG } from '@shared/data/ai-providers';
+import { AI_PROVIDER_SYSTEM_CONFIG, getProviderDefinition } from '@shared/data/ai-providers';
 import { useLocation } from '@tanstack/react-router';
 
 const AI_SETTINGS_HASH = 'ai-settings';
@@ -53,7 +54,7 @@ export function AISettingsSection() {
     updateAISettings: persistAISettings,
   } = useAIApi();
 
-  const { initAccounts, getAccount } = useAIAccountsStore();
+  const { initAccounts, getAccount, saveAccount, disableOtherProviders } = useAIAccountsStore();
 
   // 基础状态
   const [safeSettings, setSafeSettings] = useState<AISafeSettings | null>(null);
@@ -63,6 +64,7 @@ export function AISettingsSection() {
   const [models, setModels] = useState<AIModel[]>([]);
   const [modelState, setModelState] = useState<ModelSelectionState>('idle');
   const [modelError, setModelError] = useState<string>('');
+  const [enabled, setEnabled] = useState(false);
 
   // API Key 相关
   const [apiKey, setApiKey] = useState<string>('');
@@ -90,10 +92,6 @@ export function AISettingsSection() {
 
   // 获取已配置的 Provider 集合
   const configuredProviders = useAIAccountsStore((state) => state.accounts);
-  const configuredProviderIds = React.useMemo(
-    () => new Set(Array.from(configuredProviders.keys())),
-    [configuredProviders]
-  );
 
   // 辅助函数：获取 Provider 的默认协议
   const getDefaultProtocol = useCallback((providerId: AIProviderId): AIProtocol => {
@@ -137,6 +135,7 @@ export function AISettingsSection() {
       setApiKey(account.apiKey || '');
       setBaseUrl(account.baseUrl || '');
       setApiProtocol(account.protocol || getDefaultProtocol(providerId));
+      setEnabled(account.enabled ?? false);
       setHasStoredKey(true);
       setIsUsingSavedAccount(true);
       return account;
@@ -144,6 +143,7 @@ export function AISettingsSection() {
     setApiKey('');
     setBaseUrl('');
     setApiProtocol(getDefaultProtocol(providerId));
+    setEnabled(false);
     setHasStoredKey(false);
     setIsUsingSavedAccount(false);
     return null;
@@ -196,10 +196,23 @@ export function AISettingsSection() {
         };
         await loadModels(config);
       } else {
-        // 没有已保存的配置，清空模型列表
-        setModels([]);
-        setModelState('idle');
-        setModel('');
+        // 没有已保存的配置，使用 Provider 的默认模型列表
+        const providerDef = getProviderDefinition(provider);
+        if (providerDef?.defaults?.models && providerDef.defaults.models.length > 0) {
+          const defaultModels: AIModel[] = providerDef.defaults.models.map((modelId) => ({
+            id: modelId,
+            displayName: modelId,
+            capabilities: { maxTokens: providerDef.defaults.maxTokens },
+          }));
+          setModels(defaultModels);
+          setModel(providerDef.defaults.recommendedModel || defaultModels[0]?.id || '');
+          setModelState('success');
+        } else {
+          // 完全没有默认模型，清空
+          setModels([]);
+          setModelState('idle');
+          setModel('');
+        }
       }
     };
 
@@ -212,6 +225,7 @@ export function AISettingsSection() {
     const nextProvider = (settings?.provider as AIProviderId) ?? 'openai';
     setProvider(nextProvider);
     setModel(settings?.model || '');
+    setEnabled(settings?.enabled ?? false);
     setMaxTokens(String(settings?.maxTokens ?? 4096));
     setTemperature(String(settings?.temperature ?? 0.7));
     setTopP(String(settings?.topP ?? 1));
@@ -300,6 +314,49 @@ export function AISettingsSection() {
     }
   };
 
+  // 切换启用状态
+  const handleToggleEnabled = async (newEnabled: boolean) => {
+    const trimmedKey = apiKey.trim();
+    const trimmedUrl = baseUrl.trim();
+
+    if (!trimmedKey) {
+      return;
+    }
+
+    setEnabled(newEnabled);
+
+    // 保存当前 Provider 的启用状态
+    if (isUsingSavedAccount) {
+      const existingAccount = await getAccount(provider);
+      if (existingAccount) {
+        await saveAccount({
+          ...existingAccount,
+          enabled: newEnabled,
+        });
+      }
+    } else {
+      // 新配置的账户
+      const accountConfig: ProviderAccountConfig = {
+        providerId: provider,
+        protocol: apiProtocol,
+        apiKey: trimmedKey,
+        baseUrl: trimmedUrl || undefined,
+        timeout: 30000,
+        retries: 3,
+        strictTLS: true,
+        enabled: newEnabled,
+      };
+      await saveAccount(accountConfig);
+      setIsUsingSavedAccount(true);
+      setHasStoredKey(true);
+    }
+
+    // 如果启用当前 Provider，禁用其他所有 Provider
+    if (newEnabled) {
+      await disableOtherProviders(provider);
+    }
+  };
+
   // 保存设置
   const handleSave = async () => {
     setIsSaving(true);
@@ -308,7 +365,7 @@ export function AISettingsSection() {
       const trimmedKey = apiKey.trim();
       const trimmedUrl = baseUrl.trim();
 
-      // 如果是新输入的凭据，保存到 Provider 账户存储
+      // 如果是新输入的凭据，保存到 Provider 账户存储（保留当前启用状态）
       if (trimmedKey && !isUsingSavedAccount) {
         const accountConfig: ProviderAccountConfig = {
           providerId: provider,
@@ -318,11 +375,13 @@ export function AISettingsSection() {
           timeout: 30000,
           retries: 3,
           strictTLS: true,
-          enabled: true,
+          enabled,
         };
-        await useAIAccountsStore.getState().saveAccount(accountConfig);
+        await saveAccount(accountConfig);
+        setIsUsingSavedAccount(true);
+        setHasStoredKey(true);
       } else if (trimmedKey && isUsingSavedAccount) {
-        // 更新已保存的账户
+        // 更新已保存的账户（保留当前启用状态）
         const existingAccount = await getAccount(provider);
         if (existingAccount) {
           const updatedConfig: ProviderAccountConfig = {
@@ -331,7 +390,7 @@ export function AISettingsSection() {
             apiKey: trimmedKey,
             baseUrl: trimmedUrl || undefined,
           };
-          await useAIAccountsStore.getState().saveAccount(updatedConfig);
+          await saveAccount(updatedConfig);
         }
       }
 
@@ -361,6 +420,7 @@ export function AISettingsSection() {
       const payload = {
         provider,
         model,
+        enabled,
         maxTokens: maxTokensValue,
         temperature: temperatureValue,
         topP: topPValue,
@@ -408,7 +468,8 @@ export function AISettingsSection() {
             <div className="space-y-0.5">
               {providers.map((p) => {
                 const isActive = provider === p.value;
-                const isConfigured = configuredProviderIds.has(p.value);
+                const account = configuredProviders.get(p.value);
+                const isEnabled = account?.enabled === true;
                 return (
                   <button
                     key={p.value}
@@ -433,7 +494,7 @@ export function AISettingsSection() {
                         </span>
                       )}
                     </span>
-                    {isConfigured && (
+                    {isEnabled && (
                       <CheckCircle className={cn("h-4 w-4", isActive ? "text-primary-foreground" : "text-green-500")} />
                     )}
                   </button>
@@ -454,9 +515,17 @@ export function AISettingsSection() {
                 配置 API Key 和模型参数
               </p>
             </div>
-            <Badge variant={configuredProviderIds.has(provider) ? 'default' : 'outline'} className="mt-1">
-              {configuredProviderIds.has(provider) ? '已连接' : '未连接'}
-            </Badge>
+            <div className="flex items-center gap-3 mt-1">
+              <Label htmlFor="ai-enabled" className="text-sm cursor-pointer">
+                启用
+              </Label>
+              <Switch
+                id="ai-enabled"
+                checked={enabled}
+                onCheckedChange={handleToggleEnabled}
+                disabled={!apiKey.trim()}
+              />
+            </div>
           </div>
 
           <Separator className="my-4" />
@@ -498,17 +567,19 @@ export function AISettingsSection() {
                 onValueChange={(value) => setApiProtocol(value as AIProtocol)}
                 disabled={isSaving || isTesting}
               >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value={AI_PROTOCOL.OPENAI_COMPATIBLE} id="protocol-openai" />
-                  <Label htmlFor="protocol-openai" className="font-normal cursor-pointer">
-                    OpenAI 兼容格式
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value={AI_PROTOCOL.ANTHROPIC} id="protocol-anthropic" />
-                  <Label htmlFor="protocol-anthropic" className="font-normal cursor-pointer">
-                    Anthropic 格式
-                  </Label>
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value={AI_PROTOCOL.OPENAI_COMPATIBLE} id="protocol-openai" />
+                    <Label htmlFor="protocol-openai" className="font-normal cursor-pointer">
+                      OpenAI 兼容格式
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value={AI_PROTOCOL.ANTHROPIC} id="protocol-anthropic" />
+                    <Label htmlFor="protocol-anthropic" className="font-normal cursor-pointer">
+                      Anthropic 格式
+                    </Label>
+                  </div>
                 </div>
               </RadioGroup>
               <p className="text-xs text-muted-foreground">
@@ -521,15 +592,11 @@ export function AISettingsSection() {
               <Input
                 id="ai-base-url"
                 type="text"
-                value={baseUrl}
+                value={baseUrl || getDefaultBaseUrl(provider, apiProtocol)}
                 onChange={(event) => setBaseUrl(event.target.value)}
-                placeholder={getDefaultBaseUrl(provider, apiProtocol)}
                 className="font-mono text-sm"
                 disabled={isSaving || isTesting}
               />
-              <p className="text-xs text-muted-foreground">
-                默认: {getDefaultBaseUrl(provider, apiProtocol)}
-              </p>
             </div>
           </div>
 

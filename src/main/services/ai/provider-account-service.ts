@@ -19,6 +19,7 @@ export interface ProviderAccountMetadata {
   name?: string;
   baseUrl?: string;
   hasApiKey: boolean;
+  enabled?: boolean;
   lastUsed?: number;
   createdAt: number;
   updatedAt: number;
@@ -108,6 +109,7 @@ export class ProviderAccountService {
         name: config.name,
         baseUrl: config.baseUrl,
         hasApiKey: !!config.apiKey,
+        enabled: config.enabled,
         createdAt: accounts.accounts[key]?.metadata.createdAt || Date.now(),
         updatedAt: Date.now(),
         lastUsed: Date.now(),
@@ -151,7 +153,7 @@ export class ProviderAccountService {
         timeout: 30000,
         retries: 3,
         strictTLS: true,
-        enabled: true,
+        enabled: accountData.metadata.enabled ?? true,
       };
 
       if (accountData.metadata.protocol) {

@@ -8,14 +8,14 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { BadgeCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { AIProviderId, ProviderOption } from '@shared/types';
+import type { AIProviderId, ProviderOption, ProviderAccountMetadata } from '@shared/types';
 
 interface ProviderSelectorProps {
   providers: ProviderOption[];
   value: AIProviderId;
   onChange: (providerId: AIProviderId) => void;
   disabled?: boolean;
-  configuredProviders?: Set<AIProviderId>;
+  configuredProviders?: Map<AIProviderId, ProviderAccountMetadata>;
 }
 
 export function ProviderSelector({
@@ -23,7 +23,7 @@ export function ProviderSelector({
   value,
   onChange,
   disabled = false,
-  configuredProviders = new Set(),
+  configuredProviders = new Map(),
 }: ProviderSelectorProps) {
   return (
     <div className="space-y-3">
@@ -35,7 +35,8 @@ export function ProviderSelector({
         className="grid gap-3"
       >
         {providers.map((provider) => {
-          const isConfigured = configuredProviders.has(provider.value);
+          const account = configuredProviders.get(provider.value);
+          const isEnabled = account?.enabled === true;
           return (
             <div
               key={provider.value}
@@ -69,13 +70,13 @@ export function ProviderSelector({
                       </span>
                     )}
                   </Label>
-                  {isConfigured ? (
+                  {isEnabled ? (
                     <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                       <BadgeCheck className="h-3 w-3" />
-                      已配置
+                      已启用
                     </span>
                   ) : (
-                    <span className="text-xs text-muted-foreground">未配置</span>
+                    <span className="text-xs text-muted-foreground">未启用</span>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">

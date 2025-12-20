@@ -70,6 +70,15 @@ export function ModelSelector({
     onChange(e.target.value);
   };
 
+  // 处理自定义输入框的键盘事件
+  const handleCustomInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      handleSwitchToSelect();
+    }
+    // Enter 键确认输入，保持自定义模式
+  };
+
   const handleSwitchToSelect = () => {
     setIsCustomInput(false);
     setSearchQuery('');
@@ -141,7 +150,8 @@ export function ModelSelector({
             type="text"
             value={customValue}
             onChange={handleCustomInputChange}
-            placeholder="输入模型 ID（例如：gpt-4o）"
+            onKeyDown={handleCustomInputKeyDown}
+            placeholder="输入模型 ID（例如：gpt-4o），按 Esc 返回列表"
             disabled={disabled}
             className="font-mono text-sm"
           />

@@ -37,6 +37,9 @@ interface AIAccountsStore {
 
   // 清除错误
   clearError: () => void;
+
+  // 禁用除指定 Provider 外的所有 Provider
+  disableOtherProviders: (activeProviderId: AIProviderId) => Promise<void>;
 }
 
 export const useAIAccountsStore = create<AIAccountsStore>((set, get) => ({
@@ -65,17 +68,19 @@ export const useAIAccountsStore = create<AIAccountsStore>((set, get) => ({
     try {
       await saveProviderAccount(config);
 
-      const metadata: ProviderAccountMetadata = {
-        providerId: config.providerId,
-        name: config.name,
-        baseUrl: config.baseUrl,
-        hasApiKey: !!config.apiKey,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        lastUsed: Date.now(),
-      };
-
       set((state) => {
+        const existingMetadata = state.accounts.get(config.providerId);
+        const metadata: ProviderAccountMetadata = {
+          providerId: config.providerId,
+          name: config.name,
+          baseUrl: config.baseUrl,
+          hasApiKey: !!config.apiKey,
+          enabled: config.enabled,
+          createdAt: existingMetadata?.createdAt || Date.now(),
+          updatedAt: Date.now(),
+          lastUsed: Date.now(),
+        };
+
         const newAccounts = new Map(state.accounts);
         newAccounts.set(config.providerId, metadata);
 
@@ -145,5 +150,32 @@ export const useAIAccountsStore = create<AIAccountsStore>((set, get) => ({
 
   clearError: () => {
     set({ error: null });
+  },
+
+  disableOtherProviders: async (activeProviderId: AIProviderId) => {
+    const { cachedConfigs, accounts } = get();
+
+    for (const [providerId, metadata] of accounts) {
+      if (providerId !== activeProviderId && metadata.hasApiKey) {
+        const config = cachedConfigs.get(providerId);
+        if (config) {
+          try {
+            await saveProviderAccount({ ...config, enabled: false });
+            // Update local state - both cachedConfigs and accounts
+            set((state) => {
+              const newConfigs = new Map(state.cachedConfigs);
+              newConfigs.set(providerId, { ...config, enabled: false });
+
+              const newAccounts = new Map(state.accounts);
+              newAccounts.set(providerId, { ...metadata, enabled: false });
+
+              return { cachedConfigs: newConfigs, accounts: newAccounts };
+            });
+          } catch (err) {
+            console.error(`Failed to disable provider ${providerId}:`, err);
+          }
+        }
+      }
+    }
   },
 }));
