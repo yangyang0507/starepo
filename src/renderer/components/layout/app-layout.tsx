@@ -6,7 +6,7 @@ import { cn } from "@/utils/tailwind";
 
 interface AppLayoutProps {
   children: React.ReactNode;
-  title?: string;
+  title?: React.ReactNode;
   className?: string;
 }
 

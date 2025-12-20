@@ -3,7 +3,7 @@ import { Minus, Maximize2, Minimize2, X } from "lucide-react";
 import { cn } from "@/utils/tailwind";
 
 interface TitleBarProps {
-  title?: string;
+  title?: React.ReactNode;
   className?: string;
 }
 
@@ -72,12 +72,19 @@ export function TitleBar({ title: _title = "Starepo", className }: TitleBarProps
       } as React.CSSProperties}
     >
       {/* 左侧：页面标题 */}
-      <div className={cn(
-        "flex items-center",
-        isMac ? "pl-20 pr-3" : "px-3" // Mac 平台为交通灯按钮预留空间
-      )}>
+      <div
+        className={cn(
+          "flex items-center",
+          isMac ? "pl-20 pr-3" : "px-3" // Mac 平台为交通灯按钮预留空间
+        )}
+        style={{
+          WebkitAppRegion: "no-drag",
+        } as React.CSSProperties}
+      >
         {_title && (
-          <h1 className="text-sm font-semibold text-foreground">{_title}</h1>
+          typeof _title === 'string' ? (
+            <h1 className="text-sm font-semibold text-foreground">{_title}</h1>
+          ) : _title
         )}
       </div>
 
