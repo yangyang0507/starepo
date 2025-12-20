@@ -212,7 +212,7 @@ export class AIService {
 
     const account = this.toProviderAccountConfig(this.settings);
     const provider = providerRegistry.getProviderDefinitionOrThrow(account.providerId);
-    const adapter = providerRegistry.getAdapterForProvider(account.providerId);
+    const adapter = providerRegistry.getAdapterForAccount(account);
     const modelId = this.settings.model?.trim() || undefined;
     return adapter.createLanguageModel({ provider, account, modelId });
   }
@@ -430,7 +430,7 @@ export class AIService {
   private getModelForSettings(settings: AISettings) {
     const account = this.toProviderAccountConfig(settings);
     const provider = providerRegistry.getProviderDefinitionOrThrow(account.providerId);
-    const adapter = providerRegistry.getAdapterForProvider(account.providerId);
+    const adapter = providerRegistry.getAdapterForAccount(account);
     const modelId = settings.model?.trim() || undefined;
     return adapter.createLanguageModel({ provider, account, modelId });
   }

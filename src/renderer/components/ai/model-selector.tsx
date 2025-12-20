@@ -1,12 +1,20 @@
 /**
  * AI 模型选择器组件
- * 使用原生 select 提供可靠的下拉选择体验
+ * 使用 Shadcn Select 提供优雅的下拉选择体验
  */
 
 import React, { useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  SelectSeparator,
+} from '@/components/ui/select';
 import { RefreshCw, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AIModel, ModelSelectionState } from '@shared/types';
@@ -48,8 +56,7 @@ export function ModelSelector({
     );
   }, [models, searchQuery]);
 
-  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newValue = e.target.value;
+  const handleValueChange = (newValue: string) => {
     if (newValue === '__custom__') {
       setIsCustomInput(true);
       setCustomValue(value);
@@ -99,12 +106,11 @@ export function ModelSelector({
     }
   };
 
-  // 推荐模型标记
-  const RecommendedBadge = () => (
-    <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-      推荐
-    </span>
-  );
+  // 获取当前选中模型的显示名称
+  const getSelectedModelDisplay = () => {
+    const selectedModel = models.find((m) => m.id === value);
+    return selectedModel?.displayName || value || '选择模型';
+  };
 
   return (
     <div className="space-y-3">
@@ -164,51 +170,47 @@ export function ModelSelector({
             />
           )}
 
-          <div className="relative">
-            <select
-              value={value}
-              onChange={handleSelectChange}
-              disabled={disabled || state === 'loading'}
-              className={cn(
-                'w-full appearance-none rounded-md border border-input bg-background px-3 py-2 text-sm',
-                'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-                'disabled:cursor-not-allowed disabled:opacity-50',
-                'cursor-pointer'
-              )}
-              style={{
-                minHeight: '42px',
-                paddingRight: '32px',
-              }}
-            >
-              <option value="" disabled>
-                选择模型
-              </option>
+          <Select
+            value={value}
+            onValueChange={handleValueChange}
+            disabled={disabled || state === 'loading'}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="选择模型">
+                {getSelectedModelDisplay()}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
               {filteredModels.length === 0 ? (
-                <option value="" disabled>
+                <div className="py-6 text-center text-sm text-muted-foreground">
                   {searchQuery ? '未找到匹配的模型' : '暂无可用模型'}
-                </option>
+                </div>
               ) : (
                 filteredModels.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.displayName}
-                    {model.description ? ` - ${model.description.slice(0, 50)}` : ''}
-                  </option>
+                  <SelectItem key={model.id} value={model.id}>
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium">{model.displayName}</span>
+                      {model.description && (
+                        <span className="text-xs text-muted-foreground line-clamp-1">
+                          {model.description}
+                        </span>
+                      )}
+                    </div>
+                  </SelectItem>
                 ))
               )}
-              {allowCustomInput && (
-                <option value="__custom__" className="italic text-muted-foreground">
-                  ─ 手动输入模型 ID ─
-                </option>
+              {allowCustomInput && models.length > 0 && (
+                <>
+                  <SelectSeparator />
+                  <SelectItem value="__custom__">
+                    <span className="italic text-muted-foreground">手动输入模型 ID</span>
+                  </SelectItem>
+                </>
               )}
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground">
-              <svg className="h-4 w-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
-          </div>
+            </SelectContent>
+          </Select>
 
-          {allowCustomInput && (
+          {allowCustomInput && !models.length && (
             <Button
               type="button"
               variant="link"

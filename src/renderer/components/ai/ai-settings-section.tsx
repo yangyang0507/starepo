@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from "@/components/ui/separator";
 import { Loader2, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -26,7 +27,10 @@ import type {
   ModelSelectionState,
   AISafeSettings,
   ProviderAccountConfig,
+  AIProtocol,
 } from '@shared/types';
+import { AI_PROTOCOL } from '@shared/types/ai-provider';
+import { AI_PROVIDER_SYSTEM_CONFIG } from '@shared/data/ai-providers';
 import { useLocation } from '@tanstack/react-router';
 
 const AI_SETTINGS_HASH = 'ai-settings';
@@ -63,6 +67,7 @@ export function AISettingsSection() {
   // API Key 相关
   const [apiKey, setApiKey] = useState<string>('');
   const [baseUrl, setBaseUrl] = useState<string>('');
+  const [apiProtocol, setApiProtocol] = useState<AIProtocol>(AI_PROTOCOL.OPENAI_COMPATIBLE);
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
   const [hasStoredKey, setHasStoredKey] = useState(false);
   const [isUsingSavedAccount, setIsUsingSavedAccount] = useState(false);
@@ -90,6 +95,25 @@ export function AISettingsSection() {
     [configuredProviders]
   );
 
+  // 辅助函数：获取 Provider 的默认协议
+  const getDefaultProtocol = useCallback((providerId: AIProviderId): AIProtocol => {
+    const providerDef = AI_PROVIDER_SYSTEM_CONFIG.providers.find(p => p.id === providerId);
+    return providerDef?.protocol || AI_PROTOCOL.OPENAI_COMPATIBLE;
+  }, []);
+
+  // 辅助函数：获取默认 API 地址
+  const getDefaultBaseUrl = useCallback((providerId: AIProviderId, protocol?: AIProtocol): string => {
+    const providerDef = AI_PROVIDER_SYSTEM_CONFIG.providers.find(p => p.id === providerId);
+    if (providerDef?.defaults.baseUrl) {
+      return providerDef.defaults.baseUrl;
+    }
+    // 根据协议返回通用默认值
+    const effectiveProtocol = protocol || getDefaultProtocol(providerId);
+    return effectiveProtocol === AI_PROTOCOL.ANTHROPIC
+      ? 'https://api.anthropic.com'
+      : 'https://api.openai.com/v1';
+  }, [getDefaultProtocol]);
+
   // 加载 Provider 列表和账户信息
   useEffect(() => {
     const loadInitialData = async () => {
@@ -112,16 +136,18 @@ export function AISettingsSection() {
     if (account) {
       setApiKey(account.apiKey || '');
       setBaseUrl(account.baseUrl || '');
+      setApiProtocol(account.protocol || getDefaultProtocol(providerId));
       setHasStoredKey(true);
       setIsUsingSavedAccount(true);
       return account;
     }
     setApiKey('');
     setBaseUrl('');
+    setApiProtocol(getDefaultProtocol(providerId));
     setHasStoredKey(false);
     setIsUsingSavedAccount(false);
     return null;
-  }, [getAccount]);
+  }, [getAccount, getDefaultProtocol]);
 
   // 加载模型列表
   const loadModels = useCallback(async (config: ProviderAccountConfig, forceRefresh = false) => {
@@ -160,6 +186,7 @@ export function AISettingsSection() {
       if (account?.apiKey) {
         const config: ProviderAccountConfig = {
           providerId: provider,
+          protocol: account.protocol || getDefaultProtocol(provider),
           apiKey: account.apiKey,
           baseUrl: account.baseUrl || undefined,
           timeout: 30000,
@@ -242,6 +269,7 @@ export function AISettingsSection() {
 
       const config: ProviderAccountConfig = {
         providerId: provider,
+        protocol: apiProtocol,
         apiKey: effectiveApiKey,
         baseUrl: baseUrl.trim() || undefined,
         timeout: 30000,
@@ -284,6 +312,7 @@ export function AISettingsSection() {
       if (trimmedKey && !isUsingSavedAccount) {
         const accountConfig: ProviderAccountConfig = {
           providerId: provider,
+          protocol: apiProtocol,
           apiKey: trimmedKey,
           baseUrl: trimmedUrl || undefined,
           timeout: 30000,
@@ -298,6 +327,7 @@ export function AISettingsSection() {
         if (existingAccount) {
           const updatedConfig: ProviderAccountConfig = {
             ...existingAccount,
+            protocol: apiProtocol,
             apiKey: trimmedKey,
             baseUrl: trimmedUrl || undefined,
           };
@@ -462,18 +492,43 @@ export function AISettingsSection() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="ai-base-url" className="text-sm font-medium">Base URL（可选）</Label>
+              <Label className="text-sm font-medium">API 类型</Label>
+              <RadioGroup
+                value={apiProtocol}
+                onValueChange={(value) => setApiProtocol(value as AIProtocol)}
+                disabled={isSaving || isTesting}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value={AI_PROTOCOL.OPENAI_COMPATIBLE} id="protocol-openai" />
+                  <Label htmlFor="protocol-openai" className="font-normal cursor-pointer">
+                    OpenAI 兼容格式
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value={AI_PROTOCOL.ANTHROPIC} id="protocol-anthropic" />
+                  <Label htmlFor="protocol-anthropic" className="font-normal cursor-pointer">
+                    Anthropic 格式
+                  </Label>
+                </div>
+              </RadioGroup>
+              <p className="text-xs text-muted-foreground">
+                选择您的 API 端点使用的协议格式
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ai-base-url" className="text-sm font-medium">API 地址</Label>
               <Input
                 id="ai-base-url"
                 type="text"
                 value={baseUrl}
                 onChange={(event) => setBaseUrl(event.target.value)}
-                placeholder="自定义 API 端点（默认）"
+                placeholder={getDefaultBaseUrl(provider, apiProtocol)}
                 className="font-mono text-sm"
                 disabled={isSaving || isTesting}
               />
               <p className="text-xs text-muted-foreground">
-                用于自定义 API 端点或代理服务
+                默认: {getDefaultBaseUrl(provider, apiProtocol)}
               </p>
             </div>
           </div>
@@ -490,6 +545,7 @@ export function AISettingsSection() {
               if (effectiveApiKey) {
                 const config: ProviderAccountConfig = {
                   providerId: provider,
+                  protocol: apiProtocol,
                   apiKey: effectiveApiKey,
                   baseUrl: baseUrl.trim() || undefined,
                   timeout: 30000,

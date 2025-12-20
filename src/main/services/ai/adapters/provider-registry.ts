@@ -1,5 +1,5 @@
 import { getProviderDefinition } from "@shared/data/ai-providers";
-import type { AIProtocol, AIProviderId, ProviderDefinition } from "@shared/types/ai-provider";
+import type { AIProtocol, AIProviderId, ProviderDefinition, ProviderAccountConfig } from "@shared/types/ai-provider";
 import type { BaseAdapter } from "./base-adapter";
 import { AnthropicAdapter } from "./anthropic-adapter";
 import { OpenAICompatibleAdapter } from "./openai-compatible-adapter";
@@ -32,6 +32,16 @@ export class ProviderRegistry {
     const adapter = this.adaptersByProtocol.get(provider.protocol);
     if (!adapter) {
       throw new Error(`No adapter registered for protocol: ${provider.protocol}`);
+    }
+    return adapter;
+  }
+
+  getAdapterForAccount(account: ProviderAccountConfig): BaseAdapter {
+    const provider = this.getProviderDefinitionOrThrow(account.providerId);
+    const effectiveProtocol = account.protocol || provider.protocol;
+    const adapter = this.adaptersByProtocol.get(effectiveProtocol);
+    if (!adapter) {
+      throw new Error(`No adapter registered for protocol: ${effectiveProtocol}`);
     }
     return adapter;
   }

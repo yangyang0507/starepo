@@ -2,34 +2,28 @@ import { useState } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { AISettingsSection } from "@/components/ai";
 import {
-  GitHubAccountSection,
-  AppearanceSection,
-  SyncSection,
-  AdvancedSection,
+  GitHubSection,
+  PreferencesSection,
   AppInfoSection,
 } from "@/components/settings";
 import {
   Github,
   Palette,
   Bot,
-  RefreshCw,
-  Sliders,
   Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
-type SettingsTab = "ai" | "github" | "appearance" | "sync" | "advanced" | "about";
+type SettingsTab = "ai" | "github" | "preferences" | "about";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("ai");
 
   const menuItems: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: "ai", label: "AI 助手", icon: <Bot className="h-4 w-4" /> },
-    { id: "github", label: "GitHub 账户", icon: <Github className="h-4 w-4" /> },
-    { id: "appearance", label: "外观设置", icon: <Palette className="h-4 w-4" /> },
-    { id: "sync", label: "同步与备份", icon: <RefreshCw className="h-4 w-4" /> },
-    { id: "advanced", label: "高级选项", icon: <Sliders className="h-4 w-4" /> },
+    { id: "github", label: "GitHub 连接", icon: <Github className="h-4 w-4" /> },
+    { id: "preferences", label: "偏好设置", icon: <Palette className="h-4 w-4" /> },
     { id: "about", label: "关于应用", icon: <Info className="h-4 w-4" /> },
   ];
 
@@ -62,10 +56,8 @@ export default function SettingsPage() {
         <main className="flex-1 overflow-y-auto">
           <div className="h-full">
             {activeTab === "ai" && <AISettingsSection />}
-            {activeTab === "github" && <GitHubAccountSection />}
-            {activeTab === "appearance" && <AppearanceSection />}
-            {activeTab === "sync" && <SyncSection />}
-            {activeTab === "advanced" && <AdvancedSection />}
+            {activeTab === "github" && <GitHubSection />}
+            {activeTab === "preferences" && <PreferencesSection />}
             {activeTab === "about" && <AppInfoSection />}
           </div>
         </main>

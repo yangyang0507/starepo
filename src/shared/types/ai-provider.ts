@@ -120,6 +120,7 @@ export type ProviderDefinition = z.infer<typeof ProviderDefinitionSchema>;
  */
 export const ProviderAccountConfigSchema = z.object({
   providerId: z.nativeEnum(AI_PROVIDER_ID),
+  protocol: z.nativeEnum(AI_PROTOCOL).optional(), // 允许覆盖 Provider 的默认协议
   name: z.string().optional(), // 用户自定义的配置名称
   baseUrl: z.string().url().optional(),
   apiKey: z.string().optional(),

@@ -8,13 +8,14 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import { safeStorage } from "electron";
 import { getLogger } from "../../utils/logger";
-import type { AIProviderId, ProviderAccountConfig } from "@shared/types/ai-provider";
+import type { AIProviderId, AIProtocol, ProviderAccountConfig } from "@shared/types/ai-provider";
 
 const STORAGE_DIR = path.join(os.homedir(), ".starepo", "ai-accounts");
 const ACCOUNTS_FILE = path.join(STORAGE_DIR, "accounts.json");
 
 export interface ProviderAccountMetadata {
   providerId: AIProviderId;
+  protocol?: string;
   name?: string;
   baseUrl?: string;
   hasApiKey: boolean;
@@ -103,6 +104,7 @@ export class ProviderAccountService {
 
       const metadata: ProviderAccountMetadata = {
         providerId: config.providerId,
+        protocol: config.protocol,
         name: config.name,
         baseUrl: config.baseUrl,
         hasApiKey: !!config.apiKey,
@@ -151,6 +153,10 @@ export class ProviderAccountService {
         strictTLS: true,
         enabled: true,
       };
+
+      if (accountData.metadata.protocol) {
+        config.protocol = accountData.metadata.protocol as AIProtocol;
+      }
 
       if (accountData.encryptedApiKey) {
         try {
