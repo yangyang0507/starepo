@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import {
   DropdownMenu,
@@ -232,33 +233,22 @@ export function PreferencesSection() {
           <h3 className="text-base font-semibold mb-4">高级选项</h3>
           <div className="space-y-5">
             {/* 开发者模式 */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
                 <p className="text-sm font-medium">开发者模式</p>
                 <p className="text-xs text-muted-foreground">
                   启用开发者工具和调试功能
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant={developerMode ? 'outline' : 'secondary'}>
-                  {advancedLoading
-                    ? '加载中...'
-                    : developerMode
-                      ? '已开启'
-                      : '已关闭'}
-                </Badge>
-                <Button
-                  variant={developerMode ? 'destructive' : 'outline'}
-                  size="sm"
-                  onClick={handleToggleDeveloperMode}
+                {devModeUpdating && (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                )}
+                <Switch
+                  checked={developerMode}
+                  onCheckedChange={handleToggleDeveloperMode}
                   disabled={advancedLoading || devModeUpdating}
-                  className="flex items-center gap-2"
-                >
-                  {devModeUpdating ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : null}
-                  {developerMode ? '关闭' : '开启'}
-                </Button>
+                />
               </div>
             </div>
 
