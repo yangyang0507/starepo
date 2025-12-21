@@ -73,6 +73,42 @@ const AnimatedNumber: React.FC<{
   );
 };
 
+// KPI 卡片组件
+const StatCard: React.FC<{
+  title: string;
+  value: React.ReactNode;
+  subtitle?: string;
+  icon: React.ElementType;
+  colorClass: string;
+  delay?: number;
+  onClick?: () => void;
+}> = ({ title, value, subtitle, icon: Icon, colorClass, delay = 0, onClick }) => (
+  <div
+    className={`group relative overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 ${onClick ? 'cursor-pointer' : ''}`}
+    style={{ animationDelay: `${delay}ms` }}
+    onClick={onClick}
+  >
+    <div className="p-6 flex items-center gap-4">
+      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-opacity-10 ${colorClass.replace('text-', 'bg-')}`}>
+        <Icon className={`h-6 w-6 ${colorClass}`} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-muted-foreground truncate">{title}</p>
+        <div className="mt-1 flex items-baseline gap-2">
+          <h3 className="text-2xl font-bold tracking-tight text-foreground truncate">
+            {value}
+          </h3>
+        </div>
+        {subtitle && (
+          <p className="mt-1 text-xs text-muted-foreground truncate">{subtitle}</p>
+        )}
+      </div>
+      {/* 装饰性背景图标 */}
+      <Icon className={`absolute -right-4 -bottom-4 h-24 w-24 opacity-5 bg-blend-overlay ${colorClass} transition-transform group-hover:scale-110`} />
+    </div>
+  </div>
+);
+
 interface StatsPageState {
   loading: boolean;
   error: string | null;
@@ -124,16 +160,9 @@ export default function StatsPage() {
 
     try {
       // 检查认证状态
-      console.log('[统计页面] 开始检查认证状态...');
       const authState = await githubAPI.getAuthState() as AuthState;
-      console.log('[统计页面] 获取到的认证状态:', {
-        isAuthenticated: authState.isAuthenticated,
-        user: authState.user?.login,
-        hasTokenInfo: !!authState.tokenInfo,
-      });
       const isAuthenticated = authState.isAuthenticated;
       if (!isAuthenticated) {
-        console.log('[统计页面] 用户未认证，显示错误信息');
         setState(prev => ({
           ...prev,
           loading: false,
@@ -141,7 +170,6 @@ export default function StatsPage() {
         }));
         return;
       }
-      console.log('[统计页面] 用户已认证，继续获取数据...');
 
       // 获取用户信息
       const user = await githubAPI.getCurrentUser() as GitHubUser;
@@ -184,8 +212,8 @@ export default function StatsPage() {
   const renderStatsCards = () => {
     if (state.loading) {
       return (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="rounded-xl border bg-card text-card-foreground shadow-sm p-6">
               <div className="flex items-center gap-4">
                 <Skeleton className="h-10 w-10 rounded-full" />
@@ -203,47 +231,6 @@ export default function StatsPage() {
     if (!state.statsData) return null;
 
     const { statsData } = state;
-
-    // 辅助组件：KPI 卡片
-    const StatCard = ({
-      title,
-      value,
-      subtitle,
-      icon: Icon,
-      colorClass,
-      delay = 0,
-    }: {
-      title: string;
-      value: React.ReactNode;
-      subtitle?: string;
-      icon: React.ElementType;
-      colorClass: string;
-      delay?: number;
-    }) => (
-      <div
-        className="group relative overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
-        style={{ animationDelay: `${delay}ms` }}
-      >
-        <div className="p-6 flex items-center gap-4">
-          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-opacity-10 ${colorClass.replace('text-', 'bg-')}`}>
-            <Icon className={`h-6 w-6 ${colorClass}`} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-muted-foreground truncate">{title}</p>
-            <div className="mt-1 flex items-baseline gap-2">
-              <h3 className="text-2xl font-bold tracking-tight text-foreground truncate">
-                {value}
-              </h3>
-            </div>
-            {subtitle && (
-              <p className="mt-1 text-xs text-muted-foreground truncate">{subtitle}</p>
-            )}
-          </div>
-          {/* 装饰性背景图标 */}
-          <Icon className={`absolute -right-4 -bottom-4 h-24 w-24 opacity-5 bg-blend-overlay ${colorClass} transition-transform group-hover:scale-110`} />
-        </div>
-      </div>
-    );
 
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
@@ -282,7 +269,7 @@ export default function StatsPage() {
           title="最热门语言"
           value={statsData.insights.topLanguages[0]?.name || "暂无"}
           subtitle={statsData.insights.topLanguages[0] ? `${statsData.insights.topLanguages[0].count} 个仓库` : "暂无数据"}
-          icon={BarChart3} // Code icon might be better if available, but BarChart3 is fine
+          icon={BarChart3}
           colorClass="text-emerald-500"
           delay={300}
         />
@@ -305,6 +292,7 @@ export default function StatsPage() {
           icon={Star}
           colorClass="text-yellow-500"
           delay={500}
+          onClick={statsData.basic.recently_starred ? () => openExternal(statsData.basic.recently_starred!.html_url) : undefined}
         />
       </div>
     );
@@ -340,8 +328,24 @@ export default function StatsPage() {
   };
 
   return (
-    <AppLayout title="统计分析">
-      <div className="flex flex-col gap-4 p-2 sm:p-4 pt-0 h-full overflow-y-auto">
+    <AppLayout
+      title={
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-foreground">统计分析</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={loadStatsData}
+            disabled={state.loading}
+            title="刷新数据"
+          >
+            <RefreshCw className={`h-4 w-4 ${state.loading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+      }
+    >
+      <div className="flex flex-col gap-4 p-2 sm:p-4 pt-0 h-full overflow-y-auto pb-4">
         {/* 错误状态 */}
         {renderErrorState()}
 
@@ -379,9 +383,6 @@ export default function StatsPage() {
             />
           </div>
         )}
-
-        {/* 底部间隙 */}
-        <div className="h-20"></div>
       </div>
     </AppLayout>
   );
