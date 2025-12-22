@@ -14,9 +14,11 @@ import {
 import { cn } from "@/utils/tailwind";
 import type { FileUIPart, UIMessage } from "ai";
 import {
+  Bot,
   ChevronLeftIcon,
   ChevronRightIcon,
   PaperclipIcon,
+  User,
   XIcon,
 } from "lucide-react";
 import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
@@ -27,15 +29,30 @@ export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage["role"];
 };
 
-export const Message = ({ className, from, ...props }: MessageProps) => (
+export const Message = ({ className, from, children, ...props }: MessageProps) => (
   <div
     className={cn(
-      "group flex w-full max-w-[95%] flex-col gap-2",
-      from === "user" ? "is-user ml-auto justify-end" : "is-assistant",
+      "group flex w-full flex-col gap-2 relative",
+      from === "user" ? "items-end ml-auto max-w-[85%]" : "items-start max-w-[90%]",
       className
     )}
     {...props}
-  />
+  >
+    <div className={cn("flex gap-3 w-full", from === "user" ? "flex-row-reverse" : "flex-row")}>
+      {/* Avatar */}
+      <div className={cn(
+        "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow-sm mt-1",
+        from === "user" ? "bg-primary text-primary-foreground" : "bg-muted/80 text-muted-foreground border border-border"
+      )}>
+        {from === "user" ? <User className="w-4 h-4" /> : <Bot className="w-5 h-5" />}
+      </div>
+
+      {/* Content wrapper */}
+      <div className={cn("flex flex-col gap-1 min-w-0 flex-1", from === "user" ? "items-end" : "items-start")}>
+        {children}
+      </div>
+    </div>
+  </div>
 );
 
 export type MessageContentProps = HTMLAttributes<HTMLDivElement>;
@@ -47,9 +64,10 @@ export const MessageContent = ({
 }: MessageContentProps) => (
   <div
     className={cn(
-      "is-user:dark flex w-fit max-w-full min-w-0 flex-col gap-2 overflow-hidden text-sm",
-      "group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-foreground",
-      "group-[.is-assistant]:text-foreground",
+      "relative rounded-2xl px-5 py-3.5 text-sm shadow-sm transition-all overflow-hidden",
+      "group-[.is-user]:rounded-tr-sm group-[.is-assistant]:rounded-tl-sm",
+      "group-[.is-user]:bg-primary group-[.is-user]:text-primary-foreground",
+      "group-[.is-assistant]:bg-card group-[.is-assistant]:border list-disc-outside",
       className
     )}
     {...props}
@@ -80,11 +98,11 @@ export const MessageAction = ({
   children,
   label,
   variant = "ghost",
-  size = "icon-sm",
+  size = "icon",
   ...props
 }: MessageActionProps) => {
   const button = (
-    <Button size={size} type="button" variant={variant} {...props}>
+    <Button size={size} type="button" variant={variant} className="h-6 w-6 hover:bg-muted/60" {...props}>
       {children}
       <span className="sr-only">{label || tooltip}</span>
     </Button>
@@ -95,7 +113,7 @@ export const MessageAction = ({
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>{button}</TooltipTrigger>
-          <TooltipContent>
+          <TooltipContent side="bottom" className="text-xs">
             <p>{tooltip}</p>
           </TooltipContent>
         </Tooltip>
@@ -216,8 +234,8 @@ export type MessageBranchSelectorProps = HTMLAttributes<HTMLDivElement> & {
 };
 
 export const MessageBranchSelector = ({
-  className,
-  from,
+  className: _className,
+  from: _from,
   ...props
 }: MessageBranchSelectorProps) => {
   const { totalBranches } = useMessageBranch();
@@ -249,7 +267,8 @@ export const MessageBranchPrevious = ({
       aria-label="Previous branch"
       disabled={totalBranches <= 1}
       onClick={goToPrevious}
-      size="icon-sm"
+      size="icon"
+      className="h-6 w-6 p-0 hover:bg-muted/60"
       type="button"
       variant="ghost"
       {...props}
@@ -263,7 +282,7 @@ export type MessageBranchNextProps = ComponentProps<typeof Button>;
 
 export const MessageBranchNext = ({
   children,
-  className,
+  className: _className,
   ...props
 }: MessageBranchNextProps) => {
   const { goToNext, totalBranches } = useMessageBranch();
@@ -273,7 +292,8 @@ export const MessageBranchNext = ({
       aria-label="Next branch"
       disabled={totalBranches <= 1}
       onClick={goToNext}
-      size="icon-sm"
+      size="icon"
+      className="h-6 w-6 p-0 hover:bg-muted/60"
       type="button"
       variant="ghost"
       {...props}
@@ -310,7 +330,7 @@ export const MessageResponse = memo(
   ({ className, ...props }: MessageResponseProps) => (
     <Streamdown
       className={cn(
-        "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+        "size-full prose dark:prose-invert prose-sm max-w-none prose-pre:bg-muted/50 prose-pre:border prose-pre:p-4 prose-p:leading-relaxed",
         className
       )}
       {...props}
@@ -438,7 +458,7 @@ export const MessageToolbar = ({
 }: MessageToolbarProps) => (
   <div
     className={cn(
-      "mt-4 flex w-full items-center justify-between gap-4",
+      "flex items-center justify-between gap-4 ml-0 mt-0.5",
       className
     )}
     {...props}

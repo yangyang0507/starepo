@@ -12,13 +12,18 @@ interface ChatStore {
   messages: ChatMessage[];
   currentConversationId: string;
   conversations: Record<string, ChatMessage[]>;
+  isStreaming: boolean;
+  streamingMessageId: string | null;
 
   // 操作
   addMessage: (message: ChatMessage) => void;
+  updateMessage: (id: string, content: string) => void;
   clearMessages: (conversationId?: string) => void;
   setConversationId: (id: string) => void;
   loadConversation: (id: string) => void;
   deleteConversation: (id: string) => void;
+  setStreaming: (isStreaming: boolean, messageId?: string) => void;
+  regenerateLastResponse: () => void;
 
   // 存储操作
   saveToStorage: () => void;
@@ -42,6 +47,8 @@ export const useChatStore = create<ChatStore>()(
       conversations: {
         default: [],
       },
+      isStreaming: false,
+      streamingMessageId: null,
 
       // 添加消息
       addMessage: (message) => {
@@ -56,6 +63,47 @@ export const useChatStore = create<ChatStore>()(
             },
           };
         });
+      },
+
+      // 更新消息（流式输出）
+      updateMessage: (id, content) => {
+        set((state) => {
+          const conversationId = state.currentConversationId;
+          const messages = state.conversations[conversationId]?.map(msg =>
+            msg.id === id ? { ...msg, content } : msg
+          ) || [];
+          return {
+            messages,
+            conversations: {
+              ...state.conversations,
+              [conversationId]: messages,
+            },
+          };
+        });
+      },
+
+      // 设置流式输出状态
+      setStreaming: (isStreaming, messageId) => {
+        set({
+          isStreaming,
+          streamingMessageId: messageId || null,
+        });
+      },
+
+      // 重新生成最后一条回复
+      regenerateLastResponse: () => {
+        const state = get();
+        const conversationId = state.currentConversationId;
+        const messages = state.conversations[conversationId] || [];
+        const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
+        if (lastUserMessage) {
+          set((state) => ({
+            conversations: {
+              ...state.conversations,
+              [conversationId]: messages.filter(m => m.id !== state.streamingMessageId),
+            },
+          }));
+        }
       },
 
       // 清除消息
@@ -158,6 +206,8 @@ export const useChatStore = create<ChatStore>()(
         messages: state.messages,
         currentConversationId: state.currentConversationId,
         conversations: state.conversations,
+        isStreaming: state.isStreaming,
+        streamingMessageId: state.streamingMessageId,
       }),
     }
   )
