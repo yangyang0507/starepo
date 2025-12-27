@@ -11,12 +11,12 @@ import {
   AIErrorCode,
   ChatContext,
   RepositoryReference,
+  StreamChunk,
 } from "@shared/types";
 import type { AIProviderId, ProviderAccountConfig } from "@shared/types/ai-provider";
 import { logger } from "@main/utils/logger";
-import { generateText, tool } from "ai";
-import { z } from "zod";
-import { initializeTools, getToolRegistry } from "./tools";
+import { generateText, streamText } from "ai";
+import { initializeTools, tools } from "./tools";
 import { LanceDBSearchService } from "@main/services/search/lancedb-search-service";
 import { providerRegistry } from "./adapters/provider-registry";
 
@@ -25,6 +25,7 @@ export class AIService {
   private conversationHistory: Map<string, ChatMessage[]> = new Map();
   private searchService: LanceDBSearchService;
   private toolsInitialized = false;
+  private activeStreamSessions: Map<string, AbortController> = new Map();
 
   constructor() {
     this.searchService = new LanceDBSearchService();
@@ -131,15 +132,7 @@ export class AIService {
     }
 
     try {
-      // 获取模型实例
       const model = this.getModel();
-
-      // 获取工具定义并转换为 AI SDK 格式
-      const toolRegistry = getToolRegistry();
-      const toolDefinitions = toolRegistry.getDefinitions();
-      const tools = this.convertToolsToAISDKFormat(toolDefinitions);
-
-      // 构建消息
       const systemPrompt = this.buildSystemPrompt();
       const messages = this.buildMessages(message, context);
 
@@ -152,7 +145,7 @@ export class AIService {
           content: msg.content,
         })),
         tools,
-        maxSteps: 5, // 允许多轮工具调用
+        maxSteps: 5,
         temperature: this.settings.temperature || 0.7,
         topP: this.settings.topP || 1.0,
       });
@@ -215,105 +208,6 @@ export class AIService {
     const adapter = providerRegistry.getAdapterForAccount(account);
     const modelId = this.settings.model?.trim() || undefined;
     return adapter.createLanguageModel({ provider, account, modelId });
-  }
-
-  /**
-   * 将工具定义转换为 AI SDK 格式
-   */
-  private convertToolsToAISDKFormat(
-    toolDefinitions: Array<{
-      name: string;
-      description: string;
-      parameters: {
-        type: "object";
-        properties: Record<string, unknown>;
-        required?: string[];
-      };
-    }>
-  ) {
-    const tools: Record<string, ReturnType<typeof tool>> = {};
-    const toolRegistry = getToolRegistry();
-
-    for (const toolDef of toolDefinitions) {
-      // 将 JSON Schema 转换为 Zod schema
-      const zodSchema = this.jsonSchemaToZod(toolDef.parameters);
-
-      tools[toolDef.name] = tool({
-        description: toolDef.description,
-        parameters: zodSchema,
-        execute: async (args: Record<string, unknown>) => {
-          const result = await toolRegistry.execute({
-            id: `tool_${Date.now()}`,
-            name: toolDef.name,
-            arguments: args,
-          });
-
-          if (result.error) {
-            throw new Error(result.error);
-          }
-
-          return result.result;
-        },
-      });
-    }
-
-    return tools;
-  }
-
-  /**
-   * 将 JSON Schema 转换为 Zod schema
-   */
-  private jsonSchemaToZod(
-    schema: {
-      type: "object";
-      properties: Record<string, unknown>;
-      required?: string[];
-    }
-  ): z.ZodObject<Record<string, z.ZodTypeAny>> {
-    const shape: Record<string, z.ZodTypeAny> = {};
-
-    for (const [key, value] of Object.entries(schema.properties)) {
-      const prop = value as {
-        type: string;
-        description?: string;
-        enum?: string[];
-      };
-
-      let zodType: z.ZodTypeAny;
-
-      switch (prop.type) {
-        case "string":
-          zodType = prop.enum ? z.enum(prop.enum as [string, ...string[]]) : z.string();
-          break;
-        case "number":
-          zodType = z.number();
-          break;
-        case "boolean":
-          zodType = z.boolean();
-          break;
-        case "array":
-          zodType = z.array(z.unknown());
-          break;
-        case "object":
-          zodType = z.record(z.unknown());
-          break;
-        default:
-          zodType = z.unknown();
-      }
-
-      if (prop.description) {
-        zodType = zodType.describe(prop.description);
-      }
-
-      // 如果不在 required 列表中，则设为可选
-      if (!schema.required?.includes(key)) {
-        zodType = zodType.optional();
-      }
-
-      shape[key] = zodType;
-    }
-
-    return z.object(shape);
   }
 
   /**
@@ -496,5 +390,153 @@ export class AIService {
   async close(): Promise<void> {
     this.conversationHistory.clear();
     logger.debug("AI service closed");
+  }
+
+  /**
+   * 流式聊天方法
+   */
+  async chatStream(
+    message: string,
+    conversationId: string = "default",
+    userId?: string,
+    onChunk?: (chunk: StreamChunk) => void,
+    signal?: AbortSignal
+  ): Promise<AIResponse> {
+    if (!this.settings) {
+      throw new AIError(
+        AIErrorCode.NOT_CONFIGURED,
+        "AI service not initialized"
+      );
+    }
+
+    const sessionId = `stream_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const abortController = new AbortController();
+
+    signal?.addEventListener('abort', () => abortController.abort());
+    this.activeStreamSessions.set(sessionId, abortController);
+
+    try {
+      const context: ChatContext = {
+        conversationHistory: this.getConversationHistory(conversationId),
+        userId,
+      };
+
+      const model = this.getModel();
+      const systemPrompt = this.buildSystemPrompt();
+      const messages = this.buildMessages(message, context);
+
+      this.addMessageToHistory(conversationId, {
+        id: `msg_${Date.now()}`,
+        role: "user",
+        content: message,
+        timestamp: Date.now(),
+      });
+
+      let fullContent = "";
+      const allReferences: RepositoryReference[] = [];
+
+      const result = streamText({
+        model,
+        system: systemPrompt,
+        messages: messages.map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+        })),
+        tools,
+        temperature: this.settings.temperature || 0.7,
+        topP: this.settings.topP || 1.0,
+        abortSignal: abortController.signal,
+      });
+
+      for await (const chunk of result.textStream) {
+        if (abortController.signal.aborted) break;
+        fullContent += chunk;
+        onChunk?.({
+          type: 'text',
+          content: chunk,
+        });
+      }
+
+      const response = await result;
+
+      // 在 AI SDK v5 中，response.steps 和 response.usage 都是 Promise
+      const steps = await response.steps;
+      const usage = await response.usage;
+
+      if (steps && Array.isArray(steps) && steps.length > 0) {
+        for (const step of steps) {
+          if (step.toolResults && Array.isArray(step.toolResults) && step.toolResults.length > 0) {
+            for (const toolResult of step.toolResults) {
+              // 检查 toolResult 是否有 result 属性
+              if ('result' in toolResult && toolResult.result && typeof toolResult.result === "object") {
+                const resultObj = toolResult.result as { repositories?: RepositoryReference[] };
+                if (resultObj.repositories && Array.isArray(resultObj.repositories)) {
+                  allReferences.push(...resultObj.repositories);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      this.addMessageToHistory(conversationId, {
+        id: `msg_${Date.now() + 1}`,
+        role: "assistant",
+        content: fullContent,
+        timestamp: Date.now(),
+        references: allReferences,
+      });
+
+      onChunk?.({
+        type: 'end',
+        content: '',
+        metadata: {
+          usage: {
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            totalTokens: usage.totalTokens,
+          },
+          references: allReferences,
+        },
+      });
+
+      return {
+        content: fullContent,
+        references: allReferences,
+        usage: {
+          promptTokens: usage.promptTokens,
+          completionTokens: usage.completionTokens,
+          totalTokens: usage.totalTokens,
+        },
+      };
+    } catch (error) {
+      if (error instanceof AIError) {
+        onChunk?.({
+          type: 'error',
+          content: '',
+          error: error.message,
+        });
+        throw error;
+      }
+      throw new AIError(
+        AIErrorCode.LLM_ERROR,
+        `Chat failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    } finally {
+      this.activeStreamSessions.delete(sessionId);
+    }
+  }
+
+  /**
+   * 中止流式聊天
+   */
+  abortChat(sessionId: string): boolean {
+    const controller = this.activeStreamSessions.get(sessionId);
+    if (controller) {
+      controller.abort();
+      this.activeStreamSessions.delete(sessionId);
+      return true;
+    }
+    return false;
   }
 }

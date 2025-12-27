@@ -21,7 +21,7 @@ async function createApplication(): Promise<void> {
   }
 
   // 注册 IPC 处理器
-  registerIpcHandlers();
+  await registerIpcHandlers();
 
   // 创建主窗口
   const windowManager = WindowManager.getInstance();

@@ -14,7 +14,7 @@ import { getLogger } from "../utils/logger";
 import "./search-handlers";
 // 导入 AI 处理器
 import { initializeAIHandlers, setAIService } from "./ai-handlers";
-import { AIService } from "../services/ai";
+import { AIService, aiSettingsService } from "../services/ai";
 
 const settingsLogger = getLogger('ipc:settings');
 
@@ -100,18 +100,29 @@ function registerDatabaseHandlers(): void {
 /**
  * AI 相关的 IPC 处理器
  */
-function registerAIHandlers(): void {
+async function registerAIHandlers(): Promise<void> {
   const aiLogger = getLogger('ipc:ai');
 
   try {
     // 创建 AI 服务实例
     const aiService = new AIService();
 
-    // 初始化 IPC 处理器
-    initializeAIHandlers();
+    // 加载并使用保存的设置进行初始化
+    const settings = await aiSettingsService.getSettings();
+    if (settings && settings.enabled) {
+      try {
+        await aiService.initialize(settings);
+        aiLogger.debug('AI 服务已使用保存的设置初始化');
+      } catch (initError) {
+        aiLogger.error('AI 服务初始化失败:', initError);
+      }
+    }
 
     // 设置 AI 服务实例
     setAIService(aiService);
+
+    // 初始化 IPC 处理器
+    initializeAIHandlers();
 
     aiLogger.debug('AI IPC 处理器已成功注册');
   } catch (error) {
@@ -246,7 +257,7 @@ function registerSettingsHandlers(): void {
   });
 
   // === 主题管理 ===
-  
+
   // 获取主题
   ipcMain.handle(IPC_CHANNELS.THEME.GET_THEME, async () => {
     try {
@@ -297,7 +308,7 @@ function registerSettingsHandlers(): void {
   });
 
   // === 语言管理 ===
-  
+
   // 获取语言
   ipcMain.handle(IPC_CHANNELS.LANGUAGE.GET_LANGUAGE, async () => {
     try {

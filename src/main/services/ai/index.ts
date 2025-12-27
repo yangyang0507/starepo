@@ -8,7 +8,7 @@ import { AIService } from "./ai-service";
 export { AIService } from "./ai-service";
 
 // 导出工具系统
-export * from "./tools";
+export { initializeTools, tools } from "./tools";
 
 // 导出模型发现服务
 export { modelDiscoveryService } from "./model-discovery-service";

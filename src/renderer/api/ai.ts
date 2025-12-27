@@ -12,6 +12,7 @@ import {
   AISettingsPayload,
   AITestConnectionPayload,
   IPCResponse,
+  StreamChunk,
 } from '@shared/types';
 import type {
   ProviderAccountConfig,
@@ -53,6 +54,104 @@ export async function sendChatMessage(
   }
 
   return response.data || { content: '', references: [] };
+}
+
+/**
+ * 流式聊天选项
+ */
+export interface StreamChatOptions {
+  onTextDelta?: (text: string) => void;
+  onToolCall?: (toolCall: { name: string; arguments: Record<string, unknown> }) => void;
+  onComplete?: (data: AIResponse) => void;
+  onError?: (error: string) => void;
+}
+
+/**
+ * 发送流式聊天消息
+ */
+export async function sendChatMessageStream(
+  message: string,
+  conversationId?: string,
+  userId?: string,
+  options?: StreamChatOptions
+): Promise<{ sessionId: string; abort: () => Promise<void> }> {
+  console.log('[AI API] sendChatMessageStream called:', { message, conversationId });
+
+  const electronAPI = (window as any).electronAPI;
+  console.log('[AI API] electronAPI:', electronAPI);
+  console.log('[AI API] electronAPI.ai:', electronAPI?.ai);
+  console.log('[AI API] electronAPI.ai.chatStream:', electronAPI?.ai?.chatStream);
+
+  if (!electronAPI?.ai?.chatStream) {
+    console.error('[AI API] Stream chat API not available');
+    throw new Error('Stream chat API not available');
+  }
+
+  console.log('[AI API] Calling electronAPI.ai.chatStream...');
+  const response = await electronAPI.ai.chatStream(
+    message,
+    conversationId,
+    (chunk: StreamChunk & { sessionId: string }) => {
+      console.log('[AI API] Chunk received:', chunk);
+      switch (chunk.type) {
+        case 'text':
+          options?.onTextDelta?.(chunk.content);
+          break;
+        case 'tool':
+          if (chunk.toolCall) {
+            options?.onToolCall?.({
+              name: chunk.toolCall.name,
+              arguments: chunk.toolCall.arguments || {},
+            });
+          }
+          break;
+        case 'end':
+          console.log('[AI API] Stream ended:', chunk);
+          options?.onComplete?.({
+            content: chunk.content,
+            references: chunk.metadata?.references || [],
+            usage: chunk.metadata?.usage,
+          });
+          break;
+        case 'error':
+          console.error('[AI API] Stream error:', chunk);
+          options?.onError?.(chunk.error || 'Unknown error');
+          break;
+      }
+    }
+  );
+
+  console.log('[AI API] chatStream response:', response);
+
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to start stream');
+  }
+
+  const { sessionId } = response.data!;
+  console.log('[AI API] Session ID:', sessionId);
+
+  return {
+    sessionId,
+    abort: async () => {
+      console.log('[AI API] Aborting session:', sessionId);
+      await electronAPI.ai.abortChat(sessionId);
+    },
+  };
+}
+
+/**
+ * 中止流式聊天
+ */
+export async function abortChat(sessionId: string): Promise<void> {
+  const electronAPI = (window as any).electronAPI;
+  if (!electronAPI?.ai?.abortChat) {
+    throw new Error('Abort chat API not available');
+  }
+
+  const response = await electronAPI.ai.abortChat(sessionId);
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to abort chat');
+  }
 }
 
 /**

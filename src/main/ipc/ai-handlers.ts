@@ -13,12 +13,14 @@ import { getProviderOptions } from "@shared/data/ai-providers";
 import {
   AIResponse,
   AIChatPayload,
+  AIChatPayload,
   AISettingsPayload,
   AITestConnectionPayload,
   AISafeSettings,
   AISettings,
   IPCResponse,
   ProviderAccountConfig,
+  StreamChunk,
 } from "@shared/types";
 import type { AIProviderId } from "@shared/types/ai-provider";
 import { logger } from "@main/utils/logger";
@@ -27,9 +29,11 @@ import { logger } from "@main/utils/logger";
  * 初始化 AI IPC 处理程序
  */
 export function initializeAIHandlers(): void {
-  // 创建并设置 AI 服务实例
-  const aiServiceInstance = new AIService();
-  setAIService(aiServiceInstance);
+  // 如果尚未设置 AI 服务实例，则创建一个新的
+  if (!getAIService()) {
+    const aiServiceInstance = new AIService();
+    setAIService(aiServiceInstance);
+  }
 
   // 聊天处理
   ipcMain.handle(
@@ -66,6 +70,96 @@ export function initializeAIHandlers(): void {
     }
   );
 
+  // 流式聊天处理
+  const activeStreamSessions = new Map<string, Electron.WebContents>();
+
+  ipcMain.handle(
+    IPC_CHANNELS.AI.CHAT_STREAM,
+    async (event, payload: AIChatStreamPayload) => {
+      const sessionId = `stream_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+      try {
+        if (!getAIService()) {
+          return {
+            success: false,
+            error: "AI service not initialized",
+          } as IPCResponse;
+        }
+
+        activeStreamSessions.set(sessionId, event.sender);
+
+        getAIService().chatStream(
+          payload.message,
+          payload.conversationId,
+          payload.userId,
+          (chunk: StreamChunk) => {
+            const session = activeStreamSessions.get(sessionId);
+            if (session && !session.isDestroyed()) {
+              session.send(IPC_CHANNELS.AI.CHAT_STREAM_CHUNK, {
+                sessionId,
+                ...chunk,
+              });
+            }
+          }
+        ).then(() => {
+          activeStreamSessions.delete(sessionId);
+        }).catch((error) => {
+          const session = activeStreamSessions.get(sessionId);
+          activeStreamSessions.delete(sessionId);
+          if (session && !session.isDestroyed()) {
+            session.send(IPC_CHANNELS.AI.CHAT_STREAM_CHUNK, {
+              sessionId,
+              type: 'error',
+              content: '',
+              error: error.message,
+            });
+          }
+        });
+
+        return {
+          success: true,
+          data: { sessionId },
+        } as IPCResponse<{ sessionId: string }>;
+      } catch (error) {
+        activeStreamSessions.delete(sessionId);
+        logger.error("Stream chat handler error:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to start stream",
+        } as IPCResponse;
+      }
+    }
+  );
+
+  // 中止流式聊天
+  ipcMain.handle(
+    IPC_CHANNELS.AI.CHAT_ABORT,
+    async (_event, sessionId: string) => {
+      try {
+        if (!getAIService()) {
+          return {
+            success: false,
+            error: "AI service not initialized",
+          } as IPCResponse;
+        }
+
+        const aborted = getAIService().abortChat(sessionId);
+        activeStreamSessions.delete(sessionId);
+
+        return {
+          success: true,
+          data: { aborted },
+        } as IPCResponse<{ aborted: boolean }>;
+      } catch (error) {
+        logger.error("Abort chat handler error:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to abort",
+        } as IPCResponse;
+      }
+    }
+  );
+
   // 获取 AI 设置
   ipcMain.handle(
     IPC_CHANNELS.AI.GET_SAFE_SETTINGS,
@@ -75,14 +169,14 @@ export function initializeAIHandlers(): void {
         const settings = await aiSettingsService.getSettings();
         const safeSettings: AISafeSettings | null = settings
           ? {
-              enabled: settings.enabled,
-              provider: settings.provider,
-              model: settings.model,
-              maxTokens: settings.maxTokens,
-              temperature: settings.temperature,
-              topP: settings.topP,
-              configured: true,
-            }
+            enabled: settings.enabled,
+            provider: settings.provider,
+            model: settings.model,
+            maxTokens: settings.maxTokens,
+            temperature: settings.temperature,
+            topP: settings.topP,
+            configured: true,
+          }
           : null;
 
         return {

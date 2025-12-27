@@ -88,6 +88,46 @@ export interface AIChatPayload {
   conversationId?: string;
 }
 
+// 流式聊天载荷
+export interface AIChatStreamPayload extends AIChatPayload {
+  signalId?: string;
+}
+
+// 流式数据块类型
+export type StreamChunkType = 'text' | 'tool' | 'error' | 'end';
+
+// 工具调用信息
+export interface ToolCallInfo {
+  name: string;
+  status: 'calling' | 'result';
+  arguments?: Record<string, unknown>;
+  result?: unknown;
+}
+
+// 流式数据块
+export interface StreamChunk {
+  type: StreamChunkType;
+  content: string;
+  toolCall?: ToolCallInfo;
+  error?: string;
+  metadata?: {
+    usage?: {
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    };
+    references?: RepositoryReference[];
+  };
+}
+
+// 流式会话状态
+export interface StreamSession {
+  id: string;
+  conversationId: string;
+  status: 'active' | 'completed' | 'aborted' | 'error';
+  startTime: number;
+}
+
 export interface AISettingsPayload {
   provider?: AIProvider;
   model?: string;

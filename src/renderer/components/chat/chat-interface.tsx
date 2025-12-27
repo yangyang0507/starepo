@@ -1,9 +1,11 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { AlertCircle, MessagesSquare, Copy, RefreshCw, PanelLeft, PanelLeftClose, Check } from 'lucide-react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { AlertCircle, MessagesSquare, Copy, RefreshCw, PanelLeftClose, PanelLeft, Check } from 'lucide-react';
+import InfiniteScroll from 'react-infinite-scroll-component';
 import { ChatHistoryList } from './chat-history-list';
 import { useChatStore } from '@/stores/chat-store';
 import { useAIAccountsStore } from '@/stores/ai-accounts-store';
-import { ChatMessage } from '@shared/types';
+import { useAIApi } from '@/api/ai';
+import { ChatMessage, AIModel } from '@shared/types';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -46,83 +48,209 @@ const QUICK_PROMPTS = [
   { id: '3', title: '优化性能', content: '帮我优化代码性能' },
 ];
 
+const INITIAL_DISPLAY_COUNT = 20;
+const LOAD_MORE_COUNT = 10;
+
 export function ChatInterface({ conversationId: _conversationId }: ChatInterfaceProps) {
-  const { messages, addMessage, updateMessage, setStreaming, isStreaming, streamingMessageId, regenerateLastResponse } = useChatStore();
-  const { accounts, isLoading: isLoadingAccounts, initAccounts } = useAIAccountsStore();
+  const { messages, streamChat, abortCurrentStream, isStreaming, streamingMessageId, processQueue, isProcessingQueue } = useChatStore();
+  const { accounts, isLoading: isLoadingAccounts, initAccounts, getAccount } = useAIAccountsStore();
+  const { getAISettings, updateAISettings } = useAIApi();
+
   const [error, setError] = useState<string | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(true);
-  const [selectedModel, setSelectedModel] = useState('gpt-4-turbo');
+  const [selectedModel, setSelectedModel] = useState('');
+  const [availableModels, setAvailableModels] = useState<AIModel[]>([]);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const [displayCount, setDisplayCount] = useState(INITIAL_DISPLAY_COUNT);
+  const [hasMore, setHasMore] = useState(false);
+
+  // 检查是否有已启用的 Provider
+  const enabledAccount = useMemo(() =>
+    Array.from(accounts.values()).find((account) => account.enabled),
+    [accounts]
+  );
+  const hasEnabledProvider = !!enabledAccount;
+
+  // 初始化和同步设置
+  useEffect(() => {
+    const syncSettings = async () => {
+      try {
+        const settings = await getAISettings();
+        if (settings?.model) {
+          setSelectedModel(settings.model);
+        }
+      } catch (err) {
+        console.error('[ChatInterface] Failed to fetch AI settings:', err);
+      }
+    };
+    void syncSettings();
+  }, [getAISettings]);
+
+  // 加载当前 Provider 的模型列表
+  useEffect(() => {
+    const loadModels = async () => {
+      if (!enabledAccount) return;
+
+      try {
+        const { getModelList } = await import('@/api/ai');
+        const accountConfig = await getAccount(enabledAccount.providerId);
+        if (accountConfig) {
+          const response = await getModelList(accountConfig);
+          setAvailableModels(response.models);
+
+          // 如果没有选中模型且有可用模型，默认选第一个
+          if (!selectedModel && response.models.length > 0) {
+            const firstModel = response.models[0].id;
+            setSelectedModel(firstModel);
+            // 同步到全局设置
+            void updateAISettings({ model: firstModel });
+          }
+        }
+      } catch (err) {
+        console.error('[ChatInterface] Failed to load models:', err);
+      }
+    };
+    void loadModels();
+  }, [enabledAccount, getAccount, updateAISettings, selectedModel]);
+
+  // 处理模型变更
+  const handleModelChange = useCallback(async (modelId: string) => {
+    setSelectedModel(modelId);
+    try {
+      await updateAISettings({ model: modelId });
+    } catch (err) {
+      console.error('[ChatInterface] Failed to update model setting:', err);
+      setError('更新模型设置失败');
+    }
+  }, [updateAISettings]);
+
+  // 消息分组逻辑：按对话轮次分组（用户消息 + 助手回复）
+  const groupedMessages = useMemo(() => {
+    const groups: ChatMessage[][] = [];
+    let currentGroup: ChatMessage[] = [];
+
+    messages.forEach((msg) => {
+      if (msg.role === 'user') {
+        // 遇到用户消息，保存当前组并开始新组
+        if (currentGroup.length > 0) {
+          groups.push(currentGroup);
+        }
+        currentGroup = [msg];
+      } else {
+        // 助手消息添加到当前组
+        currentGroup.push(msg);
+      }
+    });
+
+    // 保存最后一组
+    if (currentGroup.length > 0) {
+      groups.push(currentGroup);
+    }
+
+    return groups;
+  }, [messages]);
+
+  // 计算要显示的消息（倒序）
+  const displayMessages = useMemo(() => {
+    const reversed = [...messages].reverse();
+    return reversed.slice(0, displayCount);
+  }, [messages, displayCount]);
+
+  // 对显示的消息进行分组
+  const displayGroupedMessages = useMemo(() => {
+    if (!displayMessages || displayMessages.length === 0) {
+      return [];
+    }
+
+    const groups: ChatMessage[][] = [];
+    let currentGroup: ChatMessage[] = [];
+
+    // displayMessages 是倒序的，需要正序处理
+    const orderedMessages = [...displayMessages].reverse();
+
+    orderedMessages.forEach((msg) => {
+      if (!msg) return; // 跳过无效消息
+
+      if (msg.role === 'user') {
+        if (currentGroup.length > 0) {
+          groups.push(currentGroup);
+        }
+        currentGroup = [msg];
+      } else {
+        currentGroup.push(msg);
+      }
+    });
+
+    if (currentGroup.length > 0) {
+      groups.push(currentGroup);
+    }
+
+    // 倒序返回分组，以便最新的组在前面
+    return groups.reverse();
+  }, [displayMessages]);
+
+  // 更新 hasMore 状态
+  useEffect(() => {
+    setHasMore(displayCount < messages.length);
+  }, [displayCount, messages.length]);
+
+  // 加载更多消息
+  const loadMoreMessages = useCallback(() => {
+    setDisplayCount(prev => Math.min(prev + LOAD_MORE_COUNT, messages.length));
+  }, [messages.length]);
 
   // 初始化账户
   useEffect(() => {
+    console.log('[ChatInterface] Initializing accounts...');
     initAccounts();
   }, [initAccounts]);
 
-  // 检查是否有已启用的 Provider
-  const hasEnabledProvider = Array.from(accounts.values()).some((account) => account.enabled);
+  // 监控账户状态变化
+  useEffect(() => {
+    console.log('[ChatInterface] Accounts state:', {
+      accounts: Array.from(accounts.entries()),
+      hasEnabledProvider,
+      isLoadingAccounts
+    });
+  }, [accounts, hasEnabledProvider, isLoadingAccounts]);
 
-  // 处理发送消息
+  console.log('[ChatInterface] Render state:', { hasEnabledProvider, isLoadingAccounts, isStreaming });
+
+  // 处理发送消息 - 使用流式 API
   const handleSendMessage = useCallback(
     async ({ text }: { text: string }) => {
-      if (!text.trim() || !hasEnabledProvider || isStreaming) return;
+      console.log('[ChatInterface] handleSendMessage called:', { text, hasEnabledProvider, isStreaming });
 
-      const userMessage: ChatMessage = {
-        id: Date.now().toString(),
-        role: 'user',
-        content: text.trim(),
-        timestamp: Date.now(),
-      };
+      if (!text.trim() || !hasEnabledProvider || isStreaming) {
+        console.log('[ChatInterface] Message skipped:', { textEmpty: !text.trim(), noProvider: !hasEnabledProvider, isStreaming });
+        return;
+      }
 
-      addMessage(userMessage);
       setError(null);
 
-      const assistantMessageId = (Date.now() + 1).toString();
-      setStreaming(true, assistantMessageId);
-
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-
       try {
-        // TODO: 调用 AI API
-        // 临时模拟流式响应
-        let simulatedContent = '';
-        const chunks = [
-          '这是一个临时的',
-          '模拟响应。',
-          'AI 功能',
-          '正在开发中...',
-          '请耐心等待',
-          '完整功能的实现',
-          '正在规划中。'
-        ];
-
-        for (const chunk of chunks) {
-          if (abortController.signal.aborted) break;
-          await new Promise((resolve) => setTimeout(resolve, 300));
-          simulatedContent += chunk;
-          updateMessage(assistantMessageId, simulatedContent);
-        }
-
-        if (!abortController.signal.aborted) {
-          setStreaming(false, null);
-        }
+        console.log('[ChatInterface] Calling streamChat...');
+        await streamChat(text, {
+          onComplete: (data) => {
+            console.log('[ChatInterface] Chat complete:', data);
+          },
+          onError: (error) => {
+            console.error('[ChatInterface] Chat error:', error);
+            setError(error);
+          },
+        });
       } catch (err) {
-        if (err.name !== 'AbortError') {
-          setError(err instanceof Error ? err.message : '发送消息失败');
-        }
-        setStreaming(false, null);
+        console.error('[ChatInterface] Send message error:', err);
+        setError(err instanceof Error ? err.message : '发送消息失败');
       }
     },
-    [hasEnabledProvider, isStreaming, addMessage, updateMessage, setStreaming]
+    [hasEnabledProvider, isStreaming, streamChat]
   );
 
   // 停止生成
   const handleStopGeneration = useCallback(() => {
-    abortControllerRef.current?.abort();
-    setStreaming(false, null);
-  }, [setStreaming]);
+    abortCurrentStream();
+  }, [abortCurrentStream]);
 
   // 处理复制消息
   const handleCopyMessage = useCallback((id: string, content: string) => {
@@ -211,31 +339,30 @@ export function ChatInterface({ conversationId: _conversationId }: ChatInterface
               )}
             </Button>
             <div className="h-4 w-[1px] bg-border mx-1" />
-            <Select value={selectedModel} onValueChange={setSelectedModel}>
+            <Select value={selectedModel} onValueChange={handleModelChange}>
               <SelectTrigger className="h-8 px-2 py-1 rounded-md hover:bg-muted/50 transition-colors cursor-pointer border-none bg-transparent">
-                <SelectValue className="text-sm font-medium" />
+                <SelectValue placeholder="选择模型" className="text-sm font-medium" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
-                <SelectItem value="gpt-4">GPT-4</SelectItem>
-                <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                <SelectItem value="claude-3-opus">Claude 3 Opus</SelectItem>
+                {availableModels.length > 0 ? (
+                  availableModels.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.displayName || m.id}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="none" disabled>
+                    暂无可用模型
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="更多设置">
-              <div className="w-1 h-1 rounded-full bg-current mx-0.5" />
-              <div className="w-1 h-1 rounded-full bg-current mx-0.5" />
-              <div className="w-1 h-1 rounded-full bg-current mx-0.5" />
-            </Button>
           </div>
         </div>
 
         {/* 消息列表区域 */}
-        <Conversation className="flex-1 min-h-0">
-          <ConversationContent className="h-full max-w-4xl mx-auto px-4 py-6 w-full gap-6">
+        <Conversation className="flex-1 min-h-0" id="messages">
+          <ConversationContent className="h-full max-w-4xl mx-auto px-4 py-6 w-full gap-6 flex flex-col-reverse">
             {messages.length === 0 ? (
               <ConversationEmptyState
                 icon={
@@ -260,55 +387,73 @@ export function ChatInterface({ conversationId: _conversationId }: ChatInterface
                 </div>
               </ConversationEmptyState>
             ) : (
-              <>
-                {messages.map((msg) => (
-                  <Message
-                    key={msg.id}
-                    from={msg.role}
-                    className={`animate-in fade-in slide-in-from-bottom-2 duration-300 ${
-                      streamingMessageId === msg.id ? 'is-streaming' : ''
-                    }`}
-                  >
-                    <MessageContent className={msg.role === 'user' ? 'shadow-sm' : ''}>
-                      {msg.role === 'user' ? (
-                        <div className="text-base whitespace-pre-wrap leading-relaxed">{msg.content}</div>
-                      ) : (
-                        <MessageResponse>{msg.content}</MessageResponse>
-                      )}
-                    </MessageContent>
-
-                    <MessageToolbar className="mt-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-muted-foreground/60 uppercase font-medium tracking-wider">
-                          {new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-
-                      <MessageActions className="scale-90 origin-right">
-                        <MessageAction
-                          onClick={() => handleCopyMessage(msg.id, msg.content)}
-                          tooltip={copiedMessageId === msg.id ? '已复制' : '复制内容'}
-                          label="复制"
-                        >
-                          {copiedMessageId === msg.id ? (
-                            <Check className="w-3.5 h-3.5 text-green-500" />
+              <InfiniteScroll
+                dataLength={displayMessages.length}
+                next={loadMoreMessages}
+                hasMore={hasMore}
+                loader={
+                  <div className="flex justify-center py-4">
+                    <Loader size={20} className="text-primary" />
+                  </div>
+                }
+                inverse={true}
+                scrollableTarget="messages"
+                style={{ display: 'flex', flexDirection: 'column-reverse', gap: '2rem' }}
+              >
+                {displayGroupedMessages.map((group, groupIndex) => (
+                  <div key={groupIndex} className="message-group flex flex-col gap-3">
+                    {group.map((msg) => (
+                      <Message
+                        key={msg.id}
+                        from={msg.role}
+                        className={`animate-in fade-in slide-in-from-bottom-2 duration-300 ${streamingMessageId === msg.id ? 'is-streaming' : ''
+                          }`}
+                      >
+                        <MessageContent className={msg.role === 'user' ? 'shadow-sm' : ''}>
+                          {msg.role === 'user' ? (
+                            <div className="text-base whitespace-pre-wrap leading-relaxed">{msg.content}</div>
                           ) : (
-                            <Copy className="w-3.5 h-3.5" />
+                            <MessageResponse>{msg.content}</MessageResponse>
                           )}
-                        </MessageAction>
+                        </MessageContent>
 
-                        {msg.role === 'assistant' && (
-                          <MessageAction
-                            onClick={regenerateLastResponse}
-                            tooltip="重新生成"
-                            label="重新生成"
-                          >
-                            <RefreshCw className="w-3.5 h-3.5" />
-                          </MessageAction>
-                        )}
-                      </MessageActions>
-                    </MessageToolbar>
-                  </Message>
+                        <MessageToolbar className="mt-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-muted-foreground/60 uppercase font-medium tracking-wider">
+                              {new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+
+                          <MessageActions className="scale-90 origin-right">
+                            <MessageAction
+                              onClick={() => handleCopyMessage(msg.id, msg.content)}
+                              tooltip={copiedMessageId === msg.id ? '已复制' : '复制内容'}
+                              label="复制"
+                            >
+                              {copiedMessageId === msg.id ? (
+                                <Check className="w-3.5 h-3.5 text-green-500" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </MessageAction>
+
+                            {msg.role === 'assistant' && (
+                              <MessageAction
+                                onClick={() => {
+                                  const state = useChatStore.getState();
+                                  state.regenerateLastResponse();
+                                }}
+                                tooltip="重新生成"
+                                label="重新生成"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                              </MessageAction>
+                            )}
+                          </MessageActions>
+                        </MessageToolbar>
+                      </Message>
+                    ))}
+                  </div>
                 ))}
 
                 {isStreaming && !streamingMessageId && (
@@ -321,7 +466,7 @@ export function ChatInterface({ conversationId: _conversationId }: ChatInterface
                     </MessageContent>
                   </Message>
                 )}
-              </>
+              </InfiniteScroll>
             )}
           </ConversationContent>
           <ConversationScrollButton className="bg-background/80 backdrop-blur shadow-md hover:bg-background hover:shadow-lg transition-all" />

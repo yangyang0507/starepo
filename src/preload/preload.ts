@@ -8,7 +8,8 @@ import type {
   GitHubRepository,
   GitHubPaginationOptions,
   GitHubSearchOptions,
-  RepositorySyncFilters
+  RepositorySyncFilters,
+  StreamChunk,
 } from "@shared/types";
 
 /**
@@ -294,6 +295,56 @@ const aiAPI = {
   // AI 相关 API
   chat: (message: string, conversationId?: string): Promise<APIResponse> =>
     ipcRenderer.invoke(IPC_CHANNELS.AI.CHAT, { message, conversationId }),
+
+  // 流式聊天 API
+  chatStream: (
+    message: string,
+    conversationId?: string,
+    onChunk?: (chunk: StreamChunk & { sessionId: string }) => void
+  ): Promise<APIResponse<{ sessionId: string }>> => {
+    console.log('[Preload] chatStream called:', { message, conversationId });
+
+    return new Promise((resolve, reject) => {
+      ipcRenderer.invoke(IPC_CHANNELS.AI.CHAT_STREAM, { message, conversationId })
+        .then((response: APIResponse<{ sessionId: string }>) => {
+          console.log('[Preload] CHAT_STREAM response:', response);
+
+          if (!response.success) {
+            console.error('[Preload] CHAT_STREAM failed:', response.error);
+            reject(new Error(response.error || "Failed to start stream"));
+            return;
+          }
+
+          const { sessionId } = response.data!;
+          console.log('[Preload] Session ID:', sessionId);
+
+          const chunkHandler = (_event: Electron.IpcRendererEvent, data: StreamChunk & { sessionId: string }) => {
+            console.log('[Preload] Chunk received:', data);
+            if (data.sessionId === sessionId && onChunk) {
+              onChunk(data);
+
+              if (data.type === 'end' || data.type === 'error') {
+                console.log('[Preload] Removing chunk handler');
+                ipcRenderer.removeListener(IPC_CHANNELS.AI.CHAT_STREAM_CHUNK, chunkHandler);
+              }
+            }
+          };
+
+          ipcRenderer.on(IPC_CHANNELS.AI.CHAT_STREAM_CHUNK, chunkHandler);
+          console.log('[Preload] Chunk handler registered');
+
+          resolve({ success: true, data: { sessionId } });
+        })
+        .catch((error) => {
+          console.error('[Preload] chatStream error:', error);
+          reject(error);
+        });
+    });
+  },
+
+  // 中止流式聊天
+  abortChat: (sessionId: string): Promise<APIResponse<{ aborted: boolean }>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.AI.CHAT_ABORT, sessionId),
 
   getSafeSettings: (): Promise<APIResponse> =>
     ipcRenderer.invoke(IPC_CHANNELS.AI.GET_SAFE_SETTINGS),

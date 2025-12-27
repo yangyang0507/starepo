@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { ChatMessage } from '@shared/types';
+import { ChatMessage, AIResponse } from '@shared/types';
 
 interface ChatStore {
   // 状态
@@ -14,6 +14,9 @@ interface ChatStore {
   conversations: Record<string, ChatMessage[]>;
   isStreaming: boolean;
   streamingMessageId: string | null;
+  currentStreamSession: string | null;
+  messageQueue: Array<{ id: string; message: string }>;
+  isProcessingQueue: boolean;
 
   // 操作
   addMessage: (message: ChatMessage) => void;
@@ -24,6 +27,18 @@ interface ChatStore {
   deleteConversation: (id: string) => void;
   setStreaming: (isStreaming: boolean, messageId?: string) => void;
   regenerateLastResponse: () => void;
+
+  // 流式聊天操作
+  streamChat: (
+    message: string,
+    options?: {
+      onTextDelta?: (text: string) => void;
+      onComplete?: (data: AIResponse) => void;
+      onError?: (error: string) => void;
+    }
+  ) => Promise<{ sessionId: string; abort: () => Promise<void> }>;
+  abortCurrentStream: () => Promise<void>;
+  processQueue: () => Promise<void>;
 
   // 存储操作
   saveToStorage: () => void;
@@ -49,6 +64,9 @@ export const useChatStore = create<ChatStore>()(
       },
       isStreaming: false,
       streamingMessageId: null,
+      currentStreamSession: null,
+      messageQueue: [],
+      isProcessingQueue: false,
 
       // 添加消息
       addMessage: (message) => {
@@ -104,6 +122,143 @@ export const useChatStore = create<ChatStore>()(
             },
           }));
         }
+      },
+
+      // 流式聊天方法
+      streamChat: async (message, options) => {
+        const state = get();
+        console.log('[ChatStore] streamChat called:', { message, isStreaming: state.isStreaming });
+
+        // 如果正在处理，添加到队列
+        if (state.isStreaming) {
+          console.log('[ChatStore] Already streaming, adding to queue');
+          set({
+            messageQueue: [...state.messageQueue, { id: Date.now().toString(), message }],
+          });
+          options?.onComplete?.({ content: '', references: [] } as AIResponse);
+          return { sessionId: '', abort: async () => {} };
+        }
+
+        // 添加用户消息
+        const userMessage: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: message,
+          timestamp: Date.now(),
+        };
+        state.addMessage(userMessage);
+
+        // 创建助手消息占位符
+        const assistantMessageId = (Date.now() + 1).toString();
+        const assistantMessage: ChatMessage = {
+          id: assistantMessageId,
+          role: 'assistant',
+          content: '',
+          timestamp: Date.now(),
+        };
+        state.addMessage(assistantMessage);
+
+        state.setStreaming(true, assistantMessageId);
+
+        let accumulatedContent = '';
+
+        try {
+          console.log('[ChatStore] Importing sendChatMessageStream...');
+          const { sendChatMessageStream } = await import('@/api/ai');
+          console.log('[ChatStore] Calling sendChatMessageStream...');
+          const result = await sendChatMessageStream(
+            message,
+            state.currentConversationId,
+            undefined,
+            {
+              onTextDelta: (text) => {
+                accumulatedContent += text;
+                state.updateMessage(assistantMessageId, accumulatedContent);
+                options?.onTextDelta?.(text);
+              },
+              onComplete: (data) => {
+                console.log('[ChatStore] Stream complete:', data);
+                state.setStreaming(false, null);
+                set((state) => ({
+                  conversations: {
+                    ...state.conversations,
+                    [state.currentConversationId]: state.conversations[state.currentConversationId]?.map(msg =>
+                      msg.id === assistantMessageId
+                        ? { ...msg, references: data.references }
+                        : msg
+                    ) || [],
+                  },
+                }));
+                options?.onComplete?.(data);
+              },
+              onError: (error) => {
+                console.error('[ChatStore] Stream error:', error);
+                state.setStreaming(false, null);
+                set((state) => ({
+                  conversations: {
+                    ...state.conversations,
+                    [state.currentConversationId]: state.conversations[state.currentConversationId]?.map(msg =>
+                      msg.id === assistantMessageId
+                        ? { ...msg, error }
+                        : msg
+                    ) || [],
+                  },
+                }));
+                options?.onError?.(error);
+              },
+            }
+          );
+          console.log('[ChatStore] sendChatMessageStream returned:', result);
+
+          set({ currentStreamSession: result.sessionId });
+          return result;
+        } catch (error) {
+          console.error('[ChatStore] streamChat error:', error);
+          state.setStreaming(false, null);
+          const errorMessage = error instanceof Error ? error.message : '发送消息失败';
+          set((state) => ({
+            conversations: {
+              ...state.conversations,
+              [state.currentConversationId]: state.conversations[state.currentConversationId]?.map(msg =>
+                msg.id === assistantMessageId
+                  ? { ...msg, error: errorMessage }
+                  : msg
+              ) || [],
+            },
+          }));
+          options?.onError?.(errorMessage);
+          throw error;
+        }
+      },
+
+      // 中止当前流式会话
+      abortCurrentStream: async () => {
+        const state = get();
+        if (state.currentStreamSession && state.isStreaming) {
+          const { abortChat } = await import('@/api/ai');
+          await abortChat(state.currentStreamSession);
+          set({ currentStreamSession: null, isStreaming: false, streamingMessageId: null });
+        }
+      },
+
+      // 处理消息队列
+      processQueue: async () => {
+        const state = get();
+        if (state.isProcessingQueue || state.messageQueue.length === 0) return;
+
+        set({ isProcessingQueue: true });
+
+        while (state.messageQueue.length > 0) {
+          const currentQueue = get().messageQueue;
+          if (currentQueue.length === 0) break;
+
+          const next = currentQueue[0];
+          set({ messageQueue: currentQueue.slice(1) });
+
+          await get().streamChat(next.message);
+        }
+
+        set({ isProcessingQueue: false });
       },
 
       // 清除消息
@@ -220,6 +375,8 @@ export const useChatStore = create<ChatStore>()(
 export function initializeChatStore() {
   const store = useChatStore.getState();
   store.loadFromStorage();
+  // 重置流式状态，防止卡住
+  store.setStreaming(false, null);
 }
 
 /**

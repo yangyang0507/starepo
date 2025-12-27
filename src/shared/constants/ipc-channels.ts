@@ -85,6 +85,9 @@ export const IPC_CHANNELS = {
   AI: {
     // 聊天相关
     CHAT: "ai:chat",
+    CHAT_STREAM: "ai:chatStream",
+    CHAT_ABORT: "ai:chatAbort",
+    CHAT_STREAM_CHUNK: "ai:chatStreamChunk",
     GET_CHAT_HISTORY: "ai:getChatHistory",
     CLEAR_CHAT_HISTORY: "ai:clearChatHistory",
 
