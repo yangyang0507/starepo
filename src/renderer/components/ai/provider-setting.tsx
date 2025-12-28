@@ -14,7 +14,7 @@ import { ApiKeyInput } from './api-key-input';
 import { BaseUrlInput } from './base-url-input';
 import { ProtocolSelector } from './protocol-selector';
 import { ConnectionTestButton } from './connection-test-button';
-import { ModelSelector } from './model-selector';
+import { ModelList } from './model-list';
 import { getModelList, testProviderConnection } from '@/api/ai';
 import { AI_PROTOCOL, type AIProviderId, type AIProtocol, type AIModel, type ModelSelectionState } from '@shared/types';
 
@@ -25,14 +25,14 @@ interface ProviderSettingProps {
 
 export function ProviderSetting({ providerId, providerName }: ProviderSettingProps) {
   const { accounts, getAccount, saveAccount } = useAIAccountsStore();
-  const account = accounts.get(providerId);
+  const accountMetadata = accounts.get(providerId);
 
   // 表单状态
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [protocol, setProtocol] = useState<AIProtocol>(AI_PROTOCOL.OPENAI_COMPATIBLE);
-  const [defaultModel, setDefaultModel] = useState('');
   const [enabled, setEnabled] = useState(false);
+  const [isLoadingAccount, setIsLoadingAccount] = useState(true);
 
   // UI 状态
   const [isSaving, setIsSaving] = useState(false);
@@ -46,31 +46,44 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
   const [modelState, setModelState] = useState<ModelSelectionState>('idle');
   const [modelError, setModelError] = useState('');
 
-  const displayName = providerName || account?.name || providerId;
+  const displayName = providerName || accountMetadata?.name || providerId;
 
-  // 初始化表单数据
+  // 初始化表单数据 - 从后端加载完整配置
   useEffect(() => {
-    if (account) {
-      setApiKey(account.apiKey || '');
-      setBaseUrl(account.baseUrl || '');
-      setProtocol(account.protocol || AI_PROTOCOL.OPENAI_COMPATIBLE);
-      setDefaultModel(account.defaultModel || '');
-      setEnabled(account.enabled ?? false);
-    } else {
-      // 重置表单
-      setApiKey('');
-      setBaseUrl('');
-      setProtocol(AI_PROTOCOL.OPENAI_COMPATIBLE);
-      setDefaultModel('');
-      setEnabled(false);
-    }
-  }, [account]);
+    const loadAccount = async () => {
+      setIsLoadingAccount(true);
+      try {
+        const account = await getAccount(providerId);
+        if (account) {
+          setApiKey(account.apiKey || '');
+          setBaseUrl(account.baseUrl || '');
+          setProtocol(account.protocol || AI_PROTOCOL.OPENAI_COMPATIBLE);
+          setEnabled(account.enabled ?? false);
+
+          // 如果有 API Key，自动加载模型列表
+          if (account.apiKey) {
+            await loadModels(false);
+          }
+        } else {
+          // 重置表单
+          setApiKey('');
+          setBaseUrl('');
+          setProtocol(AI_PROTOCOL.OPENAI_COMPATIBLE);
+          setEnabled(false);
+        }
+      } catch (error) {
+        console.error('Failed to load account:', error);
+      } finally {
+        setIsLoadingAccount(false);
+      }
+    };
+
+    void loadAccount();
+  }, [providerId, getAccount]);
 
   // 加载模型列表
   const loadModels = async (forceRefresh = false) => {
     if (!apiKey) {
-      setModelError('请先输入 API Key');
-      setModelState('error');
       return;
     }
 
@@ -153,7 +166,6 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
         protocol,
         apiKey: apiKey || undefined,
         baseUrl: baseUrl || undefined,
-        defaultModel: defaultModel || undefined,
         timeout: 30000,
         retries: 3,
         strictTLS: true,
@@ -213,19 +225,38 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
               id="provider-enabled"
               checked={enabled}
               onCheckedChange={handleToggleEnabled}
+              disabled={isLoadingAccount}
             />
           </div>
         </div>
 
         <Separator />
 
-        {/* 配置表单 */}
-        <div className="space-y-6">
+        {/* 加载状态 */}
+        {isLoadingAccount ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-sm text-muted-foreground">加载配置中...</span>
+          </div>
+        ) : (
+          /* 配置表单 */
+          <div className="space-y-6">
           {/* API Key */}
           <ApiKeyInput
             value={apiKey}
             onChange={setApiKey}
+            onTest={handleTestConnection}
+            isTestLoading={isTesting}
+            testStatus={testStatus}
           />
+
+          {/* 测试错误提示 */}
+          {testStatus === 'error' && testError && (
+            <div className="flex items-start gap-2 text-sm text-destructive -mt-2">
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>{testError}</span>
+            </div>
+          )}
 
           {/* Base URL */}
           <BaseUrlInput
@@ -240,23 +271,12 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
             onChange={setProtocol}
           />
 
-          {/* 连接测试 */}
-          <ConnectionTestButton
-            onTest={handleTestConnection}
-            isLoading={isTesting}
-            status={testStatus}
-            errorMessage={testError}
-            disabled={!apiKey}
-          />
-
-          {/* 模型选择 */}
-          {testStatus === 'success' && (
-            <ModelSelector
+          {/* 模型列表（始终显示） */}
+          {apiKey && (
+            <ModelList
               models={models}
-              value={defaultModel}
-              onChange={setDefaultModel}
-              onRefresh={() => loadModels(true)}
               state={modelState}
+              onRefresh={() => loadModels(true)}
               error={modelError}
             />
           )}
@@ -301,6 +321,7 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

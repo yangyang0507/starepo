@@ -14,6 +14,7 @@ interface ConnectionTestButtonProps {
   status?: 'idle' | 'success' | 'error';
   disabled?: boolean;
   errorMessage?: string;
+  compact?: boolean; // 紧凑模式
 }
 
 export function ConnectionTestButton({
@@ -22,10 +23,39 @@ export function ConnectionTestButton({
   status = 'idle',
   disabled = false,
   errorMessage,
+  compact = false,
 }: ConnectionTestButtonProps) {
   const isSuccess = status === 'success';
   const isError = status === 'error';
 
+  if (compact) {
+    // 紧凑模式：只显示按钮，不显示错误信息
+    return (
+      <Button
+        type="button"
+        variant={isSuccess ? 'default' : 'outline'}
+        onClick={onTest}
+        disabled={disabled || isLoading}
+        className={cn(isSuccess && 'bg-green-600 hover:bg-green-700')}
+      >
+        {isLoading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            检测中
+          </>
+        ) : isSuccess ? (
+          <>
+            <Check className="mr-2 h-4 w-4" />
+            连接成功
+          </>
+        ) : (
+          '检测'
+        )}
+      </Button>
+    );
+  }
+
+  // 完整模式：显示按钮和错误信息
   return (
     <div className="space-y-2">
       <Button
