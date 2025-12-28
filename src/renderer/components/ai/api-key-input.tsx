@@ -1,19 +1,17 @@
 /**
  * API Key 输入组件
- * 支持密码显示/隐藏、多 Key 管理
+ * 支持密码显示/隐藏
  */
 
 import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Eye, EyeOff, Settings2 } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Eye, EyeOff } from 'lucide-react';
 
 interface ApiKeyInputProps {
   value: string;
   onChange: (value: string) => void;
-  onOpenKeyList?: () => void;
   disabled?: boolean;
   placeholder?: string;
 }
@@ -21,7 +19,6 @@ interface ApiKeyInputProps {
 export function ApiKeyInput({
   value,
   onChange,
-  onOpenKeyList,
   disabled = false,
   placeholder = '输入您的 API Key',
 }: ApiKeyInputProps) {
@@ -29,29 +26,7 @@ export function ApiKeyInput({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label htmlFor="api-key">API Key</Label>
-        {onOpenKeyList && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={onOpenKeyList}
-                  disabled={disabled}
-                >
-                  <Settings2 size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>管理多个 API Key</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
-      </div>
+      <Label htmlFor="api-key">API Key</Label>
 
       <div className="flex gap-2">
         <Input
@@ -73,10 +48,6 @@ export function ApiKeyInput({
           {isVisible ? <EyeOff size={16} /> : <Eye size={16} />}
         </Button>
       </div>
-
-      <p className="text-xs text-muted-foreground">
-        支持多个 Key（用逗号分隔）
-      </p>
     </div>
   );
 }

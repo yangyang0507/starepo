@@ -195,6 +195,34 @@ export function initializeAIHandlers(): void {
     }
   });
 
+  // 获取安全的 AI 设置（不包含敏感信息）
+  ipcMain.handle(IPC_CHANNELS.AI.GET_SAFE_SETTINGS, async () => {
+    try {
+      const settings = await aiSettingsService.getSettings();
+
+      // 返回安全的设置（移除敏感信息）
+      const safeSettings: AISafeSettings = {
+        provider: settings.provider,
+        model: settings.model,
+        enabled: settings.enabled,
+        maxTokens: settings.maxTokens,
+        temperature: settings.temperature,
+        topP: settings.topP,
+      };
+
+      return {
+        success: true,
+        data: safeSettings,
+      } as IPCResponse<AISafeSettings>;
+    } catch (error) {
+      logger.error('[AI Handlers] Get safe settings error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      } as IPCResponse;
+    }
+  });
+
   // 设置 AI 配置
   ipcMain.handle(IPC_CHANNELS.AI.SET_SETTINGS, async (_event, payload: AISettingsPayload) => {
     try {

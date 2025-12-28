@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAIAccountsStore } from '@/stores/ai-accounts-store';
 import { ApiKeyInput } from './api-key-input';
 import { BaseUrlInput } from './base-url-input';
@@ -36,6 +36,7 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
 
   // UI 状态
   const [isSaving, setIsSaving] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [testError, setTestError] = useState('');
@@ -145,6 +146,7 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
   const handleSave = async () => {
     try {
       setIsSaving(true);
+      setSaveFeedback(null);
 
       await saveAccount({
         providerId,
@@ -157,8 +159,17 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
         strictTLS: true,
         enabled,
       });
+
+      // 显示成功提示
+      setSaveFeedback({ type: 'success', message: '配置已保存' });
+      // 3 秒后自动清除提示
+      setTimeout(() => setSaveFeedback(null), 3000);
     } catch (error) {
       console.error('Failed to save config:', error);
+      setSaveFeedback({
+        type: 'error',
+        message: error instanceof Error ? error.message : '保存失败',
+      });
     } finally {
       setIsSaving(false);
     }
@@ -250,24 +261,44 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
             />
           )}
 
-          {/* 保存按钮 */}
-          <div className="flex justify-end pt-4">
-            <Button
-              onClick={handleSave}
-              disabled={isSaving || !apiKey}
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  保存中...
-                </>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  保存配置
-                </>
-              )}
-            </Button>
+          {/* 保存按钮和反馈 */}
+          <div className="space-y-3 pt-4">
+            <div className="flex justify-end">
+              <Button
+                onClick={handleSave}
+                disabled={isSaving || !apiKey}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    保存配置
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* 保存反馈提示 */}
+            {saveFeedback && (
+              <div
+                className={`flex items-center gap-2 p-3 rounded-md text-sm ${
+                  saveFeedback.type === 'success'
+                    ? 'bg-green-50 text-green-900 dark:bg-green-950 dark:text-green-100'
+                    : 'bg-destructive/10 text-destructive'
+                }`}
+              >
+                {saveFeedback.type === 'success' ? (
+                  <CheckCircle2 size={16} className="flex-shrink-0" />
+                ) : (
+                  <AlertCircle size={16} className="flex-shrink-0" />
+                )}
+                <span>{saveFeedback.message}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

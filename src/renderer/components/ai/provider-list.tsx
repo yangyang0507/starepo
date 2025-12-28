@@ -3,7 +3,7 @@
  * 左侧面板，显示所有可用的 AI Provider
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, PlusIcon, GripVertical, CheckCircle } from 'lucide-react';
@@ -12,12 +12,118 @@ import { useAIAccountsStore } from '@/stores/ai-accounts-store';
 import { useAIProviderUIStore } from '@/stores/ai-provider-ui-store';
 import { AddProviderPopup, type AddProviderData } from './add-provider-popup';
 import type { AIProviderId, ProviderOption } from '@shared/types';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface ProviderListProps {
   providers: ProviderOption[];
   selectedProviderId: AIProviderId | null;
   onSelectProvider: (providerId: AIProviderId) => void;
   onAddProvider: (newProvider: ProviderOption) => void;
+}
+
+// 可排序的 Provider 项组件
+interface SortableProviderItemProps {
+  provider: ProviderOption;
+  isActive: boolean;
+  isEnabled: boolean;
+  onSelect: () => void;
+}
+
+function SortableProviderItem({
+  provider,
+  isActive,
+  isEnabled,
+  onSelect,
+}: SortableProviderItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: provider.value });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <button
+        onClick={onSelect}
+        className={cn(
+          'w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors',
+          'border border-transparent',
+          isActive
+            ? 'bg-primary text-primary-foreground shadow-sm'
+            : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+        )}
+      >
+        {/* 拖拽手柄 */}
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing"
+        >
+          <GripVertical
+            size={12}
+            className={cn(
+              'transition-opacity',
+              isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            )}
+          />
+        </div>
+
+        {/* Provider 名称 */}
+        <span className="flex-1 text-left truncate">
+          {provider.label}
+        </span>
+
+        {/* NEW 标签 */}
+        {provider.isNew && (
+          <span
+            className={cn(
+              'text-[10px] px-1.5 py-0.5 rounded-full',
+              isActive
+                ? 'bg-primary-foreground/20 text-primary-foreground'
+                : 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300'
+            )}
+          >
+            NEW
+          </span>
+        )}
+
+        {/* 启用状态图标 */}
+        {isEnabled && (
+          <CheckCircle
+            size={16}
+            className={cn(
+              isActive ? 'text-primary-foreground' : 'text-green-500'
+            )}
+          />
+        )}
+      </button>
+    </div>
+  );
 }
 
 export function ProviderList({
@@ -27,19 +133,63 @@ export function ProviderList({
   onAddProvider,
 }: ProviderListProps) {
   const { accounts, saveAccount } = useAIAccountsStore();
-  const { searchText, setSearchText, isAddingProvider, setIsAddingProvider } = useAIProviderUIStore();
+  const { searchText, setSearchText, isAddingProvider, setIsAddingProvider, providerOrder, setProviderOrder } = useAIProviderUIStore();
+
+  // 初始化 Provider 顺序
+  useEffect(() => {
+    if (providerOrder.length === 0 && providers.length > 0) {
+      setProviderOrder(providers.map(p => p.value));
+    }
+  }, [providers, providerOrder.length, setProviderOrder]);
+
+  // 配置拖拽传感器
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 移动 8px 后才开始拖拽
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // 根据保存的顺序排序 Provider
+  const sortedProviders = useMemo(() => {
+    if (providerOrder.length === 0) return providers;
+
+    const orderMap = new Map(providerOrder.map((id, index) => [id, index]));
+    return [...providers].sort((a, b) => {
+      const aIndex = orderMap.get(a.value) ?? Number.MAX_SAFE_INTEGER;
+      const bIndex = orderMap.get(b.value) ?? Number.MAX_SAFE_INTEGER;
+      return aIndex - bIndex;
+    });
+  }, [providers, providerOrder]);
 
   // 过滤 Provider
   const filteredProviders = useMemo(() => {
     if (!searchText.trim()) {
-      return providers;
+      return sortedProviders;
     }
 
     const keywords = searchText.toLowerCase().trim();
-    return providers.filter((provider) =>
+    return sortedProviders.filter((provider) =>
       provider.label.toLowerCase().includes(keywords)
     );
-  }, [providers, searchText]);
+  }, [sortedProviders, searchText]);
+
+  // 处理拖拽结束
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = sortedProviders.findIndex(p => p.value === active.id);
+      const newIndex = sortedProviders.findIndex(p => p.value === over.id);
+
+      const newOrder = arrayMove(sortedProviders, oldIndex, newIndex).map(p => p.value);
+      setProviderOrder(newOrder);
+    }
+  };
 
   const handleAddProvider = () => {
     setIsAddingProvider(true);
@@ -103,66 +253,34 @@ export function ProviderList({
 
         {/* Provider 列表 */}
         <div className="flex-1 overflow-y-auto px-4 pb-4">
-          <div className="space-y-1">
-            {filteredProviders.map((provider) => {
-              const isActive = selectedProviderId === provider.value;
-              const account = accounts.get(provider.value);
-              const isConfigured = account?.hasApiKey === true;
-              const isEnabled = account?.enabled === true;
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={filteredProviders.map(p => p.value)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-1">
+                {filteredProviders.map((provider) => {
+                  const isActive = selectedProviderId === provider.value;
+                  const account = accounts.get(provider.value);
+                  const isEnabled = account?.enabled === true;
 
-              return (
-                <button
-                  key={provider.value}
-                  onClick={() => onSelectProvider(provider.value)}
-                  className={cn(
-                    'w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors',
-                    'border border-transparent',
-                    isActive
-                      ? 'bg-primary text-primary-foreground shadow-sm'
-                      : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  {/* 拖拽手柄（暂不实现拖拽功能） */}
-                  <GripVertical
-                    size={12}
-                    className={cn(
-                      'opacity-0 transition-opacity',
-                      !isActive && 'group-hover:opacity-100'
-                    )}
-                  />
-
-                  {/* Provider 名称 */}
-                  <span className="flex-1 text-left truncate">
-                    {provider.label}
-                  </span>
-
-                  {/* NEW 标签 */}
-                  {provider.isNew && (
-                    <span
-                      className={cn(
-                        'text-[10px] px-1.5 py-0.5 rounded-full',
-                        isActive
-                          ? 'bg-primary-foreground/20 text-primary-foreground'
-                          : 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300'
-                      )}
-                    >
-                      NEW
-                    </span>
-                  )}
-
-                  {/* 启用状态图标 */}
-                  {isEnabled && (
-                    <CheckCircle
-                      size={16}
-                      className={cn(
-                        isActive ? 'text-primary-foreground' : 'text-green-500'
-                      )}
+                  return (
+                    <SortableProviderItem
+                      key={provider.value}
+                      provider={provider}
+                      isActive={isActive}
+                      isEnabled={isEnabled}
+                      onSelect={() => onSelectProvider(provider.value)}
                     />
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            </SortableContext>
+          </DndContext>
         </div>
 
         {/* 添加按钮 */}
