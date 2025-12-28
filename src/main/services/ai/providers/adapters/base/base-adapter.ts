@@ -95,10 +95,25 @@ export function mergeHeaders(params: {
   authHeader?: { name: string; value: string } | null;
 }): Record<string, string> {
   const { provider, account, authHeader } = params;
-  const headers: Record<string, string> = {
-    ...(provider.auth.customHeaders ?? {}),
-    ...(account.customHeaders ?? {}),
-  };
+  const headers: Record<string, string> = {};
+
+  // 添加 provider 的自定义 headers
+  if (provider.auth.customHeaders) {
+    Object.entries(provider.auth.customHeaders).forEach(([key, value]) => {
+      if (typeof value === 'string') {
+        headers[key] = value;
+      }
+    });
+  }
+
+  // 添加 account 的自定义 headers
+  if (account.customHeaders) {
+    Object.entries(account.customHeaders).forEach(([key, value]) => {
+      if (typeof value === 'string') {
+        headers[key] = value;
+      }
+    });
+  }
 
   if (authHeader) {
     headers[authHeader.name] = authHeader.value;

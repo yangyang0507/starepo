@@ -1,6 +1,6 @@
 /**
  * AI 服务
- * 基于 AI SDK V5 的 AI 对话功能，支持工具调用
+ * 使用 ProviderFactory、MiddlewareChain 和 ModelCache
  */
 
 import {
@@ -11,24 +11,58 @@ import {
   AIErrorCode,
   ChatContext,
   RepositoryReference,
-  StreamChunk,
-} from "@shared/types";
-import type { AIProviderId, ProviderAccountConfig } from "@shared/types/ai-provider";
-import { logger } from "@main/utils/logger";
-import { generateText, streamText } from "ai";
-import { initializeTools, tools } from "./tools";
-import { LanceDBSearchService } from "@main/services/search/lancedb-search-service";
-import { providerRegistry } from "./adapters/provider-registry";
+} from '@shared/types';
+import type { AIProviderId, ProviderAccountConfig } from '@shared/types/ai-provider';
+import { logger } from '@main/utils/logger';
+import { generateText } from 'ai';
+import { initializeTools, tools } from './tools';
+import { LanceDBSearchService } from '@main/services/search/lancedb-search-service';
+import { globalProviderRegistry } from './registry-init';
+import { ProviderFactory } from './providers/factory/provider-factory';
+import { ModelResolver } from './core/models/model-resolver';
+import { MiddlewareChain } from './core/middleware/middleware-chain';
+import { LoggingMiddleware, RetryMiddleware, RateLimitMiddleware } from './core/middleware/built-in';
+import { ModelCacheService } from './storage/model-cache-service';
+import { ProviderAccountService } from './storage/provider-account-service';
 
 export class AIService {
   private settings: AISettings | null = null;
   private conversationHistory: Map<string, ChatMessage[]> = new Map();
   private searchService: LanceDBSearchService;
   private toolsInitialized = false;
-  private activeStreamSessions: Map<string, AbortController> = new Map();
+
+  // 新架构组件
+  private providerFactory: ProviderFactory;
+  private modelCache: ModelCacheService;
+  private middlewareChain: MiddlewareChain;
+  private providerAccountService: ProviderAccountService;
 
   constructor() {
     this.searchService = new LanceDBSearchService();
+    this.providerAccountService = ProviderAccountService.getInstance();
+
+    // 初始化模型缓存
+    this.modelCache = new ModelCacheService({
+      ttl: 5 * 60 * 1000, // 5 分钟
+      maxSize: 10,
+      cleanupIntervalMs: 60000,
+    });
+
+    // 初始化中间件链
+    this.middlewareChain = new MiddlewareChain()
+      .use(new RateLimitMiddleware(60, 60000)) // 60 请求/分钟
+      .use(new RetryMiddleware(3, 1000)) // 最多重试 3 次
+      .use(new LoggingMiddleware());
+
+    // 初始化 Provider 工厂
+    this.providerFactory = new ProviderFactory({
+      registry: globalProviderRegistry,
+      modelResolver: new ModelResolver({ strictMode: false }),
+      middlewareChain: this.middlewareChain,
+      accountProvider: async (providerId: AIProviderId) => {
+        return await this.providerAccountService.getAccount(providerId);
+      },
+    });
   }
 
   /**
@@ -37,18 +71,22 @@ export class AIService {
   async initialize(settings: AISettings): Promise<void> {
     try {
       if (!settings.enabled) {
-        throw new AIError(AIErrorCode.NOT_CONFIGURED, "AI service not configured");
+        throw new AIError(AIErrorCode.NOT_CONFIGURED, 'AI service not configured');
       }
 
       const account = this.toProviderAccountConfig(settings);
-      const provider = providerRegistry.getProviderDefinitionOrThrow(account.providerId);
+      const provider = globalProviderRegistry.getProvider(account.providerId);
+
+      if (!provider) {
+        throw new AIError(AIErrorCode.NOT_CONFIGURED, `Unknown provider: ${account.providerId}`);
+      }
 
       if (provider.validation.apiKeyRequired && !account.apiKey) {
-        throw new AIError(AIErrorCode.NOT_CONFIGURED, "AI service not configured");
+        throw new AIError(AIErrorCode.NOT_CONFIGURED, 'AI service not configured');
       }
 
       if (provider.validation.baseUrlRequired && !account.baseUrl) {
-        throw new AIError(AIErrorCode.NOT_CONFIGURED, "AI service not configured");
+        throw new AIError(AIErrorCode.NOT_CONFIGURED, 'AI service not configured');
       }
 
       this.settings = settings;
@@ -59,9 +97,9 @@ export class AIService {
         this.toolsInitialized = true;
       }
 
-      logger.debug("AI service initialized with provider:", settings.provider);
+      logger.debug('AI service initialized with provider:', settings.provider);
     } catch (error) {
-      logger.error("Failed to initialize AI service:", error);
+      logger.error('Failed to initialize AI service:', error);
       throw error;
     }
   }
@@ -71,14 +109,11 @@ export class AIService {
    */
   async chat(
     message: string,
-    conversationId: string = "default",
+    conversationId: string = 'default',
     userId?: string
   ): Promise<AIResponse> {
     if (!this.settings) {
-      throw new AIError(
-        AIErrorCode.NOT_CONFIGURED,
-        "AI service not initialized"
-      );
+      throw new AIError(AIErrorCode.NOT_CONFIGURED, 'AI service not initialized');
     }
 
     try {
@@ -94,142 +129,127 @@ export class AIService {
       // 保存对话历史
       this.addMessageToHistory(conversationId, {
         id: `msg_${Date.now()}`,
-        role: "user",
+        role: 'user',
         content: message,
         timestamp: Date.now(),
       });
 
       this.addMessageToHistory(conversationId, {
         id: `msg_${Date.now() + 1}`,
-        role: "assistant",
+        role: 'assistant',
         content: response.content,
         timestamp: Date.now(),
-        references: response.references,
       });
 
       return response;
     } catch (error) {
-      logger.error("Chat failed:", error);
-      if (error instanceof AIError) {
-        throw error;
-      }
-      throw new AIError(
-        AIErrorCode.LLM_ERROR,
-        `Chat failed: ${error instanceof Error ? error.message : String(error)}`
-      );
+      logger.error('Chat error:', error);
+      throw this.handleError(error);
     }
   }
 
   /**
-   * 调用 LLM 并处理工具调用
+   * 获取模型实例（带缓存）
    */
-  private async callLLMWithTools(
-    message: string,
-    context: ChatContext
-  ): Promise<AIResponse> {
+  private async getModel() {
     if (!this.settings) {
-      throw new AIError(AIErrorCode.NOT_CONFIGURED, "Settings not available");
+      throw new AIError(AIErrorCode.NOT_CONFIGURED, 'Settings not available');
     }
 
-    try {
-      const model = this.getModel();
-      const systemPrompt = this.buildSystemPrompt();
-      const messages = this.buildMessages(message, context);
+    const account = this.toProviderAccountConfig(this.settings);
+    const modelId = this.settings.model?.trim() || undefined;
+    const modelSpec = modelId ? `${account.providerId}|${modelId}` : account.providerId;
 
-      // 使用 generateText 进行对话（支持工具调用）
-      const result = await generateText({
-        model,
-        system: systemPrompt,
-        messages: messages.map((msg) => ({
-          role: msg.role,
-          content: msg.content,
-        })),
-        tools,
-        maxSteps: 5,
-        temperature: this.settings.temperature || 0.7,
-        topP: this.settings.topP || 1.0,
-      });
+    // 生成缓存键
+    const cacheKey = ModelCacheService.generateKey(
+      account.providerId,
+      modelId || 'default',
+      account.baseUrl
+    );
 
-      // 收集仓库引用
-      const allReferences: RepositoryReference[] = [];
-      if (result.steps && result.steps.length > 0) {
-        for (const step of result.steps) {
-          if (step.toolResults && step.toolResults.length > 0) {
-            for (const toolResult of step.toolResults) {
-              if (
-                toolResult.result &&
-                typeof toolResult.result === "object"
-              ) {
-                const resultObj = toolResult.result as {
-                  repositories?: RepositoryReference[];
-                };
-                if (
-                  resultObj.repositories &&
-                  Array.isArray(resultObj.repositories)
-                ) {
-                  allReferences.push(...resultObj.repositories);
-                }
+    // 尝试从缓存获取
+    let model = this.modelCache.get(cacheKey);
+    if (model) {
+      logger.debug('Using cached model:', cacheKey);
+      return model;
+    }
+
+    // 创建新模型实例
+    logger.debug('Creating new model:', modelSpec);
+    model = await this.providerFactory.createLanguageModelWithAccount(
+      account.providerId,
+      account,
+      modelId
+    );
+
+    // 缓存模型实例
+    this.modelCache.set(cacheKey, model);
+
+    return model;
+  }
+
+  /**
+   * 调用 LLM（带工具支持）
+   */
+  private async callLLMWithTools(message: string, context: ChatContext): Promise<AIResponse> {
+    const model = await this.getModel();
+    const systemPrompt = this.buildSystemPrompt();
+    const messages = this.buildMessages(message, context);
+
+    const result = await generateText({
+      model,
+      system: systemPrompt,
+      messages: messages.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      })),
+      tools,
+      temperature: this.settings!.temperature || 0.7,
+      topP: this.settings!.topP || 1.0,
+    });
+
+    // 收集工具调用结果中的仓库引用
+    const allReferences: RepositoryReference[] = [];
+    if (result.steps && result.steps.length > 0) {
+      for (const step of result.steps) {
+        if (step.toolResults && step.toolResults.length > 0) {
+          for (const toolResult of step.toolResults) {
+            // AI SDK v5: toolResult 直接包含结果数据
+            if (toolResult && typeof toolResult === 'object') {
+              const resultObj = toolResult as { repositories?: RepositoryReference[] };
+              if (resultObj.repositories && Array.isArray(resultObj.repositories)) {
+                allReferences.push(...resultObj.repositories);
               }
             }
           }
         }
       }
-
-      return {
-        content: result.text,
-        references: allReferences,
-        usage: {
-          promptTokens: result.usage.promptTokens,
-          completionTokens: result.usage.completionTokens,
-          totalTokens: result.usage.totalTokens,
-        },
-      };
-    } catch (error) {
-      if (error instanceof AIError) {
-        throw error;
-      }
-      throw new AIError(
-        AIErrorCode.LLM_ERROR,
-        `Failed to call LLM: ${error instanceof Error ? error.message : String(error)}`
-      );
     }
+
+    return {
+      content: result.text,
+      references: allReferences,
+      usage: {
+        promptTokens: result.usage.inputTokens ?? 0,
+        completionTokens: result.usage.outputTokens ?? 0,
+        totalTokens: (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0),
+      },
+    };
   }
 
   /**
-   * 获取模型实例
-   */
-  private getModel() {
-    if (!this.settings) {
-      throw new AIError(AIErrorCode.NOT_CONFIGURED, "Settings not available");
-    }
-
-    const account = this.toProviderAccountConfig(this.settings);
-    const provider = providerRegistry.getProviderDefinitionOrThrow(account.providerId);
-    const adapter = providerRegistry.getAdapterForAccount(account);
-    const modelId = this.settings.model?.trim() || undefined;
-    return adapter.createLanguageModel({ provider, account, modelId });
-  }
-
-  /**
-   * 构建系统提示
+   * 构建系统提示词
    */
   private buildSystemPrompt(): string {
-    return `你是一个 GitHub 仓库助手，专门帮助用户查找和理解优质的开源项目。
+    return `你是一个专业的 GitHub 仓库助手。你可以帮助用户搜索、过滤和分析 GitHub 仓库。
 
-你可以使用以下工具来查询仓库信息：
-- search_repositories: 搜索仓库（关键词匹配）
-- filter_repositories: 按条件筛选仓库（语言、星数、时间等）
-- get_repository_details: 获取仓库详情
-- get_popular_repositories: 获取热门仓库
-- get_repositories_by_topic: 按主题查询仓库
+你有以下工具可用：
+1. searchRepositories - 搜索仓库（支持关键词、排序）
+2. filterRepositoriesByLanguage - 按编程语言过滤
+3. filterRepositoriesByStars - 按 Star 数量过滤
+4. filterRepositoriesByDate - 按日期范围过滤
 
-请根据用户的问题，智能选择合适的工具来获取信息，然后用中文给出清晰、有帮助的回答。
-
-重要提示：
-1. 当用户询问仓库信息时，主动使用工具查询
-2. 在回答中引用具体的仓库信息
-3. 提供仓库的关键信息（名称、描述、星数、语言等）
-4. 如果查询结果为空，建议用户尝试其他关键词或条件`;
+请根据用户的问题，合理使用这些工具来提供准确的答案。`;
   }
 
   /**
@@ -238,29 +258,43 @@ export class AIService {
   private buildMessages(
     currentMessage: string,
     context: ChatContext
-  ): Array<{ role: "user" | "assistant"; content: string }> {
-    const messages: Array<{ role: "user" | "assistant"; content: string }> =
-      [];
+  ): Array<{ role: 'user' | 'assistant'; content: string }> {
+    const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
 
     // 添加对话历史（最近 10 条）
     const history = context.conversationHistory || [];
     const recentHistory = history.slice(-10);
-    recentHistory.forEach((msg) => {
-      if (msg.role !== "system") {
-        messages.push({
-          role: msg.role as "user" | "assistant",
-          content: msg.content,
-        });
-      }
-    });
+
+    for (const msg of recentHistory) {
+      messages.push({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+      });
+    }
 
     // 添加当前消息
     messages.push({
-      role: "user",
+      role: 'user',
       content: currentMessage,
     });
 
     return messages;
+  }
+
+  /**
+   * 转换为 ProviderAccountConfig
+   */
+  private toProviderAccountConfig(settings: AISettings): ProviderAccountConfig {
+    return {
+      providerId: settings.provider as AIProviderId,
+      apiKey: settings.apiKey,
+      baseUrl: settings.baseURL,
+      defaultModel: settings.model,
+      timeout: 30000,
+      retries: 3,
+      strictTLS: true,
+      enabled: settings.enabled,
+    };
   }
 
   /**
@@ -273,270 +307,58 @@ export class AIService {
   /**
    * 添加消息到历史
    */
-  private addMessageToHistory(
-    conversationId: string,
-    message: ChatMessage
-  ): void {
+  private addMessageToHistory(conversationId: string, message: ChatMessage): void {
     const history = this.conversationHistory.get(conversationId) || [];
     history.push(message);
+
+    // 限制历史长度
+    const MAX_HISTORY = 100;
+    if (history.length > MAX_HISTORY) {
+      history.splice(0, history.length - MAX_HISTORY);
+    }
+
     this.conversationHistory.set(conversationId, history);
   }
 
   /**
-   * 清除对话历史
+   * 错误处理
    */
-  clearConversationHistory(conversationId: string): void {
-    this.conversationHistory.delete(conversationId);
-    logger.debug("Cleared conversation history for:", conversationId);
-  }
-
-  /**
-   * 获取所有对话 ID
-   */
-  getConversationIds(): string[] {
-    return Array.from(this.conversationHistory.keys());
-  }
-
-  /**
-   * 测试 API 连接
-   */
-  async testConnection(settings: AISettings): Promise<boolean> {
-    try {
-      // 使用 AI SDK 进行简单的测试调用
-      const model = this.getModelForSettings(settings);
-
-      const result = await generateText({
-        model,
-        prompt: "ping",
-      });
-
-      logger.debug("Connection test successful:", result.text);
-      return true;
-    } catch (error) {
-      logger.error("Connection test failed:", error);
-      throw this.handleConnectionError(error);
+  private handleError(error: unknown): AIError {
+    if (error instanceof AIError) {
+      return error;
     }
-  }
 
-  /**
-   * 根据设置获取模型实例（用于测试连接）
-   */
-  private getModelForSettings(settings: AISettings) {
-    const account = this.toProviderAccountConfig(settings);
-    const provider = providerRegistry.getProviderDefinitionOrThrow(account.providerId);
-    const adapter = providerRegistry.getAdapterForAccount(account);
-    const modelId = settings.model?.trim() || undefined;
-    return adapter.createLanguageModel({ provider, account, modelId });
-  }
-
-  private toProviderAccountConfig(settings: AISettings): ProviderAccountConfig {
-    return {
-      providerId: settings.provider as AIProviderId,
-      baseUrl: settings.baseURL,
-      apiKey: settings.apiKey?.trim() || undefined,
-      timeout: 30000,
-      retries: 3,
-      strictTLS: true,
-      defaultModel: settings.model,
-      enabled: settings.enabled,
-    };
-  }
-
-  /**
-   * 处理连接错误
-   */
-  private handleConnectionError(error: unknown): AIError {
     if (error instanceof Error) {
       const message = error.message.toLowerCase();
-
-      if (message.includes("401") || message.includes("unauthorized")) {
-        return new AIError(AIErrorCode.INVALID_API_KEY, "Invalid API Key", 401);
-      } else if (message.includes("429") || message.includes("rate limit")) {
-        return new AIError(AIErrorCode.RATE_LIMITED, "Rate limited", 429);
+      if (message.includes('401') || message.includes('unauthorized')) {
+        return new AIError(AIErrorCode.INVALID_API_KEY, 'Invalid API Key', 401);
+      } else if (message.includes('429') || message.includes('rate limit')) {
+        return new AIError(AIErrorCode.RATE_LIMITED, 'Rate limited', 429);
       }
-
-      return new AIError(
-        AIErrorCode.LLM_ERROR,
-        `Connection test failed: ${error.message}`
-      );
+      return new AIError(AIErrorCode.LLM_ERROR, `LLM error: ${error.message}`);
     }
 
-    return new AIError(
-      AIErrorCode.LLM_ERROR,
-      `Connection test failed: ${String(error)}`
-    );
+    return new AIError(AIErrorCode.LLM_ERROR, `Unknown error: ${String(error)}`);
   }
 
   /**
-   * 更新设置
+   * 清理资源
    */
-  async updateSettings(settings: Partial<AISettings>): Promise<void> {
-    this.settings = this.settings
-      ? { ...this.settings, ...settings }
-      : (settings as AISettings);
-    logger.debug("AI service settings updated");
-  }
-
-  /**
-   * 获取当前设置（不含 API Key）
-   */
-  getSettings(): AISettings | null {
-    return this.settings;
-  }
-
-  /**
-   * 关闭服务
-   */
-  async close(): Promise<void> {
+  async cleanup(): Promise<void> {
+    this.modelCache.stopCleanup();
+    this.modelCache.clear();
     this.conversationHistory.clear();
-    logger.debug("AI service closed");
+    logger.debug('AI service cleaned up');
   }
 
   /**
-   * 流式聊天方法
+   * 获取服务统计信息
    */
-  async chatStream(
-    message: string,
-    conversationId: string = "default",
-    userId?: string,
-    onChunk?: (chunk: StreamChunk) => void,
-    signal?: AbortSignal
-  ): Promise<AIResponse> {
-    if (!this.settings) {
-      throw new AIError(
-        AIErrorCode.NOT_CONFIGURED,
-        "AI service not initialized"
-      );
-    }
-
-    const sessionId = `stream_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const abortController = new AbortController();
-
-    signal?.addEventListener('abort', () => abortController.abort());
-    this.activeStreamSessions.set(sessionId, abortController);
-
-    try {
-      const context: ChatContext = {
-        conversationHistory: this.getConversationHistory(conversationId),
-        userId,
-      };
-
-      const model = this.getModel();
-      const systemPrompt = this.buildSystemPrompt();
-      const messages = this.buildMessages(message, context);
-
-      this.addMessageToHistory(conversationId, {
-        id: `msg_${Date.now()}`,
-        role: "user",
-        content: message,
-        timestamp: Date.now(),
-      });
-
-      let fullContent = "";
-      const allReferences: RepositoryReference[] = [];
-
-      const result = streamText({
-        model,
-        system: systemPrompt,
-        messages: messages.map((msg) => ({
-          role: msg.role,
-          content: msg.content,
-        })),
-        tools,
-        temperature: this.settings.temperature || 0.7,
-        topP: this.settings.topP || 1.0,
-        abortSignal: abortController.signal,
-      });
-
-      for await (const chunk of result.textStream) {
-        if (abortController.signal.aborted) break;
-        fullContent += chunk;
-        onChunk?.({
-          type: 'text',
-          content: chunk,
-        });
-      }
-
-      const response = await result;
-
-      // 在 AI SDK v5 中，response.steps 和 response.usage 都是 Promise
-      const steps = await response.steps;
-      const usage = await response.usage;
-
-      if (steps && Array.isArray(steps) && steps.length > 0) {
-        for (const step of steps) {
-          if (step.toolResults && Array.isArray(step.toolResults) && step.toolResults.length > 0) {
-            for (const toolResult of step.toolResults) {
-              // 检查 toolResult 是否有 result 属性
-              if ('result' in toolResult && toolResult.result && typeof toolResult.result === "object") {
-                const resultObj = toolResult.result as { repositories?: RepositoryReference[] };
-                if (resultObj.repositories && Array.isArray(resultObj.repositories)) {
-                  allReferences.push(...resultObj.repositories);
-                }
-              }
-            }
-          }
-        }
-      }
-
-      this.addMessageToHistory(conversationId, {
-        id: `msg_${Date.now() + 1}`,
-        role: "assistant",
-        content: fullContent,
-        timestamp: Date.now(),
-        references: allReferences,
-      });
-
-      onChunk?.({
-        type: 'end',
-        content: '',
-        metadata: {
-          usage: {
-            promptTokens: usage.promptTokens,
-            completionTokens: usage.completionTokens,
-            totalTokens: usage.totalTokens,
-          },
-          references: allReferences,
-        },
-      });
-
-      return {
-        content: fullContent,
-        references: allReferences,
-        usage: {
-          promptTokens: usage.promptTokens,
-          completionTokens: usage.completionTokens,
-          totalTokens: usage.totalTokens,
-        },
-      };
-    } catch (error) {
-      if (error instanceof AIError) {
-        onChunk?.({
-          type: 'error',
-          content: '',
-          error: error.message,
-        });
-        throw error;
-      }
-      throw new AIError(
-        AIErrorCode.LLM_ERROR,
-        `Chat failed: ${error instanceof Error ? error.message : String(error)}`
-      );
-    } finally {
-      this.activeStreamSessions.delete(sessionId);
-    }
-  }
-
-  /**
-   * 中止流式聊天
-   */
-  abortChat(sessionId: string): boolean {
-    const controller = this.activeStreamSessions.get(sessionId);
-    if (controller) {
-      controller.abort();
-      this.activeStreamSessions.delete(sessionId);
-      return true;
-    }
-    return false;
+  get stats() {
+    return {
+      cacheStats: this.modelCache.stats,
+      middlewareStats: this.middlewareChain.size,
+      conversationCount: this.conversationHistory.size,
+    };
   }
 }

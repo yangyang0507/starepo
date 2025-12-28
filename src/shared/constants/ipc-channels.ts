@@ -92,6 +92,7 @@ export const IPC_CHANNELS = {
     CLEAR_CHAT_HISTORY: "ai:clearChatHistory",
 
     // 设置相关
+    INITIALIZE: "ai:initialize",
     GET_SETTINGS: "ai:getSettings",
     SET_SETTINGS: "ai:setSettings",
     GET_SAFE_SETTINGS: "ai:getSafeSettings",
@@ -99,6 +100,7 @@ export const IPC_CHANNELS = {
 
     // Provider 和模型相关
     GET_PROVIDER_LIST: "ai:getProviderList",
+    GET_PROVIDER_OPTIONS: "ai:getProviderOptions",
     GET_MODEL_LIST: "ai:getModelList",
     CLEAR_MODEL_CACHE: "ai:clearModelCache",
     TEST_PROVIDER_CONNECTION: "ai:testProviderConnection",
@@ -111,6 +113,7 @@ export const IPC_CHANNELS = {
 
     // 统计相关
     GET_API_USAGE_STATS: "ai:getAPIUsageStats",
+    GET_STATS: "ai:getStats",
   },
 
   // 应用设置

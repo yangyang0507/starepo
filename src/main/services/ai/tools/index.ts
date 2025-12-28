@@ -7,23 +7,23 @@ import { LanceDBSearchService } from '@main/services/search/lancedb-search-servi
 import {
   searchRepositoriesTool,
   initializeSearchRepositoriesTool,
-} from './tools/search-repositories';
+} from './search-repositories';
 import {
   filterRepositoriesTool,
   initializeFilterRepositoriesTool,
-} from './tools/filter-repositories';
+} from './filter-repositories';
 import {
   getPopularRepositoriesTool,
   initializeGetPopularRepositoriesTool,
-} from './tools/get-popular-repositories';
+} from './get-popular-repositories';
 import {
   getRepositoryDetailsTool,
   initializeGetRepositoryDetailsTool,
-} from './tools/get-repository-details';
+} from './get-repository-details';
 import {
   getRepositoriesByTopicTool,
   initializeGetRepositoriesByTopicTool,
-} from './tools/get-repositories-by-topic';
+} from './get-repositories-by-topic';
 
 /**
  * 初始化所有工具

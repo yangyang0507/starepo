@@ -4,7 +4,6 @@
  */
 
 import { logger } from '@main/utils/logger';
-import { AIService } from './ai-service';
 import {
   AI_MODEL_CACHE_TTL,
   IPC_CHANNELS,
@@ -17,6 +16,8 @@ import {
   ProviderDefinition,
 } from '@shared/types/ai-provider';
 import { getProviderDefinition } from '@shared/data/ai-providers';
+import { globalProviderRegistry } from '../registry-init';
+import { globalConnectionManager } from '../core/runtime/connection-manager';
 import { app } from 'electron';
 import path from 'path';
 import fs from 'fs/promises';
@@ -174,6 +175,20 @@ export class ModelDiscoveryService {
   private isInitialized = false;
 
   /**
+   * 获取 Provider 定义（优先从 Registry，回退到静态定义）
+   */
+  private getProvider(providerId: AIProviderId): ProviderDefinition | undefined {
+    // 优先从动态注册表获取
+    const provider = globalProviderRegistry.getProvider(providerId);
+    if (provider) {
+      return provider;
+    }
+
+    // 回退到静态定义
+    return getProviderDefinition(providerId);
+  }
+
+  /**
    * 初始化服务
    */
   async initialize(): Promise<void> {
@@ -193,7 +208,7 @@ export class ModelDiscoveryService {
     config: ProviderAccountConfig,
     forceRefresh: boolean = false
   ): Promise<ModelListResponse> {
-    const provider = getProviderDefinition(config.providerId);
+    const provider = this.getProvider(config.providerId);
     if (!provider) {
       throw new Error(`Unknown provider: ${config.providerId}`);
     }
@@ -266,7 +281,7 @@ export class ModelDiscoveryService {
     const startTime = Date.now();
 
     try {
-      const provider = getProviderDefinition(config.providerId);
+      const provider = this.getProvider(config.providerId);
       if (!provider) {
         return {
           success: false,
@@ -325,7 +340,7 @@ export class ModelDiscoveryService {
    * 获取预定义模型列表（兜底用）
    */
   private getPredefinedModels(providerId: AIProviderId): AIModel[] {
-    const provider = getProviderDefinition(providerId);
+    const provider = this.getProvider(providerId);
     if (!provider || !provider.defaults.models) {
       return [];
     }
@@ -334,7 +349,7 @@ export class ModelDiscoveryService {
       id: modelId,
       displayName: modelId,
       providerId,
-      capabilities: {},
+      deprecated: false,
       tags: ['fallback'],
     }));
   }
@@ -343,7 +358,7 @@ export class ModelDiscoveryService {
    * 从远程获取模型列表
    */
   private async fetchModelsFromRemote(config: ProviderAccountConfig): Promise<ModelListResponse> {
-    const provider = getProviderDefinition(config.providerId);
+    const provider = this.getProvider(config.providerId);
     if (!provider || !provider.validation.supportsModelListing) {
       throw new Error(`Provider ${config.providerId} does not support model listing`);
     }
@@ -354,7 +369,7 @@ export class ModelDiscoveryService {
     }
 
     // 构建请求
-    const url = `${baseUrl}${provider.protocol === 'ollama' ? '/api/tags' : '/models'}`;
+    const url = `${baseUrl}${(provider.protocol as string) === 'ollama' ? '/api/tags' : '/models'}`;
     const headers: Record<string, string> = {};
 
     // 添加认证头
@@ -374,28 +389,52 @@ export class ModelDiscoveryService {
       Object.assign(headers, config.customHeaders);
     }
 
-    // 发送请求
-    const response = await fetch(url, {
-      method: 'GET',
-      headers,
-      signal: AbortSignal.timeout(config.timeout || 30000),
-    });
+    // 发送请求（带重试）
+    let lastError: Error | null = null;
+    const maxRetries = 3;
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        logger.debug(`Fetching models from ${url} (attempt ${attempt}/${maxRetries})`);
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers,
+          signal: AbortSignal.timeout(config.timeout || 30000),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const models = this.parseModelResponse(config.providerId, data);
+
+        logger.info(`Successfully fetched ${models.length} models from ${config.providerId}`);
+
+        return {
+          models,
+          providerId: config.providerId,
+          fetchedAt: new Date().toISOString(),
+          ttl: 3600, // 1 小时缓存
+          etag: response.headers.get('etag') || undefined,
+          lastModified: response.headers.get('last-modified') || undefined,
+        };
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        logger.warn(`Attempt ${attempt}/${maxRetries} failed:`, lastError.message);
+
+        // 如果不是最后一次尝试，等待后重试
+        if (attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // 指数退避，最多 5 秒
+          logger.debug(`Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
     }
 
-    const data = await response.json();
-    const models = this.parseModelResponse(config.providerId, data);
-
-    return {
-      models,
-      providerId: config.providerId,
-      fetchedAt: new Date().toISOString(),
-      ttl: 3600, // 1 小时缓存
-      etag: response.headers.get('etag') || undefined,
-      lastModified: response.headers.get('last-modified') || undefined,
-    };
+    // 所有重试都失败
+    throw lastError || new Error('Failed to fetch models after retries');
   }
 
   /**

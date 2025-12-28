@@ -15,7 +15,7 @@ import {
   pickModelId,
   resolveAuthHeader,
   resolveBaseUrl,
-} from "./base-adapter";
+} from "./base/base-adapter";
 
 export class OpenAICompatibleAdapter implements BaseAdapter {
   readonly protocol = AI_PROTOCOL.OPENAI_COMPATIBLE;

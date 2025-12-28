@@ -7,7 +7,7 @@ import * as path from "path";
 import * as fs from "fs/promises";
 import * as os from "os";
 import { safeStorage } from "electron";
-import { getLogger } from "../../utils/logger";
+import { getLogger } from "../../../utils/logger";
 import type { AIProviderId, AIProtocol, ProviderAccountConfig } from "@shared/types/ai-provider";
 
 const STORAGE_DIR = path.join(os.homedir(), ".starepo", "ai-accounts");

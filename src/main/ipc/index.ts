@@ -99,6 +99,7 @@ function registerDatabaseHandlers(): void {
 
 /**
  * AI 相关的 IPC 处理器
+ * 使用新架构 AIService
  */
 async function registerAIHandlers(): Promise<void> {
   const aiLogger = getLogger('ipc:ai');
