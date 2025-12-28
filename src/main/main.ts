@@ -3,6 +3,7 @@ import { WindowManager } from "./window";
 import { registerIpcHandlers } from "./ipc";
 import { installExtensions } from "./utils/dev-tools";
 import { enhancedGitHubAuthService } from "./services/github/enhanced-auth-service";
+import { modelDiscoveryService } from "./services/ai/discovery/model-discovery-service";
 import { getLogger } from "./utils/logger";
 
 const isDevelopment = process.env.NODE_ENV === "development";
@@ -18,6 +19,14 @@ async function createApplication(): Promise<void> {
     appLogger.debug("认证服务初始化完成");
   } catch (error) {
     appLogger.warn("认证服务初始化失败，但不影响应用启动", error);
+  }
+
+  // 初始化 AI 模型发现服务
+  try {
+    await modelDiscoveryService.initialize();
+    appLogger.debug("AI 模型发现服务初始化完成");
+  } catch (error) {
+    appLogger.warn("AI 模型发现服务初始化失败，但不影响应用启动", error);
   }
 
   // 注册 IPC 处理器

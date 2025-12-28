@@ -3,7 +3,7 @@
  * 右侧面板，显示选中 Provider 的详细配置
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -13,9 +13,9 @@ import { useAIAccountsStore } from '@/stores/ai-accounts-store';
 import { ApiKeyInput } from './api-key-input';
 import { BaseUrlInput } from './base-url-input';
 import { ProtocolSelector } from './protocol-selector';
-import { ConnectionTestButton } from './connection-test-button';
 import { ModelList } from './model-list';
 import { getModelList, testProviderConnection } from '@/api/ai';
+import { getProviderDefinition } from '@shared/data/ai-providers';
 import { AI_PROTOCOL, type AIProviderId, type AIProtocol, type AIModel, type ModelSelectionState } from '@shared/types';
 
 interface ProviderSettingProps {
@@ -26,6 +26,7 @@ interface ProviderSettingProps {
 export function ProviderSetting({ providerId, providerName }: ProviderSettingProps) {
   const { accounts, getAccount, saveAccount } = useAIAccountsStore();
   const accountMetadata = accounts.get(providerId);
+  const providerDefinition = getProviderDefinition(providerId);
 
   // 表单状态
   const [apiKey, setApiKey] = useState('');
@@ -47,27 +48,56 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
   const [modelError, setModelError] = useState('');
 
   const displayName = providerName || accountMetadata?.name || providerId;
+  const defaultBaseUrl = providerDefinition?.defaults.baseUrl || '';
 
   // 初始化表单数据 - 从后端加载完整配置
   useEffect(() => {
     const loadAccount = async () => {
       setIsLoadingAccount(true);
+      // 重置模型状态
+      setModels([]);
+      setModelState('idle');
+      setModelError('');
+
       try {
         const account = await getAccount(providerId);
         if (account) {
           setApiKey(account.apiKey || '');
-          setBaseUrl(account.baseUrl || '');
+          setBaseUrl(account.baseUrl || defaultBaseUrl);
           setProtocol(account.protocol || AI_PROTOCOL.OPENAI_COMPATIBLE);
           setEnabled(account.enabled ?? false);
 
-          // 如果有 API Key，自动加载模型列表
+          // 如果有 API Key，尝试加载缓存的模型列表（不发起网络请求）
           if (account.apiKey) {
-            await loadModels(false);
+            try {
+              const config = {
+                providerId,
+                protocol: account.protocol || AI_PROTOCOL.OPENAI_COMPATIBLE,
+                apiKey: account.apiKey,
+                baseUrl: account.baseUrl || defaultBaseUrl || undefined,
+                timeout: 30000,
+                retries: 3,
+                strictTLS: true,
+                enabled: true,
+              };
+
+              // 不强制刷新，优先使用缓存
+              const result = await getModelList(config, false);
+
+              // 只有当返回的模型数量 > 0 时才设置（说明有缓存）
+              if (result.models.length > 0) {
+                setModels(result.models);
+                setModelState('idle');
+              }
+            } catch (error) {
+              // 静默失败，不显示错误
+              console.debug('No cached models available:', error);
+            }
           }
         } else {
-          // 重置表单
+          // 重置表单，使用默认值
           setApiKey('');
-          setBaseUrl('');
+          setBaseUrl(defaultBaseUrl);
           setProtocol(AI_PROTOCOL.OPENAI_COMPATIBLE);
           setEnabled(false);
         }
@@ -79,7 +109,7 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
     };
 
     void loadAccount();
-  }, [providerId, getAccount]);
+  }, [providerId, getAccount, defaultBaseUrl]);
 
   // 加载模型列表
   const loadModels = async (forceRefresh = false) => {
@@ -144,7 +174,7 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
         await loadModels(true);
       } else {
         setTestStatus('error');
-        setTestError(result.error || '连接失败');
+        setTestError(typeof result.error === 'string' ? result.error : result.error?.message || '连接失败');
       }
     } catch (error) {
       console.error('Connection test failed:', error);
@@ -262,7 +292,7 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
           <BaseUrlInput
             value={baseUrl}
             onChange={setBaseUrl}
-            placeholder="可选，留空使用默认地址"
+            placeholder="API 服务地址"
           />
 
           {/* 协议选择 */}
@@ -272,14 +302,16 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
           />
 
           {/* 模型列表（始终显示） */}
-          {apiKey && (
-            <ModelList
-              models={models}
-              state={modelState}
-              onRefresh={() => loadModels(true)}
-              error={modelError}
-            />
-          )}
+          <ModelList
+            models={models}
+            state={modelState}
+            onRefresh={() => loadModels(true)}
+            onAddCustomModel={() => {
+              // TODO: 实现添加自定义模型功能
+              console.log('添加自定义模型');
+            }}
+            error={modelError}
+          />
 
           {/* 保存按钮和反馈 */}
           <div className="space-y-3 pt-4">

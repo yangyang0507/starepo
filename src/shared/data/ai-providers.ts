@@ -166,7 +166,7 @@ export const DEEPSEEK_PROVIDER: ProviderDefinition = {
   validation: {
     baseUrlRequired: false,
     apiKeyRequired: true,
-    supportsModelListing: false,
+    supportsModelListing: true,
     modelValidation: 'lenient',
   },
 };

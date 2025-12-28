@@ -56,21 +56,32 @@ class ModelCacheStorage {
    */
   async load(): Promise<void> {
     try {
+      logger.debug(`[ModelCache] Loading cache from ${this.cacheFile}`);
       const data = await fs.readFile(this.cacheFile, 'utf8');
       const entries = JSON.parse(data) as ModelCacheEntry[];
 
       // 清理过期缓存
       const now = new Date();
+      let validCount = 0;
+      let expiredCount = 0;
+
       for (const entry of entries) {
         if (new Date(entry.expiresAt) > now) {
           const key = this.getCacheKey(entry.providerId, entry.accountHash);
           this.cache.set(key, entry);
+          validCount++;
+        } else {
+          expiredCount++;
         }
       }
 
-      logger.debug(`Loaded ${this.cache.size} model cache entries`);
+      logger.info(`[ModelCache] Loaded ${validCount} valid entries, ${expiredCount} expired entries`);
     } catch (error) {
-      logger.debug('No model cache file found or invalid format');
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        logger.debug('[ModelCache] No cache file found, starting fresh');
+      } else {
+        logger.warn('[ModelCache] Failed to load cache:', error);
+      }
     }
   }
 
@@ -85,9 +96,9 @@ class ModelCacheStorage {
         JSON.stringify(entries, null, 2),
         'utf8'
       );
-      logger.debug('Saved model cache');
+      logger.info(`[ModelCache] Saved ${entries.length} cache entries to ${this.cacheFile}`);
     } catch (error) {
-      logger.error('Failed to save model cache:', error);
+      logger.error('[ModelCache] Failed to save cache:', error);
     }
   }
 
@@ -136,6 +147,7 @@ class ModelCacheStorage {
     };
 
     this.cache.set(key, entry);
+    logger.debug(`[ModelCache] Set cache for ${providerId} (${models.length} models, ttl: ${ttl}s)`);
     await this.save();
   }
 
@@ -214,11 +226,13 @@ export class ModelDiscoveryService {
     }
 
     const accountHash = this.hashAccountConfig(config);
+    logger.debug(`[ModelDiscovery] Getting models for ${config.providerId}, accountHash: ${accountHash}, forceRefresh: ${forceRefresh}`);
+
     const cached = this.cacheStorage.get(config.providerId, accountHash);
 
     // 如果有有效缓存且不强制刷新，返回缓存
     if (!forceRefresh && cached) {
-      logger.debug(`Using cached models for ${config.providerId}`);
+      logger.info(`[ModelDiscovery] Using cached models for ${config.providerId}, ${cached.models.length} models`);
       return {
         models: cached.models,
         providerId: config.providerId,
@@ -229,9 +243,23 @@ export class ModelDiscoveryService {
       };
     }
 
-    // 尝试从远程获取
+    // 如果不强制刷新且没有缓存，返回空列表（不发起网络请求）
+    if (!forceRefresh && !cached) {
+      logger.debug(`[ModelDiscovery] No cache available and forceRefresh=false, returning empty list for ${config.providerId}`);
+      return {
+        models: [],
+        providerId: config.providerId,
+        fetchedAt: new Date().toISOString(),
+        ttl: 0,
+      };
+    }
+
+    // 尝试从远程获取（只有 forceRefresh=true 时才会到这里）
     try {
+      logger.debug(`[ModelDiscovery] Fetching models from remote for ${config.providerId}`);
       const response = await this.fetchModelsFromRemote(config);
+
+      logger.info(`[ModelDiscovery] Successfully fetched ${response.models.length} models from ${config.providerId}, caching...`);
 
       // 缓存结果
       await this.cacheStorage.set(
@@ -243,11 +271,15 @@ export class ModelDiscoveryService {
         response.lastModified
       );
 
+      logger.debug(`[ModelDiscovery] Models cached successfully for ${config.providerId}`);
+
       return response;
     } catch (error) {
+      logger.error(`[ModelDiscovery] Failed to fetch models for ${config.providerId}:`, error);
+
       // 如果远程获取失败但有缓存，返回缓存（即使过期）
       if (cached) {
-        logger.warn(`Failed to fetch models, using expired cache for ${config.providerId}:`, error);
+        logger.warn(`[ModelDiscovery] Using expired cache for ${config.providerId}, ${cached.models.length} models`);
         return {
           models: cached.models,
           providerId: config.providerId,
@@ -259,7 +291,7 @@ export class ModelDiscoveryService {
       }
 
       // 最后的兜底：返回预定义模型
-      logger.warn(`No cache available, using predefined models for ${config.providerId}`);
+      logger.warn(`[ModelDiscovery] No cache available, using predefined models for ${config.providerId}`);
       return {
         models: this.getPredefinedModels(config.providerId),
         providerId: config.providerId,

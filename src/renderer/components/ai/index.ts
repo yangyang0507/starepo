@@ -10,7 +10,6 @@ export { ProviderSetting } from './provider-setting';
 export { ApiKeyInput } from './api-key-input';
 export { BaseUrlInput } from './base-url-input';
 export { ProtocolSelector } from './protocol-selector';
-export { ConnectionTestButton } from './connection-test-button';
 export { AddProviderPopup } from './add-provider-popup';
 export { ModelList } from './model-list';
 export type { AddProviderData } from './add-provider-popup';
