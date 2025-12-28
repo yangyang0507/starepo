@@ -4,4 +4,12 @@
 
 export { ProviderSelector } from './provider-selector';
 export { ModelSelector } from './model-selector';
-export { AISettingsSection } from './ai-settings-section';
+export { AISettingsPage } from './ai-settings-page';
+export { ProviderList } from './provider-list';
+export { ProviderSetting } from './provider-setting';
+export { ApiKeyInput } from './api-key-input';
+export { BaseUrlInput } from './base-url-input';
+export { ProtocolSelector } from './protocol-selector';
+export { ConnectionTestButton } from './connection-test-button';
+export { AddProviderPopup } from './add-provider-popup';
+export type { AddProviderData } from './add-provider-popup';

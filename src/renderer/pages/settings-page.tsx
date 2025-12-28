@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
-import { AISettingsSection } from "@/components/ai";
+import { AISettingsPage } from "@/components/ai";
 import {
   GitHubSection,
   PreferencesSection,
@@ -55,7 +55,7 @@ export default function SettingsPage() {
         {/* Content Area */}
         <main className="flex-1 overflow-y-auto">
           <div className="h-full">
-            {activeTab === "ai" && <AISettingsSection />}
+            {activeTab === "ai" && <AISettingsPage />}
             {activeTab === "github" && <GitHubSection />}
             {activeTab === "preferences" && <PreferencesSection />}
             {activeTab === "about" && <AppInfoSection />}

@@ -122,6 +122,13 @@ export type {
   MigrationResult,
 } from "./ai-provider";
 
+export {
+  AI_PROTOCOL,
+  AI_PROVIDER_ID,
+  PROVIDER_CAPABILITIES,
+  AUTH_TYPES,
+} from "./ai-provider";
+
 export type { ProviderAccountMetadata } from "@main/services/ai/storage/provider-account-service";
 
 // ============================================================

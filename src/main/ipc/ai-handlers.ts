@@ -195,6 +195,24 @@ export function initializeAIHandlers(): void {
     }
   });
 
+  // 设置 AI 配置
+  ipcMain.handle(IPC_CHANNELS.AI.SET_SETTINGS, async (_event, payload: AISettingsPayload) => {
+    try {
+      const settings = payload as Partial<AISettings>;
+      await aiSettingsService.updateSettings(settings);
+
+      return {
+        success: true,
+      } as IPCResponse;
+    } catch (error) {
+      logger.error('[AI Handlers] Set settings error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      } as IPCResponse;
+    }
+  });
+
   // 获取 Provider 选项
   ipcMain.handle(IPC_CHANNELS.AI.GET_PROVIDER_OPTIONS, async () => {
     try {
@@ -205,6 +223,123 @@ export function initializeAIHandlers(): void {
       } as IPCResponse;
     } catch (error) {
       logger.error('[AI Handlers] Get provider options error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      } as IPCResponse;
+    }
+  });
+
+  // 获取 Provider 列表
+  ipcMain.handle(IPC_CHANNELS.AI.GET_PROVIDER_LIST, async () => {
+    try {
+      const options = getProviderOptions();
+      return {
+        success: true,
+        data: options,
+      } as IPCResponse;
+    } catch (error) {
+      logger.error('[AI Handlers] Get provider list error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      } as IPCResponse;
+    }
+  });
+
+  // 列出所有 Provider 账户
+  ipcMain.handle(IPC_CHANNELS.AI.LIST_PROVIDER_ACCOUNTS, async () => {
+    try {
+      const accounts = await providerAccountService.listAccounts();
+      return {
+        success: true,
+        data: accounts,
+      } as IPCResponse;
+    } catch (error) {
+      logger.error('[AI Handlers] List provider accounts error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      } as IPCResponse;
+    }
+  });
+
+  // 保存 Provider 账户
+  ipcMain.handle(IPC_CHANNELS.AI.SAVE_PROVIDER_ACCOUNT, async (_event, config: ProviderAccountConfig) => {
+    try {
+      await providerAccountService.saveAccount(config);
+      return {
+        success: true,
+      } as IPCResponse;
+    } catch (error) {
+      logger.error('[AI Handlers] Save provider account error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      } as IPCResponse;
+    }
+  });
+
+  // 获取 Provider 账户
+  ipcMain.handle(IPC_CHANNELS.AI.GET_PROVIDER_ACCOUNT, async (_event, providerId: AIProviderId) => {
+    try {
+      const account = await providerAccountService.getAccount(providerId);
+      return {
+        success: true,
+        data: account,
+      } as IPCResponse;
+    } catch (error) {
+      logger.error('[AI Handlers] Get provider account error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      } as IPCResponse;
+    }
+  });
+
+  // 删除 Provider 账户
+  ipcMain.handle(IPC_CHANNELS.AI.DELETE_PROVIDER_ACCOUNT, async (_event, providerId: AIProviderId) => {
+    try {
+      await providerAccountService.deleteAccount(providerId);
+      return {
+        success: true,
+      } as IPCResponse;
+    } catch (error) {
+      logger.error('[AI Handlers] Delete provider account error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      } as IPCResponse;
+    }
+  });
+
+  // 获取模型列表
+  ipcMain.handle(IPC_CHANNELS.AI.GET_MODEL_LIST, async (_event, config: ProviderAccountConfig, forceRefresh: boolean = false) => {
+    try {
+      const result = await modelDiscoveryService.getModels(config, forceRefresh);
+      return {
+        success: true,
+        data: result,
+      } as IPCResponse;
+    } catch (error) {
+      logger.error('[AI Handlers] Get model list error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      } as IPCResponse;
+    }
+  });
+
+  // 测试 Provider 连接
+  ipcMain.handle(IPC_CHANNELS.AI.TEST_PROVIDER_CONNECTION, async (_event, config: ProviderAccountConfig) => {
+    try {
+      const result = await modelDiscoveryService.testConnection(config);
+      return {
+        success: true,
+        data: result,
+      } as IPCResponse;
+    } catch (error) {
+      logger.error('[AI Handlers] Test provider connection error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
