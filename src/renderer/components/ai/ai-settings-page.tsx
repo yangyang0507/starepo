@@ -90,7 +90,7 @@ export function AISettingsPage() {
   const [selectedProviderId, setSelectedProviderId] = useState<AIProviderId | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { initAccounts, accounts, cachedConfigs } = useAIAccountsStore();
+  const { initAccounts } = useAIAccountsStore();
   const isInitialized = useRef(false);
 
   // 初始化：加载 Provider 列表和账户信息（只执行一次）
@@ -103,17 +103,19 @@ export function AISettingsPage() {
         initAccounts(),
       ]);
 
+      // 从 store 获取最新的账户数据（initAccounts 已更新 store）
+      const { accounts: loadedAccounts, cachedConfigs: loadedConfigs } = useAIAccountsStore.getState();
+
       // 从账户配置中恢复自定义 Provider
       const customProviders: ProviderOption[] = [];
-      for (const [providerId, metadata] of accounts.entries()) {
+      for (const [providerId, metadata] of loadedAccounts.entries()) {
         // 跳过预定义的 Provider
         if (providerId.startsWith('custom-')) {
-          const config = cachedConfigs.get(providerId);
+          const config = loadedConfigs.get(providerId);
           customProviders.push({
             value: providerId,
             label: metadata.name || providerId,
-            description: '自定义 AI Provider',
-            iconId: config?.logo, // logo 字段现在存储 iconId
+            iconId: config?.logo,
           });
         }
       }
@@ -134,7 +136,7 @@ export function AISettingsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [initAccounts, accounts, cachedConfigs]);
+  }, [initAccounts]);
 
   useEffect(() => {
     if (isInitialized.current) return;

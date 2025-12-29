@@ -247,9 +247,6 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-xl font-semibold">{displayName}</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              {providerDefinition?.display.description || '配置 API Key 和模型参数'}
-            </p>
           </div>
           <div className="flex items-center gap-3 mt-1">
             <Label htmlFor="provider-enabled" className="text-sm cursor-pointer">

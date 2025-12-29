@@ -205,14 +205,12 @@ export function getProviderDefinition(providerId: string): ProviderDefinition | 
 export function getProviderOptions(): Array<{
   value: string;
   label: string;
-  description: string;
   isNew?: boolean;
   isBeta?: boolean;
 }> {
   return AI_PROVIDER_SYSTEM_CONFIG.providers.map(provider => ({
     value: provider.id,
     label: provider.display.name,
-    description: provider.display.description,
     isNew: false,
   }));
 }

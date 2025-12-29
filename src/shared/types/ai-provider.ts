@@ -204,9 +204,7 @@ export type ModelListResponse = z.infer<typeof ModelListResponseSchema>;
 export interface ProviderOption {
   value: AIProviderId;
   label: string;
-  description: string;
-  icon?: string; // 保留用于向后兼容
-  iconId?: string; // 新增：@lobehub/icons 的图标 ID
+  iconId?: string; // @lobehub/icons 的图标 ID
   isNew?: boolean;
 }
 

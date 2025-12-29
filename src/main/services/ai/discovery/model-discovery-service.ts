@@ -18,9 +18,9 @@ import {
 import { getProviderDefinition } from '@shared/data/ai-providers';
 import { globalProviderRegistry } from '../registry-init';
 import { globalConnectionManager } from '../core/runtime/connection-manager';
-import { app } from 'electron';
 import path from 'path';
 import fs from 'fs/promises';
+import os from 'os';
 
 // =============================================================================
 // 1. 缓存相关
@@ -47,8 +47,7 @@ class ModelCacheStorage {
   private cache: Map<string, ModelCacheEntry> = new Map();
 
   constructor() {
-    const userDataPath = app.getPath('userData');
-    this.cacheFile = path.join(userDataPath, 'ai-models-cache.json');
+    this.cacheFile = path.join(os.homedir(), '.starepo', 'ai-models-cache.json');
   }
 
   /**

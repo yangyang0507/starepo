@@ -17,6 +17,7 @@ export interface ProviderAccountMetadata {
   providerId: AIProviderId;
   protocol?: string;
   name?: string;
+  logo?: string;
   baseUrl?: string;
   hasApiKey: boolean;
   enabled?: boolean;
@@ -107,6 +108,7 @@ export class ProviderAccountService {
         providerId: config.providerId,
         protocol: config.protocol,
         name: config.name,
+        logo: config.logo,
         baseUrl: config.baseUrl,
         hasApiKey: !!config.apiKey,
         enabled: config.enabled,
@@ -127,7 +129,7 @@ export class ProviderAccountService {
       accounts.accounts[key] = accountData;
       await this.writeAccounts(accounts);
 
-      this.log.debug("Provider account saved", { providerId: config.providerId });
+      this.log.debug("Provider account saved", { providerId: config.providerId, logo: config.logo });
     } catch (error) {
       this.log.error("Failed to save provider account", error);
       throw new Error(`保存 Provider 账户失败: ${error instanceof Error ? error.message : "未知错误"}`);
@@ -149,6 +151,7 @@ export class ProviderAccountService {
       const config: ProviderAccountConfig = {
         providerId,
         name: accountData.metadata.name,
+        logo: accountData.metadata.logo,
         baseUrl: accountData.metadata.baseUrl,
         timeout: 30000,
         retries: 3,

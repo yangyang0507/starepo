@@ -79,9 +79,6 @@ export function ProviderSelector({
                     <span className="text-xs text-muted-foreground">未启用</span>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {provider.description}
-                </p>
               </div>
             </div>
           );

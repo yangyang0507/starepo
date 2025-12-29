@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { useAIAccountsStore } from '@/stores/ai-accounts-store';
 import { useAIProviderUIStore } from '@/stores/ai-provider-ui-store';
 import { AddProviderPopup, type AddProviderData } from './add-provider-popup';
-import { ProviderIcon } from './provider-icon';
+import { ProviderIcon } from '@lobehub/icons';
 import type { AIProviderId, ProviderOption } from '@shared/types';
 import {
   DndContext,
@@ -102,10 +102,9 @@ function SortableProviderItem({
         {/* Provider Logo */}
         <div className="w-5 h-5 flex-shrink-0">
           <ProviderIcon
-            providerId={provider.value}
-            iconId={provider.iconId}
+            provider={provider.iconId || provider.value}
             size={20}
-            fallbackIcon={provider.icon}
+            type={'mono'}
           />
         </div>
 
@@ -262,7 +261,6 @@ export function ProviderList({
       const newProvider: ProviderOption = {
         value: customProviderId,
         label: data.name,
-        description: '自定义 AI Provider',
         iconId: data.iconId, // 使用 iconId
         isNew: false,
       };

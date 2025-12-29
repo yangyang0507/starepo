@@ -19,7 +19,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, Search } from 'lucide-react';
 import { AI_PROTOCOL, type AIProtocol } from '@shared/types/ai-provider';
-import { providerMappings } from '@lobehub/icons/es/features/providerConfig';
+import { providerMappings, ModelProvider } from '@lobehub/icons/es/features/index';
 
 interface AddProviderPopupProps {
   open: boolean;
@@ -51,11 +51,26 @@ export function AddProviderPopup({
     Icon: React.ComponentType<{ size?: number; className?: string }>;
     keywords: string[];
   }> = useMemo(() => {
-    return providerMappings.map((mapping) => ({
-      id: mapping.keywords[0]?.replace('^', '').replace('/', '') || Math.random().toString(),
-      Icon: mapping.Icon,
-      keywords: mapping.keywords,
-    }));
+    // 获取所有 ModelProvider 枚举值，用于匹配
+    const providerValues = Object.values(ModelProvider);
+
+    return providerMappings.map((mapping) => {
+      // 优先使用与 ModelProvider 匹配的关键词作为 id
+      const matchedKeyword = mapping.keywords.find(keyword => {
+        const cleanKeyword = keyword.toLowerCase().replace('^', '').replace('/', '');
+        return providerValues.includes(cleanKeyword as any);
+      });
+
+      const id = matchedKeyword
+        ? matchedKeyword.replace('^', '').replace('/', '')
+        : mapping.keywords[0]?.replace('^', '').replace('/', '') || Math.random().toString();
+
+      return {
+        id,
+        Icon: mapping.Icon,
+        keywords: mapping.keywords,
+      };
+    });
   }, []);
 
   // 过滤图标
