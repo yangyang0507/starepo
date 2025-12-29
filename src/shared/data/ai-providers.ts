@@ -23,7 +23,6 @@ export const OPENAI_PROVIDER: ProviderDefinition = {
   display: {
     name: 'OpenAI',
     description: '官方 GPT 系列模型，功能全面',
-    icon: 'openai',
     website: 'https://openai.com',
     docsUrl: 'https://platform.openai.com/docs',
   },
@@ -80,7 +79,6 @@ export const ANTHROPIC_PROVIDER: ProviderDefinition = {
   display: {
     name: 'Anthropic',
     description: 'Claude 系列模型，擅长长文本理解',
-    icon: 'anthropic',
     website: 'https://anthropic.com',
     docsUrl: 'https://docs.anthropic.com',
   },
@@ -136,7 +134,6 @@ export const DEEPSEEK_PROVIDER: ProviderDefinition = {
   display: {
     name: 'DeepSeek',
     description: '中国大陆可用的高性价比模型',
-    icon: 'deepseek',
     website: 'https://deepseek.com',
     docsUrl: 'https://platform.deepseek.com',
   },
@@ -209,7 +206,6 @@ export function getProviderOptions(): Array<{
   value: string;
   label: string;
   description: string;
-  icon?: string;
   isNew?: boolean;
   isBeta?: boolean;
 }> {
@@ -217,7 +213,6 @@ export function getProviderOptions(): Array<{
     value: provider.id,
     label: provider.display.name,
     description: provider.display.description,
-    icon: provider.display.icon,
     isNew: false,
   }));
 }

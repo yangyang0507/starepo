@@ -65,10 +65,24 @@ export const useAIAccountsStore = create<AIAccountsStore>((set, get) => ({
     try {
       const accounts = await listProviderAccounts();
       const accountMap = new Map<AIProviderId, ProviderAccountMetadata>();
-      for (const account of accounts) {
-        accountMap.set(account.providerId, account);
+      const configMap = new Map<AIProviderId, ProviderAccountConfig>();
+
+      // 加载每个账户的完整配置
+      for (const metadata of accounts) {
+        accountMap.set(metadata.providerId, metadata);
+
+        // 加载完整配置（包括 logo）
+        try {
+          const config = await getProviderAccount(metadata.providerId);
+          if (config) {
+            configMap.set(metadata.providerId, config);
+          }
+        } catch (err) {
+          console.warn(`Failed to load config for ${metadata.providerId}:`, err);
+        }
       }
-      set({ accounts: accountMap, isLoading: false });
+
+      set({ accounts: accountMap, cachedConfigs: configMap, isLoading: false });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load accounts';
       set({ error: errorMessage, isLoading: false });

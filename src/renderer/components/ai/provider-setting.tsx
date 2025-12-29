@@ -14,6 +14,7 @@ import { ApiKeyInput } from './api-key-input';
 import { BaseUrlInput } from './base-url-input';
 import { ProtocolSelector } from './protocol-selector';
 import { ModelList } from './model-list';
+import { AddModelPopup } from './add-model-popup';
 import { getModelList, testProviderConnection } from '@/api/ai';
 import { getProviderDefinition } from '@shared/data/ai-providers';
 import { AI_PROTOCOL, type AIProviderId, type AIProtocol, type AIModel, type ModelSelectionState } from '@shared/types';
@@ -46,6 +47,9 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
   const [models, setModels] = useState<AIModel[]>([]);
   const [modelState, setModelState] = useState<ModelSelectionState>('idle');
   const [modelError, setModelError] = useState('');
+
+  // 添加模型弹窗状态
+  const [isAddModelOpen, setIsAddModelOpen] = useState(false);
 
   const displayName = providerName || accountMetadata?.name || providerId;
   const defaultBaseUrl = providerDefinition?.defaults.baseUrl || '';
@@ -244,7 +248,7 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
           <div>
             <h2 className="text-xl font-semibold">{displayName}</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              配置 API Key 和模型参数
+              {providerDefinition?.display.description || '配置 API Key 和模型参数'}
             </p>
           </div>
           <div className="flex items-center gap-3 mt-1">
@@ -306,11 +310,21 @@ export function ProviderSetting({ providerId, providerName }: ProviderSettingPro
             models={models}
             state={modelState}
             onRefresh={() => loadModels(true)}
-            onAddCustomModel={() => {
-              // TODO: 实现添加自定义模型功能
-              console.log('添加自定义模型');
-            }}
+            onAddCustomModel={() => setIsAddModelOpen(true)}
             error={modelError}
+          />
+
+          {/* 添加模型弹窗 */}
+          <AddModelPopup
+            open={isAddModelOpen}
+            onOpenChange={setIsAddModelOpen}
+            onConfirm={async (model) => {
+              // 设置 providerId
+              const newModel = { ...model, providerId };
+              // 添加到模型列表
+              setModels([...models, newModel]);
+              setModelState('idle');
+            }}
           />
 
           {/* 保存按钮和反馈 */}

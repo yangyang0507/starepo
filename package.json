@@ -72,6 +72,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@icons-pack/react-simple-icons": "^13.7.0",
     "@lancedb/lancedb": "^0.22.1",
+    "@lobehub/icons": "^4.0.2",
     "@octokit/auth-token": "^6.0.0",
     "@octokit/plugin-retry": "^8.0.1",
     "@octokit/plugin-throttling": "^11.0.1",

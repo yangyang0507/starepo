@@ -3,14 +3,15 @@
  * 左侧面板，显示所有可用的 AI Provider
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import { useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, PlusIcon, GripVertical, CheckCircle } from 'lucide-react';
+import { Search, PlusIcon, GripVertical, CheckCircle, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAIAccountsStore } from '@/stores/ai-accounts-store';
 import { useAIProviderUIStore } from '@/stores/ai-provider-ui-store';
 import { AddProviderPopup, type AddProviderData } from './add-provider-popup';
+import { ProviderIcon } from './provider-icon';
 import type { AIProviderId, ProviderOption } from '@shared/types';
 import {
   DndContext,
@@ -35,6 +36,7 @@ interface ProviderListProps {
   selectedProviderId: AIProviderId | null;
   onSelectProvider: (providerId: AIProviderId) => void;
   onAddProvider: (newProvider: ProviderOption) => void;
+  onDeleteProvider: (providerId: AIProviderId) => void;
 }
 
 // 可排序的 Provider 项组件
@@ -42,14 +44,18 @@ interface SortableProviderItemProps {
   provider: ProviderOption;
   isActive: boolean;
   isEnabled: boolean;
+  canDelete: boolean; // 是否可以删除
   onSelect: () => void;
+  onDelete: () => void;
 }
 
 function SortableProviderItem({
   provider,
   isActive,
   isEnabled,
+  canDelete,
   onSelect,
+  onDelete,
 }: SortableProviderItemProps) {
   const {
     attributes,
@@ -71,7 +77,7 @@ function SortableProviderItem({
       <button
         onClick={onSelect}
         className={cn(
-          'w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors',
+          'w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors group',
           'border border-transparent',
           isActive
             ? 'bg-primary text-primary-foreground shadow-sm'
@@ -90,6 +96,16 @@ function SortableProviderItem({
               'transition-opacity',
               isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
             )}
+          />
+        </div>
+
+        {/* Provider Logo */}
+        <div className="w-5 h-5 flex-shrink-0">
+          <ProviderIcon
+            providerId={provider.value}
+            iconId={provider.iconId}
+            size={20}
+            fallbackIcon={provider.icon}
           />
         </div>
 
@@ -121,6 +137,24 @@ function SortableProviderItem({
             )}
           />
         )}
+
+        {/* 删除按钮（仅自定义 Provider） */}
+        {canDelete && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className={cn(
+              'opacity-0 group-hover:opacity-100 transition-opacity',
+              'hover:text-destructive',
+              isActive && 'text-primary-foreground hover:text-red-200'
+            )}
+            title="删除 Provider"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
       </button>
     </div>
   );
@@ -131,8 +165,9 @@ export function ProviderList({
   selectedProviderId,
   onSelectProvider,
   onAddProvider,
+  onDeleteProvider,
 }: ProviderListProps) {
-  const { accounts, saveAccount } = useAIAccountsStore();
+  const { accounts, saveAccount, deleteAccount } = useAIAccountsStore();
   const { searchText, setSearchText, isAddingProvider, setIsAddingProvider, providerOrder, setProviderOrder } = useAIProviderUIStore();
 
   // 初始化 Provider 顺序
@@ -195,15 +230,27 @@ export function ProviderList({
     setIsAddingProvider(true);
   };
 
+  // 处理删除 Provider
+  const handleDeleteProvider = async (providerId: AIProviderId) => {
+    try {
+      await deleteAccount(providerId);
+      onDeleteProvider(providerId);
+    } catch (error) {
+      console.error('[ProviderList] Error deleting provider:', error);
+      throw error;
+    }
+  };
+
   const handleConfirmAddProvider = async (data: AddProviderData) => {
     try {
       // 生成唯一的 Provider ID
       const customProviderId = `custom-${Date.now()}` as AIProviderId;
 
-      // 保存账户配置
+      // 保存账户配置（保存 iconId 而非 logo）
       await saveAccount({
         providerId: customProviderId,
         name: data.name,
+        logo: data.iconId, // 将 iconId 存储在 logo 字段中（兼容现有存储）
         protocol: data.type,
         timeout: 30000,
         retries: 3,
@@ -215,6 +262,8 @@ export function ProviderList({
       const newProvider: ProviderOption = {
         value: customProviderId,
         label: data.name,
+        description: '自定义 AI Provider',
+        iconId: data.iconId, // 使用 iconId
         isNew: false,
       };
 
@@ -267,6 +316,8 @@ export function ProviderList({
                   const isActive = selectedProviderId === provider.value;
                   const account = accounts.get(provider.value);
                   const isEnabled = account?.enabled === true;
+                  // 只有自定义 Provider（以 'custom-' 开头）才能删除
+                  const canDelete = provider.value.startsWith('custom-');
 
                   return (
                     <SortableProviderItem
@@ -274,7 +325,9 @@ export function ProviderList({
                       provider={provider}
                       isActive={isActive}
                       isEnabled={isEnabled}
+                      canDelete={canDelete}
                       onSelect={() => onSelectProvider(provider.value)}
+                      onDelete={() => handleDeleteProvider(provider.value)}
                     />
                   );
                 })}

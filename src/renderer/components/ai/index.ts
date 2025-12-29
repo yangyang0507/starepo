@@ -11,5 +11,7 @@ export { ApiKeyInput } from './api-key-input';
 export { BaseUrlInput } from './base-url-input';
 export { ProtocolSelector } from './protocol-selector';
 export { AddProviderPopup } from './add-provider-popup';
+export { AddModelPopup } from './add-model-popup';
 export { ModelList } from './model-list';
+export { ProviderIcon } from './provider-icon';
 export type { AddProviderData } from './add-provider-popup';

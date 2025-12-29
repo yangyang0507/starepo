@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProviderList } from './provider-list';
 import { ProviderSetting } from './provider-setting';
@@ -90,7 +90,7 @@ export function AISettingsPage() {
   const [selectedProviderId, setSelectedProviderId] = useState<AIProviderId | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { initAccounts } = useAIAccountsStore();
+  const { initAccounts, accounts, cachedConfigs } = useAIAccountsStore();
   const isInitialized = useRef(false);
 
   // 初始化：加载 Provider 列表和账户信息（只执行一次）
@@ -102,11 +102,29 @@ export function AISettingsPage() {
         getProviderList(),
         initAccounts(),
       ]);
-      setProviders(providerList);
+
+      // 从账户配置中恢复自定义 Provider
+      const customProviders: ProviderOption[] = [];
+      for (const [providerId, metadata] of accounts.entries()) {
+        // 跳过预定义的 Provider
+        if (providerId.startsWith('custom-')) {
+          const config = cachedConfigs.get(providerId);
+          customProviders.push({
+            value: providerId,
+            label: metadata.name || providerId,
+            description: '自定义 AI Provider',
+            iconId: config?.logo, // logo 字段现在存储 iconId
+          });
+        }
+      }
+
+      // 合并预定义 Provider 和自定义 Provider
+      const allProviders = [...providerList, ...customProviders];
+      setProviders(allProviders);
 
       // 默认选中第一个 Provider
-      if (providerList.length > 0) {
-        setSelectedProviderId(providerList[0].value);
+      if (allProviders.length > 0) {
+        setSelectedProviderId(allProviders[0].value);
       }
 
       isInitialized.current = true;
@@ -116,7 +134,7 @@ export function AISettingsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [initAccounts]);
+  }, [initAccounts, accounts, cachedConfigs]);
 
   useEffect(() => {
     if (isInitialized.current) return;
@@ -129,6 +147,20 @@ export function AISettingsPage() {
     // 自动选中新添加的 Provider
     setSelectedProviderId(newProvider.value);
   }, []);
+
+  // 删除 Provider
+  const handleDeleteProvider = useCallback((providerId: AIProviderId) => {
+    setProviders((prev) => {
+      const remaining = prev.filter(p => p.value !== providerId);
+
+      // 如果删除的是当前选中的 Provider，切换到第一个剩余的 Provider
+      if (selectedProviderId === providerId) {
+        setSelectedProviderId(remaining.length > 0 ? remaining[0].value : null);
+      }
+
+      return remaining;
+    });
+  }, [selectedProviderId]);
 
   // 加载状态
   if (isLoading) {
@@ -153,6 +185,7 @@ export function AISettingsPage() {
         selectedProviderId={selectedProviderId}
         onSelectProvider={setSelectedProviderId}
         onAddProvider={handleAddProvider}
+        onDeleteProvider={handleDeleteProvider}
       />
 
       {/* 右侧：Provider 详细配置 */}

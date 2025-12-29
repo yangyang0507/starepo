@@ -122,6 +122,7 @@ export const ProviderAccountConfigSchema = z.object({
   providerId: z.nativeEnum(AI_PROVIDER_ID),
   protocol: z.nativeEnum(AI_PROTOCOL).optional(), // 允许覆盖 Provider 的默认协议
   name: z.string().optional(), // 用户自定义的配置名称
+  logo: z.string().optional(), // 自定义 Provider 的 Logo（Base64）
   baseUrl: z.string().url().optional(),
   apiKey: z.string().optional(),
   customHeaders: z.record(z.string()).optional(),
@@ -204,7 +205,8 @@ export interface ProviderOption {
   value: AIProviderId;
   label: string;
   description: string;
-  icon?: string;
+  icon?: string; // 保留用于向后兼容
+  iconId?: string; // 新增：@lobehub/icons 的图标 ID
   isNew?: boolean;
 }
 
