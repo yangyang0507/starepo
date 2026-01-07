@@ -2,15 +2,15 @@
 
 > 仍在建设中……
 
-一个基于 Electron 的本地桌面应用，帮助你智能管理和检索 GitHub Star 项目。通过 AI 向量化技术和自然语言对话，让你的 Star 项目不再石沉大海。
+一个基于 Electron 的本地桌面应用，帮助你智能管理和检索 GitHub Star 项目。通过 **Agentic AI 工具系统**和自然语言对话，让 AI 自主帮你找到需要的项目。
 
 ## 🌟 核心功能
 
 - **GitHub 集成**: 自动同步你的 GitHub Star 项目信息
-- **智能向量化**: 使用 Embedding 技术对项目进行语义理解
-- **AI 对话检索**: 通过自然语言快速找到相关项目
-- **本地存储**: 使用 LanceDB 进行本地向量数据库存储
-- **离线使用**: 数据完全本地化，保护隐私
+- **Agentic AI 系统**: AI Agent 自主调用工具，智能查找项目
+- **多维度搜索**: 关键词、标签、语言、Star 数、更新时间等多种搜索工具
+- **自然语言对话**: 用自然语言描述需求，AI 自动理解并执行
+- **本地数据存储**: 所有数据本地化存储，保护隐私
 - **实时同步**: 支持增量同步最新的 Star 项目
 
 ## 🛠️ 技术栈
@@ -24,9 +24,9 @@
 
 ### AI & 数据处理 🤖
 
-- [LanceDB](https://lancedb.github.io/lancedb/) - 本地向量数据库
 - [AI SDK V5](https://ai-sdk.dev/) - 统一的 AI 接口，支持多种 AI 提供商
 - [GitHub API](https://docs.github.com/en/rest) - GitHub 数据获取
+- **Agentic AI 工具系统** - AI Agent 自主调用工具链完成复杂任务
 
 ### UI & 用户体验 🎨
 
@@ -64,60 +64,91 @@
 - [x] **React Hooks 集成**：useTheme、useWindow 等自定义 Hooks
 - [x] **开发工具链优化**：Vite、TypeScript、ESLint 配置更新
 
-### Phase 1: 基础功能 (MVP)
+### Phase 1: 基础功能 (MVP) 🏗️
 - [ ] **GitHub 集成系统** (基于 [Octokit.js](https://github.com/octokit/octokit.js))
   - [ ] Personal Access Token 认证方式
   - [ ] 安全的 Token 存储和管理（使用 Electron safeStorage）
   - [ ] 完整的 GitHub API 集成（用户信息、仓库管理、Star 操作）
   - [ ] 速率限制监控和智能重试机制
-  - [ ] 多层缓存策略（内存 + IndexedDB）
+  - [ ] 数据本地缓存（JSON/SQLite）
 - [ ] **Star 项目数据管理**
   - [ ] 增量同步 Star 项目列表
   - [ ] 项目详细信息获取（语言统计、README、发布版本）
   - [ ] 实时 Star/Unstar 操作同步
-- [ ] **基础搜索和筛选**
-  - [ ] 按名称、描述、语言筛选
-  - [ ] 按 Star 数、更新时间排序
-  - [ ] 标签和主题过滤
+  - [ ] 本地数据持久化存储
+- [ ] **基础搜索和筛选工具**
+  - [ ] 按名称、描述关键词搜索
+  - [ ] 按语言、Star 数、更新时间筛选
+  - [ ] 按标签和主题过滤
+  - [ ] 全文搜索（README 内容）
 
-### Phase 2: 智能化升级
-- [x] LanceDB 本地向量数据库集成
-- [ ] OpenAI Embedding API 集成
-- [ ] 项目描述和 README 向量化
-- [ ] 基础的语义搜索功能
+### Phase 2: Agentic AI 工具系统 🤖
+- [ ] **AI Agent 核心架构**
+  - [ ] AI SDK V5 集成（支持多 Provider）
+  - [ ] Tool Calling 系统实现
+  - [ ] 对话上下文管理
+  - [ ] 流式响应处理
+- [ ] **搜索工具集**
+  - [ ] `searchByKeyword`: 关键词搜索工具
+  - [ ] `filterByLanguage`: 语言筛选工具
+  - [ ] `filterByStars`: Star 数范围筛选
+  - [ ] `filterByDate`: 更新时间筛选
+  - [ ] `searchByTopic`: 主题标签搜索
+  - [ ] `searchInReadme`: README 全文搜索
+- [ ] **分析工具集**
+  - [ ] `analyzeLanguageDistribution`: 语言分布统计
+  - [ ] `findTrendingRepos`: 热门项目发现
+  - [ ] `compareRepos`: 项目对比分析
 
-### Phase 3: AI 对话系统
+### Phase 3: AI 对话系统优化 💬
 - [ ] 聊天界面设计和实现
-- [ ] 自然语言查询处理
-- [ ] 上下文感知的对话系统
-- [ ] 搜索结果智能排序
+- [ ] 多轮对话上下文保持
+- [ ] 搜索结果智能展示
+- [ ] 工具调用可视化（显示 AI 使用了哪些工具）
+- [ ] 搜索历史和收藏功能
 
-### Phase 4: 高级功能
+### Phase 4: 高级功能 ✨
 - [ ] 项目标签和分类管理
 - [ ] 个人笔记和评价系统
 - [ ] 数据导出和备份功能
 - [ ] 多账户支持
-- [ ] 离线模式优化
+- [ ] 自定义工具扩展系统
 
 ## 🏛️ 系统架构
 
-### 整体架构
+### 整体架构（Agentic AI 驱动）
 ```mermaid
-graph LR
-    Frontend[前端界面<br/>• React UI<br/>• Chat 界面<br/>• 项目列表<br/>• 搜索功能]
-    MainProcess[主进程<br/>• GitHub API<br/>• LanceDB<br/>• 数据处理<br/>• IPC 通信]
-    ExternalServices[外部服务<br/>• GitHub API<br/>• OpenAI API]
+graph TB
+    User[用户] -->|自然语言查询| ChatUI[聊天界面]
+    ChatUI -->|消息| AIAgent[AI Agent]
     
-    Frontend <--> MainProcess
-    MainProcess <--> ExternalServices
+    AIAgent -->|调用工具| ToolRegistry[工具注册表]
+    
+    ToolRegistry -->|搜索工具| SearchTools[搜索工具集<br/>• 关键词搜索<br/>• 语言筛选<br/>• Star 筛选<br/>• 主题搜索]
+    ToolRegistry -->|分析工具| AnalysisTools[分析工具集<br/>• 语言分布<br/>• 热门发现<br/>• 项目对比]
+    ToolRegistry -->|GitHub 工具| GitHubTools[GitHub 工具集<br/>• 获取详情<br/>• Star/Unstar<br/>• 同步数据]
+    
+    SearchTools --> LocalDB[(本地数据库<br/>JSON/SQLite)]
+    AnalysisTools --> LocalDB
+    GitHubTools --> GitHubAPI[GitHub API]
+    GitHubAPI --> LocalDB
+    
+    LocalDB --> SearchTools
+    
+    AIAgent -->|结果| ChatUI
+    ChatUI -->|展示| User
 ```
 
-### 数据流程
-1. **数据获取**: GitHub API → 项目基础信息
-2. **数据处理**: README/描述 → AI SDK Embedding → 向量数据
-3. **数据存储**: LanceDB 本地向量数据库
-4. **智能检索**: 用户查询 → 向量相似度搜索 → 结果排序
-5. **对话交互**: 自然语言 → 意图识别 → 精准搜索
+### 数据流程（基于 AI Agent + Tools）
+1. **用户输入**: 自然语言查询 → AI Agent
+2. **意图理解**: AI Agent 理解用户需求
+3. **工具选择**: AI Agent 决定使用哪些工具
+4. **工具执行**: 
+   - 调用搜索工具（关键词、语言、Star 数等）
+   - 调用分析工具（统计、对比、发现趋势）
+   - 调用 GitHub 工具（获取最新数据）
+5. **结果整合**: AI Agent 整合多个工具的结果
+6. **智能回复**: 生成自然语言回复，展示结果
 
 ### 项目配置 🎯
 
@@ -218,9 +249,9 @@ graph LR
 #### 🔧 主进程 (`main/`)
 - **`services/`**: 核心业务逻辑层
   - `github/`: GitHub API 集成，处理 Token 认证和数据获取
-  - `database/`: LanceDB 数据库操作
-  - `ai/`: AI 对话和自然语言处理
-  - `file/`: 文件系统操作和管理
+  - `database/`: 本地数据存储（JSON/SQLite）
+  - `ai/`: AI Agent 核心系统和工具注册表
+  - `tools/`: AI 可调用的工具集合
 - **`ipc/`**: IPC 通信处理器
   - `handlers/`: 各种 IPC 请求的处理函数
   - `channels.ts`: IPC 通道名称和类型定义
@@ -322,9 +353,8 @@ npm run <script>
 - `test:watch`: 监听模式运行测试
 
 ### 未来功能脚本
-- `db:setup`: 初始化 LanceDB
+- `db:init`: 初始化本地数据存储
 - `db:reset`: 重置数据库
-- `db:migrate`: 数据库迁移
 - `sync:github`: 手动同步 GitHub Stars
 
 > **注意**: 端到端测试需要先构建应用程序，运行测试前请先执行 `npm run package`
@@ -455,11 +485,14 @@ npm install
 创建 `.env` 文件并配置必要的环境变量：
 
 ```bash
-# LanceDB 配置
-LANCEDB_PATH=./data/lancedb
+# 本地数据存储配置（可选）
+DATABASE_TYPE=json  # 或 sqlite
 
-# AI 服务配置（可选）
+# AI 服务配置
+# 支持 OpenAI, Anthropic, Google AI 等多种 Provider
 OPENAI_API_KEY=your_openai_api_key
+# ANTHROPIC_API_KEY=your_anthropic_api_key
+# GOOGLE_API_KEY=your_google_api_key
 ```
 
 #### Personal Access Token 设置
@@ -474,10 +507,10 @@ Starepo 使用 Personal Access Token 进行 GitHub 认证：
    - `read:org`: 读取组织信息
 4. 生成 Token 后在应用中配置
 
-5. **初始化数据库**
+5. **初始化数据存储**
 
 ```bash
-npm run db:setup
+npm run db:init
 ```
 
 5. **启动应用**
@@ -500,14 +533,15 @@ npm run start
 #### 数据同步和使用
 
 3. **自动数据同步**：认证完成后，应用会自动开始同步你的 Star 项目
-4. **向量化处理**：等待项目描述和 README 向量化完成（首次可能需要几分钟）
-5. **开始使用**：同步完成后即可使用搜索、筛选和 AI 对话功能！
+4. **开始对话**：数据同步完成后，即可通过自然语言与 AI 对话查找项目
+5. **AI 工具调用**：AI 会自动选择合适的工具来满足你的需求（搜索、筛选、分析等）
 
 #### 功能特性
 
 - **实时同步**：支持增量同步，自动获取新的 Star 项目
-- **离线使用**：数据本地存储，支持离线浏览和搜索
-- **智能缓存**：多层缓存策略，提升访问速度
+- **离线使用**：数据本地存储，支持离线浏览
+- **智能工具调用**：AI 自主决定使用哪些工具完成任务
+- **多维度搜索**：支持关键词、语言、Star 数、主题等多种搜索方式
 - **速率限制监控**：实时显示 GitHub API 使用情况，避免超限
 
 ## 🤝 贡献指南
@@ -529,7 +563,6 @@ npm run start
 - 基于 [electron-shadcn](https://github.com/LuanRoger/electron-shadcn) 模板构建
 - 感谢 Vercel 团队提供的 AI SDK V5
 - 支持多种 AI 提供商：OpenAI、Anthropic、Google AI 等
-- 感谢 LanceDB 团队提供的优秀向量数据库
 
 ## 📝 更新日志
 
@@ -552,8 +585,8 @@ npm run start
   - 路径别名和模块解析优化
 
 ### 下一步计划
-1. **GitHub Token 认证集成** - 完善认证流程和 API 访问
-2. **数据层实现** - 集成 LanceDB 向量数据库
-3. **AI 功能开发** - 实现语义搜索和对话系统
-4. **UI/UX 完善** - 设计和实现用户界面
+1. **GitHub 数据同步完善** - 增量同步和本地存储优化
+2. **Agentic AI 工具系统** - 实现工具注册表和 Tool Calling
+3. **搜索工具集开发** - 关键词、语言、Star 数等搜索工具
+4. **AI 对话界面** - 流式响应和工具调用可视化
 

@@ -34,7 +34,7 @@ This is an Electron application using a modern, security-focused architecture wi
 
 ### Process Architecture
 
-- **Main Process** (`src/main/`): Core application logic, GitHub API integration, LanceDB vector database, secure storage, search services, IPC handlers
+- **Main Process** (`src/main/`): Core application logic, GitHub API integration, local data storage, AI Agent system, tool registry, IPC handlers
 - **Renderer Process** (`src/renderer/`): React UI, components, pages, client-side services
 - **Preload Scripts** (`src/preload/`): Security bridge between main and renderer processes
 - **Shared Code** (`src/shared/`): Type definitions, constants, utilities used across processes
@@ -47,15 +47,16 @@ This is an Electron application using a modern, security-focused architecture wi
 - **Vite 7.0.6** for fast development and building
 - **TailwindCSS 4.1.11** with Shadcn UI components
 - **TanStack Router** for client-side routing
-- **LanceDB** for vector database and semantic search
+- **AI SDK V5** for Agentic AI and Tool Calling
 - **Vitest** for unit testing, **Playwright** for e2e testing
 
 ### Project Structure
 
 - `src/main/` - Main process: window management, IPC handlers, services
-  - `services/database/` - Data persistence layer (LanceDB, secure storage)
+  - `services/database/` - Data persistence layer (JSON/SQLite, secure storage)
   - `services/github/` - GitHub API integration layer
-  - `services/search/` - Search functionality layer
+  - `services/ai/` - AI Agent system and tool registry
+  - `services/tools/` - AI-callable tool implementations
   - `ipc/` - Inter-process communication handlers
 - `src/renderer/` - React UI: components, pages, hooks, API wrappers
 - `src/preload/` - Security bridge for IPC communication
@@ -71,8 +72,8 @@ All inter-process communication uses type-safe channels defined in `src/shared/c
 - `LANGUAGE`: i18n language switching
 - `GITHUB`: GitHub API integration (authentication, repositories, stars)
 - `SEARCH`: Repository search and suggestions
-- `DATABASE`: Local data storage (planned)
-- `AI`: AI chat functionality (planned)
+- `DATABASE`: Local data storage
+- `AI`: AI chat functionality and tool calling
 
 ### Path Aliases
 
@@ -82,26 +83,29 @@ All inter-process communication uses type-safe channels defined in `src/shared/c
 
 ### Data Storage & Search Architecture
 
-The application uses a modern data persistence and search architecture:
+The application uses a local data storage architecture with AI-driven tool-based search:
 
-#### LanceDB Vector Database (`~/.starepo/lancedb/`)
-- **Vector storage**: Repository embeddings for semantic search
-- **Full-text search**: Built-in search capabilities
-- **Schema**: Structured tables for repositories and users
-- **Performance**: Optimized for large-scale data retrieval
+#### Local Data Storage (`~/.starepo/data/`)
+
+- **Storage format**: JSON or SQLite (configurable)
+- **Repository data**: Full repository information from GitHub
+- **Metadata**: User preferences, tags, notes
+- **Incremental sync**: Only fetch changed/new data
 
 #### Secure Storage (`~/.starepo/secure-storage/`)
+
 - **Encryption**: Uses Electron's safeStorage API
 - **GitHub tokens**: Secure credential management
 - **User data**: Encrypted personal information storage
 - **Expiration**: Automatic token expiry handling
 
-#### Search Features
-- **Semantic search**: Vector similarity for repository discovery
-- **Keyword search**: Traditional text-based search
-- **Filters**: Language, stars, dates, topics
-- **Suggestions**: Auto-complete and popular terms
-- **Analytics**: Search statistics and insights
+#### Agentic AI Tool System
+
+- **Tool-based search**: AI Agent calls various search tools to find repositories
+- **Multi-dimensional filters**: Language, stars, dates, topics, keywords
+- **Natural language queries**: Convert user intent to tool calls
+- **Composable searches**: AI combines multiple tools for complex queries
+- **No vector embeddings**: Simple, efficient, transparent search tools
 
 ### GitHub Integration
 
@@ -123,33 +127,40 @@ The application includes a comprehensive GitHub integration system:
 - Comprehensive error handling and type safety throughout
 
 #### Service Architecture
+
 - **Layered approach**: Database → GitHub → Search services
 - **Unified naming**: All service files follow `*-service.ts` convention
 - **Modular exports**: Each service directory has `index.ts` for clean imports
 - **Type safety**: Comprehensive TypeScript definitions across all layers
 
 #### Data Flow
+
 1. **Main Process**: Handles all business logic and external API calls
 2. **IPC Layer**: Type-safe communication between processes
 3. **Renderer Process**: Pure UI layer with API wrappers
 4. **Local Storage**: Unified `.starepo` directory for all application data
 
 #### Native Modules
-- **LanceDB**: Configured with AutoUnpackNativesPlugin for Electron packaging
-- **Vite Config**: Excludes native modules from bundling
-- **Build Process**: Handles .node files correctly in production builds
+
+- No native module dependencies for now
+- Pure JavaScript/TypeScript implementation
+- All AI operations handled via AI SDK V5 HTTP calls
 
 ## Important Notes for Development
 
 ### Application Data Location
+
 All application data is stored in `~/.starepo/` directory:
-- **Database**: `~/.starepo/lancedb/` (LanceDB vector database files)
+
+- **Database**: `~/.starepo/data/` (JSON or SQLite database files)
 - **Secure Storage**: `~/.starepo/secure-storage/` (Encrypted user credentials)
 
 ### Service Dependencies
+
 - **GitHub services** depend on secure storage for authentication
 - **Search services** depend on LanceDB for data persistence
 - **All services** must be initialized before use
 
 ### Architecture Migration
+
 This application has been migrated from ChromaDB to LanceDB for better performance and native integration. The search functionality now uses LanceDB's built-in full-text search capabilities combined with vector similarity search.
