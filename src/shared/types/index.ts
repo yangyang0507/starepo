@@ -97,6 +97,11 @@ export type {
   ChatContext,
   APIUsageStats,
   LLMModelConfig,
+  StreamChunk,
+  StreamChunkType,
+  ToolCallInfo,
+  StreamSession,
+  AIChatStreamPayload,
 } from "./ai";
 
 export { AIError, AIErrorCode, PREDEFINED_MODELS } from "./ai";

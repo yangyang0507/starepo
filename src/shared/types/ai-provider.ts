@@ -3,7 +3,7 @@
  * 支持多种协议和厂商的灵活配置
  */
 
-import { z } from 'zod';
+import { z } from "zod";
 
 // =============================================================================
 // 1. 基础类型定义
@@ -13,8 +13,8 @@ import { z } from 'zod';
  * AI 协议类型
  */
 export const AI_PROTOCOL = {
-  OPENAI_COMPATIBLE: 'openai_compatible',
-  ANTHROPIC: 'anthropic',
+  OPENAI_COMPATIBLE: "openai_compatible",
+  ANTHROPIC: "anthropic",
 } as const;
 
 export type AIProtocol = (typeof AI_PROTOCOL)[keyof typeof AI_PROTOCOL];
@@ -23,9 +23,9 @@ export type AIProtocol = (typeof AI_PROTOCOL)[keyof typeof AI_PROTOCOL];
  * Provider ID（品牌标识）
  */
 export const AI_PROVIDER_ID = {
-  OPENAI: 'openai',
-  ANTHROPIC: 'anthropic',
-  DEEPSEEK: 'deepseek',
+  OPENAI: "openai",
+  ANTHROPIC: "anthropic",
+  DEEPSEEK: "deepseek",
 } as const;
 
 export type AIProviderId = (typeof AI_PROVIDER_ID)[keyof typeof AI_PROVIDER_ID];
@@ -34,28 +34,29 @@ export type AIProviderId = (typeof AI_PROVIDER_ID)[keyof typeof AI_PROVIDER_ID];
  * Provider 能力标志
  */
 export const PROVIDER_CAPABILITIES = {
-  CHAT: 'chat',
-  STREAMING: 'streaming',
-  TOOLS: 'tools',
-  JSON_MODE: 'json_mode',
-  VISION: 'vision',
-  MODEL_LISTING: 'model_listing',
-  SYSTEM_PROMPT: 'system_prompt',
-  TEMPERATURE: 'temperature',
-  TOP_P: 'top_p',
-  MAX_TOKENS: 'max_tokens',
+  CHAT: "chat",
+  STREAMING: "streaming",
+  TOOLS: "tools",
+  JSON_MODE: "json_mode",
+  VISION: "vision",
+  MODEL_LISTING: "model_listing",
+  SYSTEM_PROMPT: "system_prompt",
+  TEMPERATURE: "temperature",
+  TOP_P: "top_p",
+  MAX_TOKENS: "max_tokens",
 } as const;
 
-export type ProviderCapability = (typeof PROVIDER_CAPABILITIES)[keyof typeof PROVIDER_CAPABILITIES];
+export type ProviderCapability =
+  (typeof PROVIDER_CAPABILITIES)[keyof typeof PROVIDER_CAPABILITIES];
 
 /**
  * 认证方式
  */
 export const AUTH_TYPES = {
-  BEARER_TOKEN: 'bearer_token',
-  API_KEY_HEADER: 'api_key_header',
-  CUSTOM_HEADER: 'custom_header',
-  NO_AUTH: 'no_auth',
+  BEARER_TOKEN: "bearer_token",
+  API_KEY_HEADER: "api_key_header",
+  CUSTOM_HEADER: "custom_header",
+  NO_AUTH: "no_auth",
 } as const;
 
 export type AuthType = (typeof AUTH_TYPES)[keyof typeof AUTH_TYPES];
@@ -99,14 +100,16 @@ export const ProviderDefinitionSchema = z.object({
     baseUrlRequired: z.boolean().default(false),
     apiKeyRequired: z.boolean().default(true),
     supportsModelListing: z.boolean().default(false),
-    modelValidation: z.enum(['strict', 'lenient', 'none']).default('lenient'),
+    modelValidation: z.enum(["strict", "lenient", "none"]).default("lenient"),
   }),
-  healthCheck: z.object({
-    endpoint: z.string().optional(),
-    method: z.enum(['GET', 'POST']).default('GET'),
-    headers: z.record(z.string()).optional(),
-    expectedStatus: z.number().default(200),
-  }).optional(),
+  healthCheck: z
+    .object({
+      endpoint: z.string().optional(),
+      method: z.enum(["GET", "POST"]).default("GET"),
+      headers: z.record(z.string()).optional(),
+      expectedStatus: z.number().default(200),
+    })
+    .optional(),
 });
 
 export type ProviderDefinition = z.infer<typeof ProviderDefinitionSchema>;
@@ -128,12 +131,14 @@ export const ProviderAccountConfigSchema = z.object({
   customHeaders: z.record(z.string()).optional(),
   timeout: z.number().min(1000).max(300000).default(30000), // 超时时间（毫秒）
   retries: z.number().min(0).max(10).default(3), // 重试次数
-  proxy: z.object({
-    enabled: z.boolean().default(false),
-    host: z.string().optional(),
-    port: z.number().optional(),
-    protocol: z.enum(['http', 'https', 'socks5']).default('http'),
-  }).optional(),
+  proxy: z
+    .object({
+      enabled: z.boolean().default(false),
+      host: z.string().optional(),
+      port: z.number().optional(),
+      protocol: z.enum(["http", "https", "socks5"]).default("http"),
+    })
+    .optional(),
   strictTLS: z.boolean().default(true), // 是否严格验证 TLS 证书
   defaultModel: z.string().optional(),
   enabled: z.boolean().default(true),
@@ -212,11 +217,12 @@ export interface ProviderOption {
  * 模型选择状态
  */
 export type ModelSelectionState =
-  | 'idle' // 初始状态
-  | 'loading' // 正在加载
-  | 'success' // 加载成功
-  | 'error' // 加载失败
-  | 'cached'; // 使用缓存
+  | "idle"
+  | "loading"
+  | "success"
+  | "error"
+  | "cached"
+  | "no-cache";
 
 /**
  * 连接测试结果

@@ -65,10 +65,13 @@ export const IPC_CHANNELS = {
 
     // 向量数据库集成
     INITIALIZE_DATABASE: "github:initializeDatabase",
-    GET_ALL_STARRED_REPOSITORIES_ENHANCED: "github:getAllStarredRepositoriesEnhanced",
+    GET_ALL_STARRED_REPOSITORIES_ENHANCED:
+      "github:getAllStarredRepositoriesEnhanced",
     SEARCH_REPOSITORIES_SEMANTICALLY: "github:searchRepositoriesSemanticially",
-    GET_REPOSITORIES_BY_LANGUAGE_FROM_DB: "github:getRepositoriesByLanguageFromDatabase",
-    GET_REPOSITORIES_BY_STAR_RANGE_FROM_DB: "github:getRepositoriesByStarRangeFromDatabase",
+    GET_REPOSITORIES_BY_LANGUAGE_FROM_DB:
+      "github:getRepositoriesByLanguageFromDatabase",
+    GET_REPOSITORIES_BY_STAR_RANGE_FROM_DB:
+      "github:getRepositoriesByStarRangeFromDatabase",
     GET_DATABASE_STATS: "github:getDatabaseStats",
     SYNC_REPOSITORIES_TO_DATABASE: "github:syncRepositoriesToDatabase",
   },
@@ -90,13 +93,6 @@ export const IPC_CHANNELS = {
     CHAT_STREAM_CHUNK: "ai:chatStreamChunk",
     GET_CHAT_HISTORY: "ai:getChatHistory",
     CLEAR_CHAT_HISTORY: "ai:clearChatHistory",
-
-    // 设置相关
-    INITIALIZE: "ai:initialize",
-    GET_SETTINGS: "ai:getSettings",
-    SET_SETTINGS: "ai:setSettings",
-    GET_SAFE_SETTINGS: "ai:getSafeSettings",
-    TEST_CONNECTION: "ai:testConnection",
 
     // Provider 和模型相关
     GET_PROVIDER_LIST: "ai:getProviderList",

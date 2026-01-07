@@ -1,0 +1,169 @@
+# =============================================================================
+# CI/CD Pipeline - 当前已禁用
+# =============================================================================
+#
+# 状态: 🚧 开发中 - CI 暂时禁用
+#
+# 原因:
+# - 项目处于早期开发阶段，尚未达到 MVP 版本
+# - 许多功能仍在积极开发中，测试覆盖率较低
+# - 避免在频繁变更期间产生不必要的 CI 失败通知
+#
+# 启用时机:
+# - 当达到 MVP 版本后
+# - 当测试覆盖率达到 60%+ 后
+# - 当核心功能稳定后
+#
+# 启用方法:
+# 1. 取消下面 'on:' 部分的注释
+# 2. 确保所有测试都能通过: npm run test:all
+# 3. 检查 lint 和 format: npm run lint && npm run format
+# 4. 提交并推送到 GitHub
+#
+# =============================================================================
+
+name: CI
+
+# CI 触发条件 - 当前已注释禁用
+# on:
+#   push:
+#     branches: [main, develop]
+#   pull_request:
+#     branches: [main, develop]
+
+# 手动触发选项（保持启用，方便测试 CI 配置）
+on:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format
+
+  test-unit:
+    name: Unit Tests
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node-version: [18, 20]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Generate coverage report
+        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '20'
+        run: npm run test:unit -- --coverage
+
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '20'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  test-e2e:
+    name: E2E Tests
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Package application
+        run: npm run package
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts-${{ matrix.os }}
+          path: |
+            src/tests/e2e/screenshots/
+            src/tests/e2e/videos/
+          retention-days: 7
+
+  build:
+    name: Build
+    runs-on: ${{ matrix.os }}
+    needs: [lint, test-unit]
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Package application
+        run: npm run package
+
+      - name: Create distributable
+        run: npm run make
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: out/make/
+          retention-days: 30

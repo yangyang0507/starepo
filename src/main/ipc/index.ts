@@ -8,15 +8,20 @@ import { registerAuthIPCHandlers } from "./auth-ipc-handlers";
 import { settingsService } from "../services/settings";
 import { lancedbService } from "../services/database/lancedb-service";
 import { githubStarService } from "../services/github";
-import type { ThemeMode, Language, AppSettings } from "../../shared/types/index.js";
+import type {
+  ThemeMode,
+  Language,
+  AppSettings,
+} from "../../shared/types/index.js";
 import { getLogger } from "../utils/logger";
 // 导入搜索处理器
 import "./search-handlers";
 // 导入 AI 处理器
 import { initializeAIHandlers, setAIService } from "./ai-handlers";
-import { AIService, aiSettingsService } from "../services/ai";
+import { AIService } from "../services/ai";
+import { providerAccountService } from "../services/ai/storage/provider-account-service";
 
-const settingsLogger = getLogger('ipc:settings');
+const settingsLogger = getLogger("ipc:settings");
 
 /**
  * 注册所有 IPC 处理器
@@ -37,64 +42,97 @@ export function registerIpcHandlers(): void {
  * 数据库相关的 IPC 处理器
  */
 function registerDatabaseHandlers(): void {
-  const dbLogger = getLogger('ipc:database');
+  const dbLogger = getLogger("ipc:database");
 
   // 搜索仓库
-  ipcMain.handle(IPC_CHANNELS.DATABASE.SEARCH, async (_, query: string, options?: { limit?: number; offset?: number }) => {
-    try {
-      // searchRepositories 方法签名: (query: string, limit?: number, where?: string)
-      const result = await lancedbService.searchRepositories(
-        query,
-        options?.limit || 10
-      );
-      return { success: true, data: result };
-    } catch (error) {
-      dbLogger.error('数据库搜索失败', error);
-      return { success: false, error: error instanceof Error ? error.message : '搜索失败' };
-    }
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.DATABASE.SEARCH,
+    async (_, query: string, options?: { limit?: number; offset?: number }) => {
+      try {
+        // searchRepositories 方法签名: (query: string, limit?: number, where?: string)
+        const result = await lancedbService.searchRepositories(
+          query,
+          options?.limit || 10,
+        );
+        return { success: true, data: result };
+      } catch (error) {
+        dbLogger.error("数据库搜索失败", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "搜索失败",
+        };
+      }
+    },
+  );
 
   // 存储仓库
-  ipcMain.handle(IPC_CHANNELS.DATABASE.STORE_REPO, async (_, repo: import('@shared/types').GitHubRepository) => {
-    try {
-      // upsertRepositories 方法接受数组参数
-      await lancedbService.upsertRepositories([repo]);
-      return { success: true };
-    } catch (error) {
-      dbLogger.error('仓库存储失败', error);
-      return { success: false, error: error instanceof Error ? error.message : '存储失败' };
-    }
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.DATABASE.STORE_REPO,
+    async (_, repo: import("@shared/types").GitHubRepository) => {
+      try {
+        // upsertRepositories 方法接受数组参数
+        await lancedbService.upsertRepositories([repo]);
+        return { success: true };
+      } catch (error) {
+        dbLogger.error("仓库存储失败", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "存储失败",
+        };
+      }
+    },
+  );
 
   // 获取仓库列表
-  ipcMain.handle(IPC_CHANNELS.DATABASE.GET_REPOS, async (_, options?: { limit?: number; offset?: number; language?: string }) => {
-    try {
-      let result;
-      if (options?.language) {
-        // 如果指定了语言，使用 getRepositoriesByLanguage
-        result = await lancedbService.getRepositoriesByLanguage(options.language, options.limit);
-      } else {
-        // 否则使用 getAllRepositories
-        result = await lancedbService.getAllRepositories(options?.limit, options?.offset);
+  ipcMain.handle(
+    IPC_CHANNELS.DATABASE.GET_REPOS,
+    async (
+      _,
+      options?: { limit?: number; offset?: number; language?: string },
+    ) => {
+      try {
+        let result;
+        if (options?.language) {
+          // 如果指定了语言，使用 getRepositoriesByLanguage
+          result = await lancedbService.getRepositoriesByLanguage(
+            options.language,
+            options.limit,
+          );
+        } else {
+          // 否则使用 getAllRepositories
+          result = await lancedbService.getAllRepositories(
+            options?.limit,
+            options?.offset,
+          );
+        }
+        return { success: true, data: result };
+      } catch (error) {
+        dbLogger.error("获取仓库列表失败", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "获取失败",
+        };
       }
-      return { success: true, data: result };
-    } catch (error) {
-      dbLogger.error('获取仓库列表失败', error);
-      return { success: false, error: error instanceof Error ? error.message : '获取失败' };
-    }
-  });
+    },
+  );
 
   // 删除仓库
-  ipcMain.handle(IPC_CHANNELS.DATABASE.DELETE_REPO, async (_, repoId: number) => {
-    try {
-      // deleteRepositories 方法接受 ID 数组参数
-      await lancedbService.deleteRepositories([repoId]);
-      return { success: true };
-    } catch (error) {
-      dbLogger.error('删除仓库失败', error);
-      return { success: false, error: error instanceof Error ? error.message : '删除失败' };
-    }
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.DATABASE.DELETE_REPO,
+    async (_, repoId: number) => {
+      try {
+        // deleteRepositories 方法接受 ID 数组参数
+        await lancedbService.deleteRepositories([repoId]);
+        return { success: true };
+      } catch (error) {
+        dbLogger.error("删除仓库失败", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "删除失败",
+        };
+      }
+    },
+  );
 }
 
 /**
@@ -102,20 +140,34 @@ function registerDatabaseHandlers(): void {
  * 使用新架构 AIService
  */
 async function registerAIHandlers(): Promise<void> {
-  const aiLogger = getLogger('ipc:ai');
+  const aiLogger = getLogger("ipc:ai");
 
   try {
     // 创建 AI 服务实例
     const aiService = new AIService();
 
-    // 加载并使用保存的设置进行初始化
-    const settings = await aiSettingsService.getSettings();
-    if (settings && settings.enabled) {
+    // 尝试从 Provider Account 系统加载已启用的账户并初始化
+    const accounts = await providerAccountService.listAccounts();
+    const enabledAccount = accounts.find((acc) => acc.enabled);
+
+    if (enabledAccount && enabledAccount.hasApiKey) {
       try {
-        await aiService.initialize(settings);
-        aiLogger.debug('AI 服务已使用保存的设置初始化');
+        const fullAccount = await providerAccountService.getAccount(
+          enabledAccount.providerId,
+        );
+        if (fullAccount && fullAccount.apiKey) {
+          const settings = {
+            enabled: true,
+            provider: fullAccount.providerId,
+            apiKey: fullAccount.apiKey,
+            model: "",
+            baseURL: fullAccount.baseUrl,
+          };
+          await aiService.initialize(settings);
+          aiLogger.debug("AI 服务已使用保存的 Provider Account 初始化");
+        }
       } catch (initError) {
-        aiLogger.error('AI 服务初始化失败:', initError);
+        aiLogger.error("AI 服务初始化失败:", initError);
       }
     }
 
@@ -125,9 +177,9 @@ async function registerAIHandlers(): Promise<void> {
     // 初始化 IPC 处理器
     initializeAIHandlers();
 
-    aiLogger.debug('AI IPC 处理器已成功注册');
+    aiLogger.debug("AI IPC 处理器已成功注册");
   } catch (error) {
-    aiLogger.error('AI IPC 处理器初始化失败:', error);
+    aiLogger.error("AI IPC 处理器初始化失败:", error);
   }
 }
 
@@ -214,7 +266,12 @@ function registerSettingsHandlers(): void {
         const normalizedUpdate = update ?? {};
         const updated = await settingsService.updateSettings(normalizedUpdate);
 
-        if (Object.prototype.hasOwnProperty.call(normalizedUpdate, "developerMode")) {
+        if (
+          Object.prototype.hasOwnProperty.call(
+            normalizedUpdate,
+            "developerMode",
+          )
+        ) {
           const windowManager = WindowManager.getInstance();
           const mainWindow = windowManager.getMainWindow();
           if (mainWindow) {
@@ -271,22 +328,28 @@ function registerSettingsHandlers(): void {
   });
 
   // 设置主题
-  ipcMain.handle(IPC_CHANNELS.THEME.SET_THEME, async (_event, theme: string) => {
-    try {
-      const updatedTheme = await settingsService.setTheme(theme as ThemeMode);
+  ipcMain.handle(
+    IPC_CHANNELS.THEME.SET_THEME,
+    async (_event, theme: string) => {
+      try {
+        const updatedTheme = await settingsService.setTheme(theme as ThemeMode);
 
-      const windowManager = WindowManager.getInstance();
-      const mainWindow = windowManager.getMainWindow();
-      if (mainWindow) {
-        mainWindow.webContents.send(IPC_CHANNELS.THEME.THEME_CHANGED, updatedTheme);
+        const windowManager = WindowManager.getInstance();
+        const mainWindow = windowManager.getMainWindow();
+        if (mainWindow) {
+          mainWindow.webContents.send(
+            IPC_CHANNELS.THEME.THEME_CHANGED,
+            updatedTheme,
+          );
+        }
+
+        return { success: true, data: updatedTheme };
+      } catch (error) {
+        settingsLogger.error("设置主题失败", error);
+        return { success: false, error: "设置主题失败" };
       }
-
-      return { success: true, data: updatedTheme };
-    } catch (error) {
-      settingsLogger.error("设置主题失败", error);
-      return { success: false, error: "设置主题失败" };
-    }
-  });
+    },
+  );
 
   // 切换主题
   ipcMain.handle(IPC_CHANNELS.THEME.TOGGLE_THEME, async () => {
@@ -298,7 +361,10 @@ function registerSettingsHandlers(): void {
       const windowManager = WindowManager.getInstance();
       const mainWindow = windowManager.getMainWindow();
       if (mainWindow) {
-        mainWindow.webContents.send(IPC_CHANNELS.THEME.THEME_CHANGED, savedTheme);
+        mainWindow.webContents.send(
+          IPC_CHANNELS.THEME.THEME_CHANGED,
+          savedTheme,
+        );
       }
 
       return { success: true, data: savedTheme };
@@ -326,7 +392,9 @@ function registerSettingsHandlers(): void {
     IPC_CHANNELS.LANGUAGE.SET_LANGUAGE,
     async (_event, language: string) => {
       try {
-        const updatedLanguage = await settingsService.setLanguage(language as Language);
+        const updatedLanguage = await settingsService.setLanguage(
+          language as Language,
+        );
 
         const windowManager = WindowManager.getInstance();
         const mainWindow = windowManager.getMainWindow();
@@ -345,4 +413,3 @@ function registerSettingsHandlers(): void {
     },
   );
 }
-
