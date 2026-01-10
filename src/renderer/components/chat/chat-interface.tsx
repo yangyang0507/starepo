@@ -44,6 +44,7 @@ import {
   PromptInputSubmit,
 } from "@/components/ai-elements/prompt-input";
 import { Loader } from "@/components/ai-elements/loader";
+import { MessageContentRenderer } from "./message-content";
 
 interface ChatInterfaceProps {
   conversationId: string;
@@ -452,7 +453,11 @@ export function ChatInterface({
                               {msg.content}
                             </div>
                           ) : (
-                            <MessageResponse>{msg.content}</MessageResponse>
+                            <MessageContentRenderer
+                              parts={msg.parts}
+                              content={msg.content}
+                              isStreaming={isStreaming && streamingMessageId === msg.id}
+                            />
                           )}
                         </MessageContent>
 

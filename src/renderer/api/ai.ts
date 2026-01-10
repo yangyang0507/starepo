@@ -61,6 +61,9 @@ export interface StreamChatOptions {
   onToolCall?: (toolCall: {
     name: string;
     arguments: Record<string, unknown>;
+    status?: 'calling' | 'result' | 'error';
+    result?: unknown;
+    error?: string;
   }) => void;
   onComplete?: (data: AIResponse) => void;
   onError?: (error: string) => void;
@@ -108,6 +111,9 @@ export async function sendChatMessageStream(
             options?.onToolCall?.({
               name: chunk.toolCall.name,
               arguments: chunk.toolCall.arguments || {},
+              status: chunk.toolCall.status,
+              result: chunk.toolCall.result,
+              error: chunk.toolCall.error,
             });
           }
           break;

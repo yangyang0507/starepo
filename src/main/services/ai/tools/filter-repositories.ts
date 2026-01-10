@@ -21,12 +21,12 @@ export const filterRepositoriesTool = tool({
     minStars: z.number().optional().describe('最小星数'),
     maxStars: z.number().optional().describe('最大星数'),
     dateRange: z.object({
-      field: z.enum(['created', 'updated']).describe('时间字段'),
+      field: z.enum(['created', 'updated', 'starred']).describe('时间字段：created（创建时间）、updated（更新时间）、starred（关注时间）'),
       start: z.string().optional().describe('开始时间（ISO 8601 格式，例如：2024-01-01）'),
       end: z.string().optional().describe('结束时间（ISO 8601 格式，例如：2024-12-31）'),
     }).optional().describe('时间范围筛选'),
     limit: z.number().optional().default(10).describe('返回结果数量限制，默认 10，最大 50'),
-    sortBy: z.enum(['stars', 'updated', 'created']).optional().default('stars').describe('排序字段'),
+    sortBy: z.enum(['stars', 'updated', 'created', 'starred']).optional().default('stars').describe('排序字段：stars（星数）、updated（更新时间）、created（创建时间）、starred（关注时间）'),
     sortOrder: z.enum(['asc', 'desc']).optional().default('desc').describe('排序顺序'),
   }),
   execute: async ({ language, minStars, maxStars, dateRange, limit, sortBy, sortOrder }) => {

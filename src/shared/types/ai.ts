@@ -9,11 +9,43 @@ export type AIProvider = 'openai' | 'anthropic' | 'deepseek' | 'ollama';
 // 聊天角色
 export type ChatRole = 'user' | 'assistant' | 'system';
 
+// 消息部分类型
+export type MessagePartType = 'text' | 'tool_call';
+
+// 消息部分基础接口
+export interface BaseMessagePart {
+  type: MessagePartType;
+  id: string; // 唯一标识，用于 React key
+}
+
+// 文本部分
+export interface TextPart extends BaseMessagePart {
+  type: 'text';
+  content: string;
+}
+
+// 工具调用部分
+export interface ToolCallPart extends BaseMessagePart {
+  type: 'tool_call';
+  toolCallId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  status: 'calling' | 'success' | 'error';
+  result?: unknown;
+  error?: string;
+  startedAt?: number;
+  endedAt?: number;
+}
+
+// 消息部分联合类型
+export type MessagePart = TextPart | ToolCallPart;
+
 // 聊天消息
 export interface ChatMessage {
   id: string;
   role: ChatRole;
-  content: string;
+  content: string; // 保持向后兼容，作为纯文本降级显示
+  parts?: MessagePart[]; // 新的结构化数据
   timestamp: number;
   references?: RepositoryReference[];
   error?: string;
@@ -96,12 +128,16 @@ export interface AIChatStreamPayload extends AIChatPayload {
 // 流式数据块类型
 export type StreamChunkType = 'text' | 'tool' | 'error' | 'end';
 
-// 工具调用信息
+// 工具调用信息（用于流式传输）
 export interface ToolCallInfo {
+  id: string; // 唯一标识
   name: string;
-  status: 'calling' | 'result';
+  status: 'calling' | 'result' | 'error';
   arguments?: Record<string, unknown>;
   result?: unknown;
+  error?: string;
+  startedAt?: number;
+  endedAt?: number;
 }
 
 // 流式数据块
@@ -120,12 +156,14 @@ export interface StreamChunk {
   };
 }
 
-// 流式会话状态
-export interface StreamSession {
+// 流式会话状态（用于主进程管理）
+export interface StreamSessionInfo {
   id: string;
   conversationId: string;
   status: 'active' | 'completed' | 'aborted' | 'error';
   startTime: number;
+  lastUpdateTime: number;
+  controller?: AbortController; // 仅在主进程使用
 }
 
 export interface AISettingsPayload {

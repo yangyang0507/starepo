@@ -305,38 +305,58 @@ const aiAPI = {
     console.log('[Preload] chatStream called:', { message, conversationId });
 
     return new Promise((resolve, reject) => {
+      // 🔧 修复竞态条件：在 invoke 前注册全局监听器
+      let sessionId: string | null = null;
+      let chunkHandler: ((event: Electron.IpcRendererEvent, data: StreamChunk & { sessionId: string }) => void) | null = null;
+
+      chunkHandler = (_event: Electron.IpcRendererEvent, data: StreamChunk & { sessionId: string }) => {
+        console.log('[Preload] Chunk received:', data);
+
+        // 只处理匹配的 sessionId
+        if (sessionId && data.sessionId === sessionId && onChunk) {
+          onChunk(data);
+
+          // 流结束时清理监听器
+          if (data.type === 'end' || data.type === 'error') {
+            console.log('[Preload] Removing chunk handler');
+            if (chunkHandler) {
+              ipcRenderer.removeListener(IPC_CHANNELS.AI.CHAT_STREAM_CHUNK, chunkHandler);
+            }
+          }
+        }
+      };
+
+      // 先注册监听器
+      ipcRenderer.on(IPC_CHANNELS.AI.CHAT_STREAM_CHUNK, chunkHandler);
+      console.log('[Preload] Chunk handler registered (before invoke)');
+
+      // 再启动流
       ipcRenderer.invoke(IPC_CHANNELS.AI.CHAT_STREAM, { message, conversationId })
         .then((response: APIResponse<{ sessionId: string }>) => {
           console.log('[Preload] CHAT_STREAM response:', response);
 
           if (!response.success) {
             console.error('[Preload] CHAT_STREAM failed:', response.error);
+            // 清理监听器
+            if (chunkHandler) {
+              ipcRenderer.removeListener(IPC_CHANNELS.AI.CHAT_STREAM_CHUNK, chunkHandler);
+            }
             reject(new Error(response.error || "Failed to start stream"));
             return;
           }
 
-          const { sessionId } = response.data!;
+          // 设置 sessionId，开始接收 chunk
+          sessionId = response.data!.sessionId;
           console.log('[Preload] Session ID:', sessionId);
-
-          const chunkHandler = (_event: Electron.IpcRendererEvent, data: StreamChunk & { sessionId: string }) => {
-            console.log('[Preload] Chunk received:', data);
-            if (data.sessionId === sessionId && onChunk) {
-              onChunk(data);
-
-              if (data.type === 'end' || data.type === 'error') {
-                console.log('[Preload] Removing chunk handler');
-                ipcRenderer.removeListener(IPC_CHANNELS.AI.CHAT_STREAM_CHUNK, chunkHandler);
-              }
-            }
-          };
-
-          ipcRenderer.on(IPC_CHANNELS.AI.CHAT_STREAM_CHUNK, chunkHandler);
-          console.log('[Preload] Chunk handler registered');
 
           resolve({ success: true, data: { sessionId } });
         })
         .catch((error) => {
           console.error('[Preload] chatStream error:', error);
+          // 清理监听器
+          if (chunkHandler) {
+            ipcRenderer.removeListener(IPC_CHANNELS.AI.CHAT_STREAM_CHUNK, chunkHandler);
+          }
           reject(error);
         });
     });

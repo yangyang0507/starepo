@@ -103,7 +103,6 @@ out/
 # IDE and AI support files
 .idea/
 .vscode/
-.trae/
 .claude/
-.factory/
 .mcp.json
+.ace-tool/

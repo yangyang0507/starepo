@@ -11,10 +11,12 @@ import {
   AIErrorCode,
   ChatContext,
   RepositoryReference,
+  StreamChunk,
+  ToolCallInfo,
 } from '@shared/types';
 import type { AIProviderId, ProviderAccountConfig } from '@shared/types/ai-provider';
 import { logger } from '@main/utils/logger';
-import { generateText } from 'ai';
+import { generateText, streamText, stepCountIs } from 'ai';
 import { initializeTools, tools } from './tools';
 import { LanceDBSearchService } from '@main/services/search/lancedb-search-service';
 import { globalProviderRegistry } from './registry-init';
@@ -149,6 +151,175 @@ export class AIService {
   }
 
   /**
+   * 流式聊天方法
+   */
+  async streamChat(
+    message: string,
+    conversationId: string = 'default',
+    onChunk: (chunk: StreamChunk) => void,
+    signal?: AbortSignal,
+    userId?: string
+  ): Promise<void> {
+    if (!this.settings) {
+      throw new AIError(AIErrorCode.NOT_CONFIGURED, 'AI service not initialized');
+    }
+
+    try {
+      // 保存用户消息到历史
+      this.addMessageToHistory(conversationId, {
+        id: `msg_${Date.now()}`,
+        role: 'user',
+        content: message,
+        timestamp: Date.now(),
+      });
+
+      // 构建上下文
+      const context: ChatContext = {
+        conversationHistory: this.getConversationHistory(conversationId),
+        userId,
+      };
+
+      const model = await this.getModel();
+      const systemPrompt = this.buildSystemPrompt();
+      const messages = this.buildMessages(message, context);
+
+      // 使用 streamText 进行流式调用
+      const result = streamText({
+        model,
+        system: systemPrompt,
+        messages: messages.map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+        })),
+        tools,
+        stopWhen: stepCountIs(5), // 🔧 允许最多 5 步（调用工具 -> 生成回复 -> 可能再次调用工具）
+        temperature: this.settings!.temperature || 0.7,
+        topP: this.settings!.topP || 1.0,
+        abortSignal: signal,
+      });
+
+      let fullText = '';
+      const allReferences: RepositoryReference[] = [];
+      const activeToolCalls = new Map<string, ToolCallInfo>();
+      let hasTextDelta = false; // 🔧 跟踪是否收到过 text-delta
+
+      // 处理流式事件
+      for await (const chunk of result.fullStream) {
+        // 检查是否被中断
+        if (signal?.aborted) {
+          logger.debug('Stream aborted by signal');
+          break;
+        }
+
+        switch (chunk.type) {
+          case 'text-delta':
+            hasTextDelta = true; // 标记收到过 text-delta
+            fullText += chunk.text; // AI SDK 5 使用 text 属性
+            onChunk({
+              type: 'text',
+              content: chunk.text,
+            });
+            break;
+
+          case 'tool-call':
+            {
+              const toolCallInfo: ToolCallInfo = {
+                id: chunk.toolCallId,
+                name: chunk.toolName,
+                status: 'calling',
+                arguments: chunk.input as Record<string, unknown>, // AI SDK 5 使用 input
+                startedAt: Date.now(),
+              };
+              activeToolCalls.set(chunk.toolCallId, toolCallInfo);
+              onChunk({
+                type: 'tool',
+                content: '',
+                toolCall: toolCallInfo,
+              });
+            }
+            break;
+
+          case 'tool-result':
+            {
+              const toolCallInfo = activeToolCalls.get(chunk.toolCallId);
+              if (toolCallInfo) {
+                toolCallInfo.status = 'result';
+                toolCallInfo.result = chunk.output; // AI SDK 5 使用 output
+                toolCallInfo.endedAt = Date.now();
+
+                // 收集仓库引用
+                if (chunk.output && typeof chunk.output === 'object') {
+                  const resultObj = chunk.output as { repositories?: RepositoryReference[] };
+                  if (resultObj.repositories && Array.isArray(resultObj.repositories)) {
+                    allReferences.push(...resultObj.repositories);
+                  }
+                }
+
+                onChunk({
+                  type: 'tool',
+                  content: '',
+                  toolCall: toolCallInfo,
+                });
+              }
+            }
+            break;
+
+          case 'error':
+            {
+              // AI SDK 5 的 error 可能是 errorText 或 error
+              const errorMessage = (chunk as any).errorText ||
+                                   ((chunk as any).error instanceof Error ? (chunk as any).error.message : String((chunk as any).error)) ||
+                                   'Unknown error';
+              logger.error('Stream error:', errorMessage);
+              onChunk({
+                type: 'error',
+                content: '',
+                error: errorMessage,
+              });
+            }
+            break;
+
+          case 'finish':
+            {
+              // 🔧 兜底逻辑：如果没有收到任何 text-delta，记录警告
+              if (!hasTextDelta && fullText === '') {
+                logger.warn('No text-delta received during stream, response may be empty');
+              }
+
+              // 发送结束事件（不再尝试从 chunk 获取 text，因为 AI SDK 5 的 finish 没有该属性）
+              onChunk({
+                type: 'end',
+                content: fullText,
+                metadata: {
+                  references: allReferences.length > 0 ? allReferences : undefined,
+                },
+              });
+            }
+            break;
+        }
+      }
+
+      // 保存助手消息到历史
+      this.addMessageToHistory(conversationId, {
+        id: `msg_${Date.now()}`,
+        role: 'assistant',
+        content: fullText,
+        timestamp: Date.now(),
+        references: allReferences.length > 0 ? allReferences : undefined,
+      });
+    } catch (error) {
+      logger.error('Stream chat error:', error);
+      const aiError = this.handleError(error);
+      onChunk({
+        type: 'error',
+        content: '',
+        error: aiError.message,
+      });
+      throw aiError;
+    }
+  }
+
+  /**
    * 获取模型实例（带缓存）
    */
   private async getModel() {
@@ -204,6 +375,7 @@ export class AIService {
         content: msg.content,
       })),
       tools,
+      stopWhen: stepCountIs(5), // 🔧 允许最多 5 步工具调用
       temperature: this.settings!.temperature || 0.7,
       topP: this.settings!.topP || 1.0,
     });
@@ -244,12 +416,50 @@ export class AIService {
     return `你是一个专业的 GitHub 仓库助手。你可以帮助用户搜索、过滤和分析 GitHub 仓库。
 
 你有以下工具可用：
-1. searchRepositories - 搜索仓库（支持关键词、排序）
-2. filterRepositoriesByLanguage - 按编程语言过滤
-3. filterRepositoriesByStars - 按 Star 数量过滤
-4. filterRepositoriesByDate - 按日期范围过滤
 
-请根据用户的问题，合理使用这些工具来提供准确的答案。`;
+1. **search_repositories** - 搜索仓库
+   - 用途：根据关键词搜索仓库（匹配名称、描述、主题）
+   - 参数：query（搜索关键词）、limit（结果数量）、sortBy（排序字段）、sortOrder（排序顺序）
+   - 示例：用户问"查找 React 相关项目"时使用
+
+2. **filter_repositories** - 筛选仓库
+   - 用途：按条件筛选仓库（语言、星数、时间范围）
+   - 参数：language（编程语言）、minStars/maxStars（星数范围）、dateRange（时间范围）、limit、sortBy、sortOrder
+   - 示例：用户问"最近一周的 Python 项目"或"1000+ stars 的 Go 项目"时使用
+   - **重要**：dateRange.field 支持三种时间字段：
+     * **starred**：关注时间（用户 star 该仓库的时间）- 用于"我关注了"、"我 star 了"等查询
+     * **created**：仓库创建时间
+     * **updated**：仓库更新时间
+   - 时间范围示例：
+     * 最近一周关注的项目：dateRange.field="starred", dateRange.start="2026-01-03"（今天是 2026-01-10）
+     * 最近一周更新的项目：dateRange.field="updated", dateRange.start="2026-01-03"
+     * 最近一个月创建的项目：dateRange.field="created", dateRange.start="2025-12-10"
+
+3. **get_popular_repositories** - 获取热门仓库
+   - 用途：获取最受欢迎的仓库
+   - 参数：limit（结果数量）、language（可选，按语言筛选）
+   - 示例：用户问"最热门的项目"或"最受欢迎的 JavaScript 项目"时使用
+
+4. **get_repository_details** - 获取仓库详情
+   - 用途：获取特定仓库的详细信息
+   - 参数：owner（仓库所有者）、repo（仓库名称）
+   - 示例：用户问"facebook/react 的详细信息"时使用
+
+5. **get_repositories_by_topic** - 按主题获取仓库
+   - 用途：查找特定主题标签的仓库
+   - 参数：topic（主题标签）、limit（结果数量）
+   - 示例：用户问"machine-learning 主题的项目"时使用
+
+重要提示：
+- **当用户询问"我关注了"、"我 star 了"、"我最近关注"等问题时**，必须使用 filter_repositories 工具，并设置 dateRange.field="starred"
+- 当用户询问"最近一周"、"最近一个月"等时间相关问题时，根据上下文判断：
+  * 如果是"我关注的"、"我 star 的" → 使用 dateRange.field="starred"
+  * 如果是"更新的"、"活跃的" → 使用 dateRange.field="updated"
+  * 如果是"创建的"、"新建的" → 使用 dateRange.field="created"
+- 优先使用工具获取数据，而不是直接回答"无法访问"
+- 根据用户问题选择最合适的工具，可以组合使用多个工具
+
+请根据用户的问题，主动使用这些工具来提供准确的答案。`;
   }
 
   /**

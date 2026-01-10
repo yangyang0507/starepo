@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { ChatMessage, AIResponse } from '@shared/types';
+import { ChatMessage, AIResponse, TextPart, ToolCallPart } from '@shared/types/ai';
 
 interface ChatStore {
   // 状态
@@ -25,7 +25,7 @@ interface ChatStore {
   setConversationId: (id: string) => void;
   loadConversation: (id: string) => void;
   deleteConversation: (id: string) => void;
-  setStreaming: (isStreaming: boolean, messageId?: string) => void;
+  setStreaming: (isStreaming: boolean, messageId?: string | null) => void;
   regenerateLastResponse: () => void;
 
   // 流式聊天操作
@@ -148,12 +148,13 @@ export const useChatStore = create<ChatStore>()(
         };
         state.addMessage(userMessage);
 
-        // 创建助手消息占位符
+        // 创建助手消息占位符（支持 parts）
         const assistantMessageId = (Date.now() + 1).toString();
         const assistantMessage: ChatMessage = {
           id: assistantMessageId,
           role: 'assistant',
           content: '',
+          parts: [], // 初始化 parts 数组
           timestamp: Date.now(),
         };
         state.addMessage(assistantMessage);
@@ -173,18 +174,123 @@ export const useChatStore = create<ChatStore>()(
             {
               onTextDelta: (text) => {
                 accumulatedContent += text;
-                state.updateMessage(assistantMessageId, accumulatedContent);
+
+                // 更新 parts 数组
+                set((state) => {
+                  const conversationId = state.currentConversationId;
+                  const messages = state.conversations[conversationId]?.map(msg => {
+                    if (msg.id === assistantMessageId) {
+                      const parts = [...(msg.parts || [])];
+                      const lastPartIndex = parts.length - 1;
+                      const lastPart = parts[lastPartIndex];
+
+                      // 如果最后一个 part 是 text，追加内容
+                      if (lastPart && lastPart.type === 'text') {
+                        parts[lastPartIndex] = {
+                          ...lastPart,
+                          content: (lastPart as TextPart).content + text,
+                        };
+                      } else {
+                        // 否则创建新的 TextPart
+                        parts.push({
+                          type: 'text',
+                          id: `text_${Date.now()}`,
+                          content: text,
+                        } as TextPart);
+                      }
+
+                      return {
+                        ...msg,
+                        content: accumulatedContent,
+                        parts,
+                      };
+                    }
+                    return msg;
+                  }) || [];
+
+                  return {
+                    messages,
+                    conversations: {
+                      ...state.conversations,
+                      [conversationId]: messages,
+                    },
+                  };
+                });
+
                 options?.onTextDelta?.(text);
+              },
+              onToolCall: (toolCall) => {
+                console.log('[ChatStore] Tool call:', toolCall);
+
+                // 添加或更新 ToolCallPart
+                set((state) => {
+                  const conversationId = state.currentConversationId;
+                  const messages = state.conversations[conversationId]?.map(msg => {
+                    if (msg.id === assistantMessageId) {
+                      const parts = msg.parts || [];
+
+                      // 查找是否已存在该 toolCall
+                      const existingIndex = parts.findIndex(
+                        p => p.type === 'tool_call' && (p as ToolCallPart).toolCallId === toolCall.name
+                      );
+
+                      if (existingIndex >= 0) {
+                        // 更新现有的 ToolCallPart
+                        const existingPart = parts[existingIndex] as ToolCallPart;
+                        parts[existingIndex] = {
+                          ...existingPart,
+                          status: (toolCall.status === 'result' ? 'success' : toolCall.status) || existingPart.status,
+                          result: toolCall.result || existingPart.result,
+                          error: toolCall.error || existingPart.error,
+                          endedAt: (toolCall.status === 'result' || toolCall.status === 'error') ? Date.now() : existingPart.endedAt,
+                        };
+                      } else {
+                        // 创建新的 ToolCallPart
+                        parts.push({
+                          type: 'tool_call',
+                          id: `tool_${Date.now()}`,
+                          toolCallId: toolCall.name,
+                          toolName: toolCall.name,
+                          args: toolCall.arguments || {},
+                          status: toolCall.status || 'calling',
+                          result: toolCall.result,
+                          error: toolCall.error,
+                          startedAt: Date.now(),
+                        } as ToolCallPart);
+                      }
+
+                      return {
+                        ...msg,
+                        parts,
+                      };
+                    }
+                    return msg;
+                  }) || [];
+
+                  return {
+                    messages,
+                    conversations: {
+                      ...state.conversations,
+                      [conversationId]: messages,
+                    },
+                  };
+                });
               },
               onComplete: (data) => {
                 console.log('[ChatStore] Stream complete:', data);
                 state.setStreaming(false, null);
+
+                // 🔧 修复：确保 onComplete 也更新最终文本内容
                 set((state) => ({
                   conversations: {
                     ...state.conversations,
                     [state.currentConversationId]: state.conversations[state.currentConversationId]?.map(msg =>
                       msg.id === assistantMessageId
-                        ? { ...msg, references: data.references }
+                        ? {
+                            ...msg,
+                            content: data.content || msg.content, // 使用 end chunk 的最终内容
+                            references: data.references
+                          }
                         : msg
                     ) || [],
                   },

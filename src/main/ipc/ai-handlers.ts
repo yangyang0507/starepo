@@ -14,9 +14,30 @@ import {
   AIChatPayload,
   IPCResponse,
   ProviderAccountConfig,
+  StreamSessionInfo,
+  StreamChunk,
 } from "@shared/types";
 import type { AIProviderId } from "@shared/types/ai-provider";
 import { logger } from "@main/utils/logger";
+import { randomUUID } from "crypto";
+
+// 活跃的流式会话管理
+const activeSessions = new Map<string, StreamSessionInfo>();
+
+// 会话超时清理（5 分钟）
+const SESSION_TIMEOUT = 5 * 60 * 1000;
+
+// 定期清理超时会话
+setInterval(() => {
+  const now = Date.now();
+  for (const [sessionId, session] of activeSessions.entries()) {
+    if (now - session.lastUpdateTime > SESSION_TIMEOUT) {
+      logger.debug(`[AI Handlers] Cleaning up timeout session: ${sessionId}`);
+      session.controller?.abort();
+      activeSessions.delete(sessionId);
+    }
+  }
+}, 60000); // 每分钟检查一次
 
 /**
  * 初始化 AI IPC 处理程序
@@ -74,20 +95,101 @@ export function initializeAIHandlers(): void {
           } as IPCResponse;
         }
 
-        // 注意：流式聊天需要在 AIServiceV2 中实现
-        // 目前使用普通聊天作为回退
-        const response = await getAIService().chat(
-          payload.message,
-          payload.conversationId,
-          payload.userId,
-        );
+        // 生成会话 ID
+        const sessionId = randomUUID();
+        const controller = new AbortController();
+
+        // 创建会话信息
+        const sessionInfo: StreamSessionInfo = {
+          id: sessionId,
+          conversationId: payload.conversationId || 'default',
+          status: 'active',
+          startTime: Date.now(),
+          lastUpdateTime: Date.now(),
+          controller,
+        };
+
+        activeSessions.set(sessionId, sessionInfo);
+        logger.debug(`[AI Handlers] Created stream session: ${sessionId}`);
+
+        // 异步执行流式聊天
+        (async () => {
+          try {
+            await getAIService().streamChat(
+              payload.message,
+              payload.conversationId || 'default',
+              (chunk: StreamChunk) => {
+                // 更新会话时间
+                sessionInfo.lastUpdateTime = Date.now();
+
+                // 推送 chunk 到渲染进程
+                event.sender.send(IPC_CHANNELS.AI.CHAT_STREAM_CHUNK, {
+                  sessionId,
+                  ...chunk,
+                });
+              },
+              controller.signal,
+              payload.userId
+            );
+
+            // 流式完成
+            sessionInfo.status = 'completed';
+            logger.debug(`[AI Handlers] Stream completed: ${sessionId}`);
+          } catch (error) {
+            // 流式错误
+            sessionInfo.status = 'error';
+            logger.error(`[AI Handlers] Stream error: ${sessionId}`, error);
+
+            event.sender.send(IPC_CHANNELS.AI.CHAT_STREAM_CHUNK, {
+              sessionId,
+              type: 'error',
+              content: '',
+              error: error instanceof Error ? error.message : String(error),
+            });
+          } finally {
+            // 清理会话
+            activeSessions.delete(sessionId);
+          }
+        })();
+
+        // 立即返回会话 ID
+        return {
+          success: true,
+          data: { sessionId },
+        } as IPCResponse<{ sessionId: string }>;
+      } catch (error) {
+        logger.error("[AI Handlers] Stream chat error:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as IPCResponse;
+      }
+    },
+  );
+
+  // 中断流式聊天
+  ipcMain.handle(
+    IPC_CHANNELS.AI.CHAT_ABORT,
+    async (_event, sessionId: string) => {
+      try {
+        const session = activeSessions.get(sessionId);
+        if (!session) {
+          return {
+            success: false,
+            error: "Session not found",
+          } as IPCResponse;
+        }
+
+        logger.debug(`[AI Handlers] Aborting stream session: ${sessionId}`);
+        session.controller?.abort();
+        session.status = 'aborted';
+        activeSessions.delete(sessionId);
 
         return {
           success: true,
-          data: response,
-        } as IPCResponse<AIResponse>;
+        } as IPCResponse;
       } catch (error) {
-        logger.error("[AI Handlers] Stream chat error:", error);
+        logger.error("[AI Handlers] Abort stream error:", error);
         return {
           success: false,
           error: error instanceof Error ? error.message : String(error),
