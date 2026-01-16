@@ -15,6 +15,7 @@ import { z } from "zod";
 export const AI_PROTOCOL = {
   OPENAI_COMPATIBLE: "openai_compatible",
   ANTHROPIC: "anthropic",
+  GEMINI: "gemini",
 } as const;
 
 export type AIProtocol = (typeof AI_PROTOCOL)[keyof typeof AI_PROTOCOL];
@@ -71,7 +72,7 @@ export type AuthType = (typeof AUTH_TYPES)[keyof typeof AUTH_TYPES];
 export const ProviderDisplaySchema = z.object({
   name: z.string(),
   description: z.string(),
-  icon: z.string().optional(), // 图标名称或 URL
+  iconPath: z.string().optional(), // 图标路径（相对于 assets/images/）
   website: z.string().url().optional(),
   docsUrl: z.string().url().optional(),
 });
@@ -209,7 +210,7 @@ export type ModelListResponse = z.infer<typeof ModelListResponseSchema>;
 export interface ProviderOption {
   value: AIProviderId;
   label: string;
-  iconId?: string; // @lobehub/icons 的图标 ID
+  iconPath?: string; // 自定义图标的路径（相对于 assets/images/，例如 "providers/openai.svg"）
   isNew?: boolean;
 }
 

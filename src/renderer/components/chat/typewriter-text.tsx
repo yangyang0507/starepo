@@ -1,10 +1,10 @@
 /**
  * 打字机效果文本组件
- * 平滑渲染流式文本，避免页面剧烈跳动
+ * 平滑渲染流式文本,避免页面剧烈跳动
  */
 
-import { useEffect, useState, useRef } from 'react';
-import { Markdown } from '@lobehub/ui';
+import { useEffect, useState, useRef } from "react";
+import { Streamdown } from "streamdown";
 
 export interface TypewriterTextProps {
   content: string;
@@ -14,24 +14,24 @@ export interface TypewriterTextProps {
 }
 
 export function TypewriterText({
-  content = '',
+  content = "",
   isStreaming = false,
   speed = 20,
   onComplete,
 }: TypewriterTextProps) {
-  const [displayedContent, setDisplayedContent] = useState('');
+  const [displayedContent, setDisplayedContent] = useState("");
   const contentRef = useRef(content);
 
   // 当 content 变化时，更新引用
   useEffect(() => {
-    contentRef.current = content || '';
+    contentRef.current = content || "";
   }, [content]);
 
   // 独立的打字循环
   useEffect(() => {
     // 如果不是流式状态，直接显示全部
     if (!isStreaming) {
-      const safeContent = contentRef.current || '';
+      const safeContent = contentRef.current || "";
       setDisplayedContent(safeContent);
       onComplete?.();
       return;
@@ -40,7 +40,7 @@ export function TypewriterText({
     const interval = setInterval(() => {
       const target = contentRef.current;
 
-      setDisplayedContent(current => {
+      setDisplayedContent((current) => {
         if (current.length < target.length) {
           // 还有内容没显示，前进一个字符
           const nextLength = current.length + 1;
@@ -58,11 +58,10 @@ export function TypewriterText({
   }, [isStreaming, speed, onComplete]);
 
   return (
-    <div className="relative">
-      <Markdown>{displayedContent}</Markdown>
-      {isStreaming && (
-        <span className="inline-block w-0.5 h-4 ml-0.5 bg-current animate-pulse" />
-      )}
+    <div className="prose dark:prose-invert relative max-w-none">
+      <Streamdown className="prose-sm prose-pre:border prose-pre:bg-muted/50 prose-pre:p-4 prose-p:leading-relaxed">
+        {displayedContent}
+      </Streamdown>
     </div>
   );
 }

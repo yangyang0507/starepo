@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { useAIAccountsStore } from '@/stores/ai-accounts-store';
 import { useAIProviderUIStore } from '@/stores/ai-provider-ui-store';
 import { AddProviderPopup, type AddProviderData } from './add-provider-popup';
-import { ProviderIcon } from '@lobehub/icons';
+import { ProviderIcon } from './provider-icon';
 import type { AIProviderId, ProviderOption } from '@shared/types';
 import {
   DndContext,
@@ -102,9 +102,10 @@ function SortableProviderItem({
         {/* Provider Logo */}
         <div className="w-5 h-5 flex-shrink-0">
           <ProviderIcon
-            provider={provider.iconId || provider.value}
+            provider={provider.label}
+            iconPath={provider.iconPath}
             size={20}
-            type={'mono'}
+            invert={isActive}
           />
         </div>
 
@@ -245,11 +246,22 @@ export function ProviderList({
       // 生成唯一的 Provider ID
       const customProviderId = `custom-${Date.now()}` as AIProviderId;
 
-      // 保存账户配置（保存 iconId 而非 logo）
+      // 如果用户上传了图标文件，转为 base64 (TODO: 后续可优化为保存文件到 assets)
+      let iconPath: string | undefined;
+      if (data.iconFile) {
+        const reader = new FileReader();
+        iconPath = await new Promise<string>((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(data.iconFile!);
+        });
+      }
+
+      // 保存账户配置
       await saveAccount({
         providerId: customProviderId,
         name: data.name,
-        logo: data.iconId, // 将 iconId 存储在 logo 字段中（兼容现有存储）
+        logo: iconPath, // 存储 base64 或 undefined
         protocol: data.type,
         timeout: 30000,
         retries: 3,
@@ -261,7 +273,7 @@ export function ProviderList({
       const newProvider: ProviderOption = {
         value: customProviderId,
         label: data.name,
-        iconId: data.iconId, // 使用 iconId
+        iconPath: iconPath, // 使用 base64 data URL 或 undefined
         isNew: false,
       };
 

@@ -1,9 +1,9 @@
 /**
  * 添加自定义 Provider 弹窗
- * 支持从 @lobehub/icons 图标库中选择图标
+ * 支持上传自定义图标
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,15 +11,20 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Search } from 'lucide-react';
-import { AI_PROTOCOL, type AIProtocol } from '@shared/types/ai-provider';
-import { providerMappings, ModelProvider } from '@lobehub/icons/es/features/index';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Loader2, Upload, X } from "lucide-react";
+import { AI_PROTOCOL, type AIProtocol } from "@shared/types/ai-provider";
+import { ProviderIcon } from "./provider-icon";
 
 interface AddProviderPopupProps {
   open: boolean;
@@ -30,7 +35,8 @@ interface AddProviderPopupProps {
 export interface AddProviderData {
   name: string;
   type: AIProtocol;
-  iconId: string; // 选择的图标 ID
+  iconPath?: string; // 可选的图标路径
+  iconFile?: File; // 用户上传的图标文件
 }
 
 export function AddProviderPopup({
@@ -38,62 +44,53 @@ export function AddProviderPopup({
   onOpenChange,
   onConfirm,
 }: AddProviderPopupProps) {
-  const [name, setName] = useState('');
+  const [name, setName] = useState("");
   const [type, setType] = useState<AIProtocol>(AI_PROTOCOL.OPENAI_COMPATIBLE);
-  const [selectedIconId, setSelectedIconId] = useState<string | null>(null);
-  const [searchText, setSearchText] = useState('');
+  const [iconFile, setIconFile] = useState<File | null>(null);
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 构建可选择的图标列表
-  const iconOptions: Array<{
-    id: string;
-    Icon: React.ComponentType<{ size?: number; className?: string }>;
-    keywords: string[];
-  }> = useMemo(() => {
-    // 获取所有 ModelProvider 枚举值，用于匹配
-    const providerValues = Object.values(ModelProvider);
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-    return providerMappings.map((mapping) => {
-      // 优先使用与 ModelProvider 匹配的关键词作为 id
-      const matchedKeyword = mapping.keywords.find(keyword => {
-        const cleanKeyword = keyword.toLowerCase().replace('^', '').replace('/', '');
-        return providerValues.includes(cleanKeyword as any);
-      });
+    // 验证文件类型
+    if (!file.type.startsWith("image/")) {
+      setError("请选择图片文件（PNG、SVG、JPG 等）");
+      return;
+    }
 
-      const id = matchedKeyword
-        ? matchedKeyword.replace('^', '').replace('/', '')
-        : mapping.keywords[0]?.replace('^', '').replace('/', '') || Math.random().toString();
+    // 验证文件大小（限制 2MB）
+    if (file.size > 2 * 1024 * 1024) {
+      setError("图片大小不能超过 2MB");
+      return;
+    }
 
-      return {
-        id,
-        Icon: mapping.Icon,
-        keywords: mapping.keywords,
-      };
-    });
-  }, []);
+    setIconFile(file);
+    setError(null);
 
-  // 过滤图标
-  const filteredIcons = useMemo(() => {
-    if (!searchText.trim()) return iconOptions;
+    // 生成预览
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setIconPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
-    const lowerSearch = searchText.toLowerCase();
-    return iconOptions.filter((option) =>
-      option.keywords.some((keyword) =>
-        keyword.toLowerCase().replace('^', '').includes(lowerSearch)
-      )
-    );
-  }, [iconOptions, searchText]);
+  const handleRemoveIcon = () => {
+    setIconFile(null);
+    setIconPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const handleSubmit = async () => {
     // 验证
     if (!name.trim()) {
-      setError('请输入 Provider 名称');
-      return;
-    }
-
-    if (!selectedIconId) {
-      setError('请选择一个图标');
+      setError("请输入 Provider 名称");
       return;
     }
 
@@ -104,40 +101,40 @@ export function AddProviderPopup({
       await onConfirm({
         name: name.trim(),
         type,
-        iconId: selectedIconId,
+        iconFile: iconFile || undefined,
       });
 
       // 重置表单
-      setName('');
+      setName("");
       setType(AI_PROTOCOL.OPENAI_COMPATIBLE);
-      setSelectedIconId(null);
-      setSearchText('');
+      setIconFile(null);
+      setIconPreview(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
       onOpenChange(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '添加失败');
+      setError(err instanceof Error ? err.message : "添加失败");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleCancel = () => {
-    setName('');
+    setName("");
     setType(AI_PROTOCOL.OPENAI_COMPATIBLE);
-    setSelectedIconId(null);
-    setSearchText('');
+    setIconFile(null);
+    setIconPreview(null);
     setError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
     onOpenChange(false);
   };
 
-  // 获取选中的图标组件
-  const SelectedIcon = useMemo(() => {
-    if (!selectedIconId) return null;
-    return iconOptions.find((opt) => opt.id === selectedIconId)?.Icon;
-  }, [selectedIconId, iconOptions]);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>添加自定义 Provider</DialogTitle>
           <DialogDescription>
@@ -161,115 +158,104 @@ export function AddProviderPopup({
           {/* Provider 类型 */}
           <div className="space-y-2">
             <Label>API 类型</Label>
-            <RadioGroup
+            <Select
               value={type}
               onValueChange={(val) => setType(val as AIProtocol)}
               disabled={isSubmitting}
             >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem
-                  value={AI_PROTOCOL.OPENAI_COMPATIBLE}
-                  id="add-type-openai"
-                />
-                <Label
-                  htmlFor="add-type-openai"
-                  className="font-normal cursor-pointer"
-                >
-                  OpenAI 兼容格式
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem
-                  value={AI_PROTOCOL.ANTHROPIC}
-                  id="add-type-anthropic"
-                />
-                <Label
-                  htmlFor="add-type-anthropic"
-                  className="font-normal cursor-pointer"
-                >
-                  Anthropic 格式
-                </Label>
-              </div>
-            </RadioGroup>
+              <SelectTrigger>
+                <SelectValue placeholder="选择 API 类型" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={AI_PROTOCOL.OPENAI_COMPATIBLE}>
+                  OpenAI
+                </SelectItem>
+                <SelectItem value={AI_PROTOCOL.ANTHROPIC}>
+                  Anthropic
+                </SelectItem>
+                <SelectItem value={AI_PROTOCOL.GEMINI}>
+                  Gemini
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          {/* 图标选择 */}
+          {/* 图标上传 */}
           <div className="space-y-2">
-            <Label>选择图标</Label>
+            <Label>Provider 图标（可选）</Label>
+            <p className="text-xs text-muted-foreground">
+              不上传图标将显示文字缩写
+            </p>
 
-            {/* 搜索框 */}
-            <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                placeholder="搜索图标（例如：openai、anthropic）..."
-                className="pl-9"
-                disabled={isSubmitting}
-              />
-            </div>
-
-            {/* 当前选中的图标 */}
-            {SelectedIcon && (
-              <div className="flex items-center gap-2 p-2 rounded-md border bg-muted/50">
-                <span className="text-sm text-muted-foreground">已选择：</span>
-                <div className="w-6 h-6">
-                  <SelectedIcon size={24} />
+            {/* 图标预览或上传按钮 */}
+            {iconPreview ? (
+              <div className="flex items-center gap-3 p-3 rounded-md border bg-muted/30">
+                <div className="flex-shrink-0">
+                  <img
+                    src={iconPreview}
+                    alt="图标预览"
+                    className="w-12 h-12 rounded object-contain bg-background"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {iconFile?.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {iconFile?.size
+                      ? `${(iconFile.size / 1024).toFixed(1)} KB`
+                      : ""}
+                  </p>
                 </div>
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedIconId(null)}
+                  size="icon"
+                  onClick={handleRemoveIcon}
                   disabled={isSubmitting}
-                  className="h-6 px-2 text-xs"
+                  className="flex-shrink-0"
                 >
-                  清除
+                  <X className="h-4 w-4" />
                 </Button>
+              </div>
+            ) : (
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  disabled={isSubmitting}
+                  className="hidden"
+                  id="icon-upload"
+                />
+                <label htmlFor="icon-upload">
+                  <div className="flex items-center justify-center gap-2 p-6 rounded-md border-2 border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 hover:bg-muted/50 transition-colors cursor-pointer">
+                    <Upload className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">
+                      点击上传图标
+                    </span>
+                  </div>
+                </label>
               </div>
             )}
 
-            {/* 图标网格 */}
-            <ScrollArea className="h-48 rounded-md border">
-              <div className="p-3 grid grid-cols-8 gap-2">
-                {filteredIcons.map((option) => {
-                  const isSelected = selectedIconId === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setSelectedIconId(option.id)}
-                      disabled={isSubmitting}
-                      className={`
-                        flex items-center justify-center p-2 rounded-md transition-all
-                        ${isSelected
-                          ? 'bg-primary text-primary-foreground ring-2 ring-primary'
-                          : 'hover:bg-muted'
-                        }
-                      `}
-                      title={option.keywords.join(', ')}
-                    >
-                      <option.Icon size={24} />
-                    </button>
-                  );
-                })}
-                {filteredIcons.length === 0 && (
-                  <div className="col-span-8 text-center text-sm text-muted-foreground py-8">
-                    未找到匹配的图标
-                  </div>
-                )}
+            {/* 文字预览 */}
+            {!iconPreview && name && (
+              <div className="flex items-center gap-2 p-2 rounded-md border bg-muted/30">
+                <span className="text-xs text-muted-foreground">
+                  默认显示：
+                </span>
+                <ProviderIcon provider={name} size={32} />
+                <span className="text-xs text-muted-foreground">
+                  （基于名称生成）
+                </span>
               </div>
-            </ScrollArea>
-
-            <p className="text-xs text-muted-foreground">
-              共 {filteredIcons.length} 个图标可选
-            </p>
+            )}
           </div>
 
           {/* 错误提示 */}
-          {error && (
-            <div className="text-sm text-destructive">{error}</div>
-          )}
+          {error && <div className="text-sm text-destructive">{error}</div>}
         </div>
 
         <DialogFooter>
@@ -284,7 +270,7 @@ export function AddProviderPopup({
           <Button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting || !name.trim() || !selectedIconId}
+            disabled={isSubmitting || !name.trim()}
           >
             {isSubmitting ? (
               <>
@@ -292,7 +278,7 @@ export function AddProviderPopup({
                 添加中...
               </>
             ) : (
-              '添加'
+              "添加"
             )}
           </Button>
         </DialogFooter>

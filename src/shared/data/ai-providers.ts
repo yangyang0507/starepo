@@ -23,6 +23,7 @@ export const OPENAI_PROVIDER: ProviderDefinition = {
   display: {
     name: 'OpenAI',
     description: '官方 GPT 系列模型，功能全面',
+    iconPath: 'providers/openai.svg',
     website: 'https://openai.com',
     docsUrl: 'https://platform.openai.com/docs',
   },
@@ -79,6 +80,7 @@ export const ANTHROPIC_PROVIDER: ProviderDefinition = {
   display: {
     name: 'Anthropic',
     description: 'Claude 系列模型，擅长长文本理解',
+    iconPath: 'providers/anthropic.svg',
     website: 'https://anthropic.com',
     docsUrl: 'https://docs.anthropic.com',
   },
@@ -134,6 +136,7 @@ export const DEEPSEEK_PROVIDER: ProviderDefinition = {
   display: {
     name: 'DeepSeek',
     description: '中国大陆可用的高性价比模型',
+    iconPath: 'providers/deepseek.svg',
     website: 'https://deepseek.com',
     docsUrl: 'https://platform.deepseek.com',
   },
@@ -205,12 +208,14 @@ export function getProviderDefinition(providerId: string): ProviderDefinition | 
 export function getProviderOptions(): Array<{
   value: string;
   label: string;
+  iconPath?: string;
   isNew?: boolean;
   isBeta?: boolean;
 }> {
   return AI_PROVIDER_SYSTEM_CONFIG.providers.map(provider => ({
     value: provider.id,
     label: provider.display.name,
+    iconPath: provider.display.iconPath,
     isNew: false,
   }));
 }
