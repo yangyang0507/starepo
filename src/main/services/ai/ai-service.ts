@@ -552,6 +552,81 @@ export class AIService {
   }
 
   /**
+   * 生成对话标题
+   * 使用 AI 根据对话内容生成简洁的标题
+   */
+  async generateTitle(input: {
+    conversationId: string;
+    firstUserMessage: string;
+    firstAssistantMessage?: string;
+    tempTitle: string;
+    modelId?: string;
+  }): Promise<{ title: string }> {
+    try {
+      // 构建 Prompt
+      const prompt = `请为以下对话生成一个简洁的标题（不超过20个字），只输出JSON格式：{"title":"..."}
+
+用户：${input.firstUserMessage}
+${input.firstAssistantMessage ? `助手：${input.firstAssistantMessage}` : ''}
+
+要求：
+1. 标题要简洁明了，能概括对话主题
+2. 不超过20个字
+3. 只输出JSON格式，不要其他内容`;
+
+      // 获取当前启用的 Provider 账户
+      const enabledAccount = await this.providerAccountService.getEnabledAccount();
+      if (!enabledAccount) {
+        // 如果没有启用的账户，返回临时标题
+        logger.warn('[AIService] No enabled account for title generation, using temp title');
+        return { title: input.tempTitle };
+      }
+
+      // 使用便宜的模型（如果可用）
+      const model = await this.getModel();
+
+      // 调用 AI 生成标题
+      const result = await generateText({
+        model,
+        prompt,
+        temperature: 0.2, // 低温度，减少随机性
+        maxTokens: 50, // 限制 token 数量
+      });
+
+      // 解析 JSON 响应
+      const text = result.text.trim();
+
+      // 尝试提取 JSON
+      let jsonMatch = text.match(/\{[^}]*"title"[^}]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.title && typeof parsed.title === 'string') {
+          const title = parsed.title.trim();
+          logger.info(`[AIService] Generated title for ${input.conversationId}: ${title}`);
+          return { title };
+        }
+      }
+
+      // 如果解析失败，尝试直接提取引号内的内容
+      const quoteMatch = text.match(/"([^"]+)"/);
+      if (quoteMatch && quoteMatch[1]) {
+        const title = quoteMatch[1].trim();
+        logger.info(`[AIService] Extracted title from quotes: ${title}`);
+        return { title };
+      }
+
+      // 如果都失败，返回临时标题
+      logger.warn('[AIService] Failed to parse title, using temp title');
+      return { title: input.tempTitle };
+
+    } catch (error) {
+      logger.error('[AIService] Failed to generate title:', error);
+      // 失败时返回临时标题
+      return { title: input.tempTitle };
+    }
+  }
+
+  /**
    * 清理资源
    */
   async cleanup(): Promise<void> {

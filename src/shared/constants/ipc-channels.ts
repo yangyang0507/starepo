@@ -94,6 +94,13 @@ export const IPC_CHANNELS = {
     GET_CHAT_HISTORY: "ai:getChatHistory",
     CLEAR_CHAT_HISTORY: "ai:clearChatHistory",
 
+    // 会话管理
+    GENERATE_TITLE: "ai:generateTitle",
+    GET_CONVERSATIONS: "ai:getConversations",
+    SAVE_CONVERSATION_META: "ai:saveConversationMeta",
+    DELETE_CONVERSATION: "ai:deleteConversation",
+    CONVERSATION_TITLE_UPDATED: "ai:conversationTitleUpdated",
+
     // Provider 和模型相关
     GET_PROVIDER_LIST: "ai:getProviderList",
     GET_PROVIDER_OPTIONS: "ai:getProviderOptions",

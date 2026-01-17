@@ -1,24 +1,34 @@
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Plus, Trash2 } from "lucide-react";
-import { useChatStore, getConversationIds, getConversationSummary } from "@/stores/chat-store";
+import { useChatStore, getConversationSummary } from "@/stores/chat-store";
+import { useMemo } from "react";
 
 export function ChatHistoryList() {
-    const { currentConversationId, setConversationId, deleteConversation } = useChatStore();
-    const conversationIds = getConversationIds();
+    // ✅ 响应式订阅 sessions
+    const sessions = useChatStore(state => state.sessions);
+    const currentConversationId = useChatStore(state => state.currentConversationId);
+    const createSession = useChatStore(state => state.createSession);
+    const selectSession = useChatStore(state => state.selectSession);
+    const deleteSession = useChatStore(state => state.deleteSession);
+
+    // 派生数据：从 sessions 获取 ID 列表
+    const conversationIds = useMemo(() => Object.keys(sessions), [sessions]);
 
     const handleNewChat = () => {
-        const newId = Date.now().toString();
-        setConversationId(newId);
+        const newId = createSession();
+        console.log('[ChatHistoryList] Created new chat:', newId);
     };
 
     const handleSelectConversation = (id: string) => {
-        setConversationId(id);
+        selectSession(id);
     };
 
     const handleDeleteConversation = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
         if (confirm("确定要删除此对话吗？")) {
-            deleteConversation(id);
+            deleteSession(id).catch(error => {
+                console.error('[ChatHistoryList] Failed to delete conversation:', error);
+            });
         }
     };
 

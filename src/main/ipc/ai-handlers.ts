@@ -371,6 +371,144 @@ export function initializeAIHandlers(): void {
     }
   });
 
+  // ========== 会话管理相关 ==========
+
+  // 生成对话标题
+  ipcMain.handle(
+    IPC_CHANNELS.AI.GENERATE_TITLE,
+    async (_event, payload: {
+      conversationId: string;
+      firstUserMessage: string;
+      firstAssistantMessage?: string;
+      tempTitle: string;
+      modelId?: string;
+    }) => {
+      try {
+        const { conversationMetadataService } = await import('@main/services/conversations');
+
+        // 确保服务已初始化
+        await conversationMetadataService.initialize();
+
+        // 创建或获取会话元数据
+        await conversationMetadataService.createOrGet(
+          payload.conversationId,
+          payload.tempTitle
+        );
+
+        // 调用 AI 生成标题
+        const result = await getAIService().generateTitle(payload);
+
+        // 更新元数据
+        const meta = await conversationMetadataService.updateTitle(
+          payload.conversationId,
+          result.title,
+          'ready'
+        );
+
+        return {
+          success: true,
+          data: {
+            conversationId: meta.id,
+            title: meta.title,
+            status: meta.status,
+          },
+        } as IPCResponse;
+      } catch (error) {
+        logger.error("[AI Handlers] Generate title error:", error);
+
+        // 失败时保存临时标题
+        try {
+          const { conversationMetadataService } = await import('@main/services/conversations');
+          await conversationMetadataService.updateTitle(
+            payload.conversationId,
+            payload.tempTitle,
+            'failed',
+            error instanceof Error ? error.message : String(error)
+          );
+        } catch (updateError) {
+          logger.error("[AI Handlers] Failed to update title after error:", updateError);
+        }
+
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as IPCResponse;
+      }
+    }
+  );
+
+  // 获取所有会话列表
+  ipcMain.handle(IPC_CHANNELS.AI.GET_CONVERSATIONS, async () => {
+    try {
+      const { conversationMetadataService } = await import('@main/services/conversations');
+      await conversationMetadataService.initialize();
+
+      const conversations = await conversationMetadataService.list();
+
+      return {
+        success: true,
+        data: { conversations },
+      } as IPCResponse;
+    } catch (error) {
+      logger.error("[AI Handlers] Get conversations error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      } as IPCResponse;
+    }
+  });
+
+  // 保存会话元数据
+  ipcMain.handle(
+    IPC_CHANNELS.AI.SAVE_CONVERSATION_META,
+    async (_event, payload: { conversationId: string; tempTitle: string }) => {
+      try {
+        const { conversationMetadataService } = await import('@main/services/conversations');
+        await conversationMetadataService.initialize();
+
+        const meta = await conversationMetadataService.createOrGet(
+          payload.conversationId,
+          payload.tempTitle
+        );
+
+        return {
+          success: true,
+          data: meta,
+        } as IPCResponse;
+      } catch (error) {
+        logger.error("[AI Handlers] Save conversation meta error:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as IPCResponse;
+      }
+    }
+  );
+
+  // 删除会话
+  ipcMain.handle(
+    IPC_CHANNELS.AI.DELETE_CONVERSATION,
+    async (_event, conversationId: string) => {
+      try {
+        const { conversationMetadataService } = await import('@main/services/conversations');
+        await conversationMetadataService.initialize();
+
+        await conversationMetadataService.delete(conversationId);
+
+        return {
+          success: true,
+          data: { conversationId },
+        } as IPCResponse;
+      } catch (error) {
+        logger.error("[AI Handlers] Delete conversation error:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as IPCResponse;
+      }
+    }
+  );
+
   logger.info("[AI Handlers] All handlers registered successfully");
 }
 

@@ -9,12 +9,18 @@ import "@preload/types";
 // 初始化全局错误处理器
 import "./utils/global-error-handler";
 
+// 初始化 ChatStore
+import { initializeChatStore } from "./stores/chat-store";
+
 // 确保 DOM 已加载
 document.addEventListener("DOMContentLoaded", () => {
   const container = document.getElementById("root");
   if (!container) {
     throw new Error("Root element not found");
   }
+
+  // 初始化 ChatStore
+  initializeChatStore();
 
   const root = createRoot(container);
 
