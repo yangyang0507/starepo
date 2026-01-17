@@ -148,16 +148,12 @@ export function ProviderSetting({
                 enabled: true,
               };
 
+              // 加载模型列表（优先缓存，无缓存时返回预设模型）
               const result = await getModelList(config, false);
-
-              if (result.models.length > 0) {
-                setModels(result.models);
-                setModelState("cached");
-              } else {
-                setModelState("no-cache");
-              }
+              setModels(result.models);
+              setModelState("cached");
             } catch (error) {
-              console.debug("No cached models available:", error);
+              console.debug("Failed to load models:", error);
               setModelState("no-cache");
             }
           }

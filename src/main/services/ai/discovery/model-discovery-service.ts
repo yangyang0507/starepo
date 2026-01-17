@@ -227,6 +227,17 @@ export class ModelDiscoveryService {
     const accountHash = this.hashAccountConfig(config);
     logger.debug(`[ModelDiscovery] Getting models for ${config.providerId}, accountHash: ${accountHash}, forceRefresh: ${forceRefresh}`);
 
+    // 如果 Provider 不支持模型列表，直接返回预定义模型
+    if (!provider.validation.supportsModelListing) {
+      logger.debug(`[ModelDiscovery] Provider ${config.providerId} does not support model listing, using predefined models`);
+      return {
+        models: this.getPredefinedModels(config.providerId),
+        providerId: config.providerId,
+        fetchedAt: new Date().toISOString(),
+        ttl: 0,
+      };
+    }
+
     const cached = this.cacheStorage.get(config.providerId, accountHash);
 
     // 如果有有效缓存且不强制刷新，返回缓存
@@ -242,11 +253,11 @@ export class ModelDiscoveryService {
       };
     }
 
-    // 如果不强制刷新且没有缓存，返回空列表（不发起网络请求）
+    // 如果不强制刷新且没有缓存，返回预定义模型（不发起网络请求）
     if (!forceRefresh && !cached) {
-      logger.debug(`[ModelDiscovery] No cache available and forceRefresh=false, returning empty list for ${config.providerId}`);
+      logger.debug(`[ModelDiscovery] No cache available and forceRefresh=false, returning predefined models for ${config.providerId}`);
       return {
-        models: [],
+        models: this.getPredefinedModels(config.providerId),
         providerId: config.providerId,
         fetchedAt: new Date().toISOString(),
         ttl: 0,
@@ -435,7 +446,15 @@ export class ModelDiscoveryService {
         });
 
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          const error = new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+          // 4xx 错误（客户端错误）不应该重试
+          if (response.status >= 400 && response.status < 500) {
+            logger.error(`Client error ${response.status}, not retrying`);
+            throw error;
+          }
+
+          throw error;
         }
 
         const data = await response.json();
@@ -453,6 +472,16 @@ export class ModelDiscoveryService {
         };
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+
+        // 检查是否是客户端错误（4xx）
+        const isClientError = lastError.message.match(/HTTP 4\d{2}:/);
+
+        if (isClientError) {
+          // 客户端错误不重试，直接抛出
+          logger.error(`Client error detected, aborting retries:`, lastError.message);
+          throw lastError;
+        }
+
         logger.warn(`Attempt ${attempt}/${maxRetries} failed:`, lastError.message);
 
         // 如果不是最后一次尝试，等待后重试

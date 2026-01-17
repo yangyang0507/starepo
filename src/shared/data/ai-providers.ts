@@ -46,13 +46,15 @@ export const OPENAI_PROVIDER: ProviderDefinition = {
   defaults: {
     baseUrl: 'https://api.openai.com/v1',
     models: [
-      'gpt-5.2-2025-12-11',
-      'gpt-5.1-2025-11-13',
-      'gpt-5-2025-08-07',
-      'gpt-5-mini-2025-08-07',
-      'gpt-5-nano-2025-08-07'
+      'gpt-4o',
+      'gpt-4o-mini',
+      'gpt-4-turbo',
+      'gpt-4',
+      'gpt-3.5-turbo',
+      'o1',
+      'o1-mini',
     ],
-    recommendedModel: 'gpt-5.2-2025-12-11',
+    recommendedModel: 'gpt-4o',
     maxTokens: 4096,
     temperature: 0.7,
   },

@@ -448,17 +448,11 @@ export function ChatInterface({
                         <MessageContent
                           className={msg.role === "user" ? "shadow-sm" : ""}
                         >
-                          {msg.role === "user" ? (
-                            <div className="text-base leading-relaxed whitespace-pre-wrap">
-                              {msg.content}
-                            </div>
-                          ) : (
-                            <MessageContentRenderer
-                              parts={msg.parts}
-                              content={msg.content}
-                              isStreaming={isStreaming && streamingMessageId === msg.id}
-                            />
-                          )}
+                          <MessageContentRenderer
+                            parts={msg.parts}
+                            content={msg.content}
+                            isStreaming={isStreaming && streamingMessageId === msg.id}
+                          />
                         </MessageContent>
 
                         <MessageToolbar className="mt-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
