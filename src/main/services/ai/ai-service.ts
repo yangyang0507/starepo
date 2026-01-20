@@ -13,19 +13,26 @@ import {
   RepositoryReference,
   StreamChunk,
   ToolCallInfo,
-} from '@shared/types';
-import type { AIProviderId, ProviderAccountConfig } from '@shared/types/ai-provider';
-import { logger } from '@main/utils/logger';
-import { generateText, streamText, stepCountIs } from 'ai';
-import { initializeTools, tools } from './tools';
-import { LanceDBSearchService } from '@main/services/search/lancedb-search-service';
-import { globalProviderRegistry } from './registry-init';
-import { ProviderFactory } from './providers/factory/provider-factory';
-import { ModelResolver } from './core/models/model-resolver';
-import { MiddlewareChain } from './core/middleware/middleware-chain';
-import { LoggingMiddleware, RetryMiddleware, RateLimitMiddleware } from './core/middleware/built-in';
-import { ModelCacheService } from './storage/model-cache-service';
-import { ProviderAccountService } from './storage/provider-account-service';
+} from "@shared/types";
+import type {
+  AIProviderId,
+  ProviderAccountConfig,
+} from "@shared/types/ai-provider";
+import { logger } from "@main/utils/logger";
+import { generateText, streamText, stepCountIs } from "ai";
+import { initializeTools, tools } from "./tools";
+import { LanceDBSearchService } from "@main/services/search/lancedb-search-service";
+import { globalProviderRegistry } from "./registry-init";
+import { ProviderFactory } from "./providers/factory/provider-factory";
+import { ModelResolver } from "./core/models/model-resolver";
+import { MiddlewareChain } from "./core/middleware/middleware-chain";
+import {
+  LoggingMiddleware,
+  RetryMiddleware,
+  RateLimitMiddleware,
+} from "./core/middleware/built-in";
+import { ModelCacheService } from "./storage/model-cache-service";
+import { ProviderAccountService } from "./storage/provider-account-service";
 
 export class AIService {
   private settings: AISettings | null = null;
@@ -73,22 +80,34 @@ export class AIService {
   async initialize(settings: AISettings): Promise<void> {
     try {
       if (!settings.enabled) {
-        throw new AIError(AIErrorCode.NOT_CONFIGURED, 'AI service not configured');
+        throw new AIError(
+          AIErrorCode.NOT_CONFIGURED,
+          "AI service not configured",
+        );
       }
 
       const account = this.toProviderAccountConfig(settings);
       const provider = globalProviderRegistry.getProvider(account.providerId);
 
       if (!provider) {
-        throw new AIError(AIErrorCode.NOT_CONFIGURED, `Unknown provider: ${account.providerId}`);
+        throw new AIError(
+          AIErrorCode.NOT_CONFIGURED,
+          `Unknown provider: ${account.providerId}`,
+        );
       }
 
       if (provider.validation.apiKeyRequired && !account.apiKey) {
-        throw new AIError(AIErrorCode.NOT_CONFIGURED, 'AI service not configured');
+        throw new AIError(
+          AIErrorCode.NOT_CONFIGURED,
+          "AI service not configured",
+        );
       }
 
       if (provider.validation.baseUrlRequired && !account.baseUrl) {
-        throw new AIError(AIErrorCode.NOT_CONFIGURED, 'AI service not configured');
+        throw new AIError(
+          AIErrorCode.NOT_CONFIGURED,
+          "AI service not configured",
+        );
       }
 
       this.settings = settings;
@@ -99,9 +118,9 @@ export class AIService {
         this.toolsInitialized = true;
       }
 
-      logger.debug('AI service initialized with provider:', settings.provider);
+      logger.debug("AI service initialized with provider:", settings.provider);
     } catch (error) {
-      logger.error('Failed to initialize AI service:', error);
+      logger.error("Failed to initialize AI service:", error);
       throw error;
     }
   }
@@ -111,11 +130,14 @@ export class AIService {
    */
   async chat(
     message: string,
-    conversationId: string = 'default',
-    userId?: string
+    conversationId: string = "default",
+    userId?: string,
   ): Promise<AIResponse> {
     if (!this.settings) {
-      throw new AIError(AIErrorCode.NOT_CONFIGURED, 'AI service not initialized');
+      throw new AIError(
+        AIErrorCode.NOT_CONFIGURED,
+        "AI service not initialized",
+      );
     }
 
     try {
@@ -131,21 +153,21 @@ export class AIService {
       // 保存对话历史
       this.addMessageToHistory(conversationId, {
         id: `msg_${Date.now()}`,
-        role: 'user',
+        role: "user",
         content: message,
         timestamp: Date.now(),
       });
 
       this.addMessageToHistory(conversationId, {
         id: `msg_${Date.now() + 1}`,
-        role: 'assistant',
+        role: "assistant",
         content: response.content,
         timestamp: Date.now(),
       });
 
       return response;
     } catch (error) {
-      logger.error('Chat error:', error);
+      logger.error("Chat error:", error);
       throw this.handleError(error);
     }
   }
@@ -155,20 +177,23 @@ export class AIService {
    */
   async streamChat(
     message: string,
-    conversationId: string = 'default',
+    conversationId: string = "default",
     onChunk: (chunk: StreamChunk) => void,
     signal?: AbortSignal,
-    userId?: string
+    userId?: string,
   ): Promise<void> {
     if (!this.settings) {
-      throw new AIError(AIErrorCode.NOT_CONFIGURED, 'AI service not initialized');
+      throw new AIError(
+        AIErrorCode.NOT_CONFIGURED,
+        "AI service not initialized",
+      );
     }
 
     try {
       // 保存用户消息到历史
       this.addMessageToHistory(conversationId, {
         id: `msg_${Date.now()}`,
-        role: 'user',
+        role: "user",
         content: message,
         timestamp: Date.now(),
       });
@@ -198,7 +223,7 @@ export class AIService {
         abortSignal: signal,
       });
 
-      let fullText = '';
+      let fullText = "";
       const allReferences: RepositoryReference[] = [];
       const activeToolCalls = new Map<string, ToolCallInfo>();
       let hasTextDelta = false; // 🔧 跟踪是否收到过 text-delta
@@ -207,91 +232,102 @@ export class AIService {
       for await (const chunk of result.fullStream) {
         // 检查是否被中断
         if (signal?.aborted) {
-          logger.debug('Stream aborted by signal');
+          logger.debug("Stream aborted by signal");
           break;
         }
 
         switch (chunk.type) {
-          case 'text-delta':
+          case "text-delta":
             hasTextDelta = true; // 标记收到过 text-delta
             fullText += chunk.text; // AI SDK 5 使用 text 属性
             onChunk({
-              type: 'text',
+              type: "text",
               content: chunk.text,
             });
             break;
 
-          case 'tool-call':
+          case "tool-call":
             {
               const toolCallInfo: ToolCallInfo = {
                 id: chunk.toolCallId,
                 name: chunk.toolName,
-                status: 'calling',
+                status: "calling",
                 arguments: chunk.input as Record<string, unknown>, // AI SDK 5 使用 input
                 startedAt: Date.now(),
               };
               activeToolCalls.set(chunk.toolCallId, toolCallInfo);
               onChunk({
-                type: 'tool',
-                content: '',
+                type: "tool",
+                content: "",
                 toolCall: toolCallInfo,
               });
             }
             break;
 
-          case 'tool-result':
+          case "tool-result":
             {
               const toolCallInfo = activeToolCalls.get(chunk.toolCallId);
               if (toolCallInfo) {
-                toolCallInfo.status = 'result';
+                toolCallInfo.status = "result";
                 toolCallInfo.result = chunk.output; // AI SDK 5 使用 output
                 toolCallInfo.endedAt = Date.now();
 
                 // 收集仓库引用
-                if (chunk.output && typeof chunk.output === 'object') {
-                  const resultObj = chunk.output as { repositories?: RepositoryReference[] };
-                  if (resultObj.repositories && Array.isArray(resultObj.repositories)) {
+                if (chunk.output && typeof chunk.output === "object") {
+                  const resultObj = chunk.output as {
+                    repositories?: RepositoryReference[];
+                  };
+                  if (
+                    resultObj.repositories &&
+                    Array.isArray(resultObj.repositories)
+                  ) {
                     allReferences.push(...resultObj.repositories);
                   }
                 }
 
                 onChunk({
-                  type: 'tool',
-                  content: '',
+                  type: "tool",
+                  content: "",
                   toolCall: toolCallInfo,
                 });
               }
             }
             break;
 
-          case 'error':
+          case "error":
             {
               // AI SDK 5 的 error 可能是 errorText 或 error
-              const errorMessage = (chunk as any).errorText ||
-                                   ((chunk as any).error instanceof Error ? (chunk as any).error.message : String((chunk as any).error)) ||
-                                   'Unknown error';
-              logger.error('Stream error:', errorMessage);
+              const errorMessage =
+                (chunk as any).errorText ||
+                ((chunk as any).error instanceof Error
+                  ? (chunk as any).error.message
+                  : String((chunk as any).error)) ||
+                "Unknown error";
+              logger.error("Stream error:", errorMessage);
               onChunk({
-                type: 'error',
-                content: '',
+                type: "error",
+                content: "",
                 error: errorMessage,
               });
             }
             break;
 
-          case 'finish':
+          case "finish":
             {
               // 🔧 兜底逻辑：如果没有收到任何 text-delta，记录警告
-              if (!hasTextDelta && fullText === '') {
-                logger.warn('No text-delta received during stream, response may be empty');
+              if (!hasTextDelta && fullText === "") {
+                logger.warn(
+                  "No text-delta received during stream, response may be empty",
+                );
               }
 
               // 发送结束事件（不再尝试从 chunk 获取 text，因为 AI SDK 5 的 finish 没有该属性）
               onChunk({
-                type: 'end',
+                type: "end",
                 content: fullText,
                 metadata: {
-                  references: allReferences.length > 0 ? allReferences : undefined,
+                  references:
+                    allReferences.length > 0 ? allReferences : undefined,
                 },
               });
             }
@@ -302,17 +338,17 @@ export class AIService {
       // 保存助手消息到历史
       this.addMessageToHistory(conversationId, {
         id: `msg_${Date.now()}`,
-        role: 'assistant',
+        role: "assistant",
         content: fullText,
         timestamp: Date.now(),
         references: allReferences.length > 0 ? allReferences : undefined,
       });
     } catch (error) {
-      logger.error('Stream chat error:', error);
+      logger.error("Stream chat error:", error);
       const aiError = this.handleError(error);
       onChunk({
-        type: 'error',
-        content: '',
+        type: "error",
+        content: "",
         error: aiError.message,
       });
       throw aiError;
@@ -324,33 +360,35 @@ export class AIService {
    */
   private async getModel() {
     if (!this.settings) {
-      throw new AIError(AIErrorCode.NOT_CONFIGURED, 'Settings not available');
+      throw new AIError(AIErrorCode.NOT_CONFIGURED, "Settings not available");
     }
 
     const account = this.toProviderAccountConfig(this.settings);
     const modelId = this.settings.model?.trim() || undefined;
-    const modelSpec = modelId ? `${account.providerId}|${modelId}` : account.providerId;
+    const modelSpec = modelId
+      ? `${account.providerId}|${modelId}`
+      : account.providerId;
 
     // 生成缓存键
     const cacheKey = ModelCacheService.generateKey(
       account.providerId,
-      modelId || 'default',
-      account.baseUrl
+      modelId || "default",
+      account.baseUrl,
     );
 
     // 尝试从缓存获取
     let model = this.modelCache.get(cacheKey);
     if (model) {
-      logger.debug('Using cached model:', cacheKey);
+      logger.debug("Using cached model:", cacheKey);
       return model;
     }
 
     // 创建新模型实例
-    logger.debug('Creating new model:', modelSpec);
+    logger.debug("Creating new model:", modelSpec);
     model = await this.providerFactory.createLanguageModelWithAccount(
       account.providerId,
       account,
-      modelId
+      modelId,
     );
 
     // 缓存模型实例
@@ -362,7 +400,10 @@ export class AIService {
   /**
    * 调用 LLM（带工具支持）
    */
-  private async callLLMWithTools(message: string, context: ChatContext): Promise<AIResponse> {
+  private async callLLMWithTools(
+    message: string,
+    context: ChatContext,
+  ): Promise<AIResponse> {
     const model = await this.getModel();
     const systemPrompt = this.buildSystemPrompt();
     const messages = this.buildMessages(message, context);
@@ -387,9 +428,14 @@ export class AIService {
         if (step.toolResults && step.toolResults.length > 0) {
           for (const toolResult of step.toolResults) {
             // AI SDK v5: toolResult 直接包含结果数据
-            if (toolResult && typeof toolResult === 'object') {
-              const resultObj = toolResult as { repositories?: RepositoryReference[] };
-              if (resultObj.repositories && Array.isArray(resultObj.repositories)) {
+            if (toolResult && typeof toolResult === "object") {
+              const resultObj = toolResult as {
+                repositories?: RepositoryReference[];
+              };
+              if (
+                resultObj.repositories &&
+                Array.isArray(resultObj.repositories)
+              ) {
                 allReferences.push(...resultObj.repositories);
               }
             }
@@ -404,7 +450,8 @@ export class AIService {
       usage: {
         promptTokens: result.usage.inputTokens ?? 0,
         completionTokens: result.usage.outputTokens ?? 0,
-        totalTokens: (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0),
+        totalTokens:
+          (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0),
       },
     };
   }
@@ -467,9 +514,9 @@ export class AIService {
    */
   private buildMessages(
     currentMessage: string,
-    context: ChatContext
-  ): Array<{ role: 'user' | 'assistant'; content: string }> {
-    const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+    context: ChatContext,
+  ): Array<{ role: "user" | "assistant"; content: string }> {
+    const messages: Array<{ role: "user" | "assistant"; content: string }> = [];
 
     // 添加对话历史（最近 10 条）
     const history = context.conversationHistory || [];
@@ -477,14 +524,14 @@ export class AIService {
 
     for (const msg of recentHistory) {
       messages.push({
-        role: msg.role as 'user' | 'assistant',
+        role: msg.role as "user" | "assistant",
         content: msg.content,
       });
     }
 
     // 添加当前消息
     messages.push({
-      role: 'user',
+      role: "user",
       content: currentMessage,
     });
 
@@ -517,7 +564,10 @@ export class AIService {
   /**
    * 添加消息到历史
    */
-  private addMessageToHistory(conversationId: string, message: ChatMessage): void {
+  private addMessageToHistory(
+    conversationId: string,
+    message: ChatMessage,
+  ): void {
     const history = this.conversationHistory.get(conversationId) || [];
     history.push(message);
 
@@ -540,15 +590,18 @@ export class AIService {
 
     if (error instanceof Error) {
       const message = error.message.toLowerCase();
-      if (message.includes('401') || message.includes('unauthorized')) {
-        return new AIError(AIErrorCode.INVALID_API_KEY, 'Invalid API Key', 401);
-      } else if (message.includes('429') || message.includes('rate limit')) {
-        return new AIError(AIErrorCode.RATE_LIMITED, 'Rate limited', 429);
+      if (message.includes("401") || message.includes("unauthorized")) {
+        return new AIError(AIErrorCode.INVALID_API_KEY, "Invalid API Key", 401);
+      } else if (message.includes("429") || message.includes("rate limit")) {
+        return new AIError(AIErrorCode.RATE_LIMITED, "Rate limited", 429);
       }
       return new AIError(AIErrorCode.LLM_ERROR, `LLM error: ${error.message}`);
     }
 
-    return new AIError(AIErrorCode.LLM_ERROR, `Unknown error: ${String(error)}`);
+    return new AIError(
+      AIErrorCode.LLM_ERROR,
+      `Unknown error: ${String(error)}`,
+    );
   }
 
   /**
@@ -567,7 +620,7 @@ export class AIService {
       const prompt = `请为以下对话生成一个简洁的标题（不超过20个字），只输出JSON格式：{"title":"..."}
 
 用户：${input.firstUserMessage}
-${input.firstAssistantMessage ? `助手：${input.firstAssistantMessage}` : ''}
+${input.firstAssistantMessage ? `助手：${input.firstAssistantMessage}` : ""}
 
 要求：
 1. 标题要简洁明了，能概括对话主题
@@ -575,10 +628,15 @@ ${input.firstAssistantMessage ? `助手：${input.firstAssistantMessage}` : ''}
 3. 只输出JSON格式，不要其他内容`;
 
       // 获取当前启用的 Provider 账户
-      const enabledAccount = await this.providerAccountService.getEnabledAccount();
+      const accounts = await this.providerAccountService.listAccounts();
+      const enabledAccount = accounts.find(
+        (acc) => acc.enabled && acc.hasApiKey,
+      );
       if (!enabledAccount) {
         // 如果没有启用的账户，返回临时标题
-        logger.warn('[AIService] No enabled account for title generation, using temp title');
+        logger.warn(
+          "[AIService] No enabled account for title generation, using temp title",
+        );
         return { title: input.tempTitle };
       }
 
@@ -586,23 +644,26 @@ ${input.firstAssistantMessage ? `助手：${input.firstAssistantMessage}` : ''}
       const model = await this.getModel();
 
       // 调用 AI 生成标题
+      logger.info(`[AIService] Calling AI with prompt:\n${prompt}`);
       const result = await generateText({
         model,
         prompt,
         temperature: 0.2, // 低温度，减少随机性
-        maxTokens: 50, // 限制 token 数量
       });
 
       // 解析 JSON 响应
       const text = result.text.trim();
+      logger.info(`[AIService] AI raw response: "${text}"`);
 
       // 尝试提取 JSON
       let jsonMatch = text.match(/\{[^}]*"title"[^}]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
-        if (parsed.title && typeof parsed.title === 'string') {
+        if (parsed.title && typeof parsed.title === "string") {
           const title = parsed.title.trim();
-          logger.info(`[AIService] Generated title for ${input.conversationId}: ${title}`);
+          logger.info(
+            `[AIService] Generated title for ${input.conversationId}: ${title}`,
+          );
           return { title };
         }
       }
@@ -616,11 +677,10 @@ ${input.firstAssistantMessage ? `助手：${input.firstAssistantMessage}` : ''}
       }
 
       // 如果都失败，返回临时标题
-      logger.warn('[AIService] Failed to parse title, using temp title');
+      logger.warn("[AIService] Failed to parse title, using temp title");
       return { title: input.tempTitle };
-
     } catch (error) {
-      logger.error('[AIService] Failed to generate title:', error);
+      logger.error("[AIService] Failed to generate title:", error);
       // 失败时返回临时标题
       return { title: input.tempTitle };
     }
@@ -633,7 +693,7 @@ ${input.firstAssistantMessage ? `助手：${input.firstAssistantMessage}` : ''}
     this.modelCache.stopCleanup();
     this.modelCache.clear();
     this.conversationHistory.clear();
-    logger.debug('AI service cleaned up');
+    logger.debug("AI service cleaned up");
   }
 
   /**

@@ -59,11 +59,14 @@ export async function sendChatMessage(
 export interface StreamChatOptions {
   onTextDelta?: (text: string) => void;
   onToolCall?: (toolCall: {
+    id: string;
     name: string;
     arguments: Record<string, unknown>;
-    status?: 'calling' | 'result' | 'error';
+    status?: "calling" | "result" | "error";
     result?: unknown;
     error?: string;
+    startedAt?: number;
+    endedAt?: number;
   }) => void;
   onComplete?: (data: AIResponse) => void;
   onError?: (error: string) => void;
@@ -109,11 +112,14 @@ export async function sendChatMessageStream(
         case "tool":
           if (chunk.toolCall) {
             options?.onToolCall?.({
+              id: chunk.toolCall.id,
               name: chunk.toolCall.name,
               arguments: chunk.toolCall.arguments || {},
               status: chunk.toolCall.status,
               result: chunk.toolCall.result,
               error: chunk.toolCall.error,
+              startedAt: chunk.toolCall.startedAt,
+              endedAt: chunk.toolCall.endedAt,
             });
           }
           break;

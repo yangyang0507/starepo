@@ -8,11 +8,9 @@ import {
   PanelLeft,
   Check,
 } from "lucide-react";
-import InfiniteScroll from "react-infinite-scroll-component";
 import { ChatHistoryList } from "./chat-history-list";
 import { useChatStore } from "@/stores/chat-store";
 import { useAIAccountsStore } from "@/stores/ai-accounts-store";
-import { useAIApi } from "@/api/ai";
 import { ChatMessage, AIModel } from "@shared/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +29,6 @@ import {
 import {
   Message,
   MessageContent,
-  MessageResponse,
   MessageToolbar,
   MessageActions,
   MessageAction,
@@ -57,9 +54,6 @@ const QUICK_PROMPTS = [
   { id: "3", title: "优化性能", content: "帮我优化代码性能" },
 ];
 
-const INITIAL_DISPLAY_COUNT = 20;
-const LOAD_MORE_COUNT = 10;
-
 export function ChatInterface({
   conversationId: _conversationId,
 }: ChatInterfaceProps) {
@@ -69,8 +63,6 @@ export function ChatInterface({
     abortCurrentStream,
     isStreaming,
     streamingMessageId,
-    processQueue,
-    isProcessingQueue,
   } = useChatStore();
   const {
     accounts,
@@ -84,8 +76,6 @@ export function ChatInterface({
   const [selectedModel, setSelectedModel] = useState("");
   const [availableModels, setAvailableModels] = useState<AIModel[]>([]);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
-  const [displayCount, setDisplayCount] = useState(INITIAL_DISPLAY_COUNT);
-  const [hasMore, setHasMore] = useState(false);
 
   // 检查是否有已启用的 Provider
   const enabledAccount = useMemo(
@@ -148,57 +138,6 @@ export function ChatInterface({
 
     return groups;
   }, [messages]);
-
-  // 计算要显示的消息（倒序）
-  const displayMessages = useMemo(() => {
-    const reversed = [...messages].reverse();
-    return reversed.slice(0, displayCount);
-  }, [messages, displayCount]);
-
-  // 对显示的消息进行分组
-  const displayGroupedMessages = useMemo(() => {
-    if (!displayMessages || displayMessages.length === 0) {
-      return [];
-    }
-
-    const groups: ChatMessage[][] = [];
-    let currentGroup: ChatMessage[] = [];
-
-    // displayMessages 是倒序的，需要正序处理
-    const orderedMessages = [...displayMessages].reverse();
-
-    orderedMessages.forEach((msg) => {
-      if (!msg) return; // 跳过无效消息
-
-      if (msg.role === "user") {
-        if (currentGroup.length > 0) {
-          groups.push(currentGroup);
-        }
-        currentGroup = [msg];
-      } else {
-        currentGroup.push(msg);
-      }
-    });
-
-    if (currentGroup.length > 0) {
-      groups.push(currentGroup);
-    }
-
-    // 倒序返回分组，以便最新的组在前面
-    return groups.reverse();
-  }, [displayMessages]);
-
-  // 更新 hasMore 状态
-  useEffect(() => {
-    setHasMore(displayCount < messages.length);
-  }, [displayCount, messages.length]);
-
-  // 加载更多消息
-  const loadMoreMessages = useCallback(() => {
-    setDisplayCount((prev) =>
-      Math.min(prev + LOAD_MORE_COUNT, messages.length),
-    );
-  }, [messages.length]);
 
   // 初始化账户
   useEffect(() => {
@@ -326,7 +265,7 @@ export function ChatInterface({
     <div className="bg-background flex h-full overflow-hidden">
       {/* 侧边栏 */}
       <div
-        className={`bg-muted/10 flex-shrink-0 border-r transition-all duration-300 ease-in-out ${isHistoryOpen ? "w-[280px] opacity-100" : "w-0 overflow-hidden border-r-0 opacity-0"}`}
+        className={`bg-muted/10 flex-shrink-0 border-r ${isHistoryOpen ? "w-[280px] opacity-100" : "w-0 overflow-hidden border-r-0 opacity-0"}`}
       >
         <div className="flex h-full w-[280px] flex-col">
           <ChatHistoryList />
@@ -385,8 +324,8 @@ export function ChatInterface({
         </div>
 
         {/* 消息列表区域 */}
-        <Conversation className="min-h-0 flex-1" id="messages">
-          <ConversationContent className="mx-auto flex h-full w-full max-w-4xl flex-col-reverse gap-6 px-4 py-6">
+        <Conversation className="min-h-0 flex-1">
+          <ConversationContent className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6">
             {messages.length === 0 ? (
               <ConversationEmptyState
                 icon={
@@ -415,24 +354,8 @@ export function ChatInterface({
                 </div>
               </ConversationEmptyState>
             ) : (
-              <InfiniteScroll
-                dataLength={displayMessages.length}
-                next={loadMoreMessages}
-                hasMore={hasMore}
-                loader={
-                  <div className="flex justify-center py-4">
-                    <Loader size={20} className="text-primary" />
-                  </div>
-                }
-                inverse={true}
-                scrollableTarget="messages"
-                style={{
-                  display: "flex",
-                  flexDirection: "column-reverse",
-                  gap: "2rem",
-                }}
-              >
-                {displayGroupedMessages.map((group, groupIndex) => (
+              <>
+                {groupedMessages.map((group, groupIndex) => (
                   <div
                     key={groupIndex}
                     className="message-group flex flex-col gap-3"
@@ -451,7 +374,9 @@ export function ChatInterface({
                           <MessageContentRenderer
                             parts={msg.parts}
                             content={msg.content}
-                            isStreaming={isStreaming && streamingMessageId === msg.id}
+                            isStreaming={
+                              isStreaming && streamingMessageId === msg.id
+                            }
                           />
                         </MessageContent>
 
@@ -518,7 +443,7 @@ export function ChatInterface({
                     </MessageContent>
                   </Message>
                 )}
-              </InfiniteScroll>
+              </>
             )}
           </ConversationContent>
           <ConversationScrollButton className="bg-background/80 hover:bg-background shadow-md backdrop-blur transition-all hover:shadow-lg" />

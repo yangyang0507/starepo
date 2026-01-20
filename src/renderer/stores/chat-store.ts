@@ -4,15 +4,20 @@
  * 移除 Zustand persist，改用主进程持久化
  */
 
-import { create } from 'zustand';
-import { ChatMessage, AIResponse, TextPart, ToolCallPart } from '@shared/types/ai';
-import type { ConversationMeta } from '@shared/types/conversation';
+import { create } from "zustand";
+import {
+  ChatMessage,
+  AIResponse,
+  TextPart,
+  ToolCallPart,
+} from "@shared/types/ai";
+import type { ConversationMeta } from "@shared/types/conversation";
 import {
   getConversations,
   generateConversationTitle,
   saveConversationMeta,
   deleteConversation as deleteConversationAPI,
-} from '@/api/conversation';
+} from "@/api/conversation";
 
 interface ChatStore {
   // ========== 状态 ==========
@@ -59,7 +64,11 @@ interface ChatStore {
   /**
    * 更新会话标题
    */
-  updateSessionTitle: (id: string, title: string, isGenerated?: boolean) => void;
+  updateSessionTitle: (
+    id: string,
+    title: string,
+    isGenerated?: boolean,
+  ) => void;
 
   /**
    * 生成智能标题
@@ -85,7 +94,7 @@ interface ChatStore {
       onTextDelta?: (text: string) => void;
       onComplete?: (data: AIResponse) => void;
       onError?: (error: string) => void;
-    }
+    },
   ) => Promise<{ sessionId: string; abort: () => Promise<void> }>;
   abortCurrentStream: () => Promise<void>;
   processQueue: () => Promise<void>;
@@ -99,7 +108,7 @@ interface ChatStore {
 /**
  * 本地存储的 Key（仅用于消息内容）
  */
-const MESSAGES_STORAGE_KEY = 'starepo:chat-messages';
+const MESSAGES_STORAGE_KEY = "starepo:chat-messages";
 
 /**
  * 创建 Chat Store
@@ -110,7 +119,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   sessions: {},
   conversations: {},
   messages: [],
-  currentConversationId: 'default',
+  currentConversationId: "default",
   isStreaming: false,
   streamingMessageId: null,
   currentStreamSession: null,
@@ -127,7 +136,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       // 1. 从主进程加载会话元数据
       const conversationList = await getConversations();
       const sessions: Record<string, ConversationMeta> = {};
-      conversationList.forEach(meta => {
+      conversationList.forEach((meta) => {
         sessions[meta.id] = meta;
       });
 
@@ -139,25 +148,25 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           const parsed = JSON.parse(stored);
           conversations = parsed.conversations || {};
         } catch (error) {
-          console.error('[ChatStore] Failed to parse stored messages:', error);
+          console.error("[ChatStore] Failed to parse stored messages:", error);
         }
       }
 
       // 3. 确保 default 会话存在
-      if (!sessions['default']) {
-        sessions['default'] = {
-          id: 'default',
-          title: '新对话',
-          tempTitle: '新对话',
+      if (!sessions["default"]) {
+        sessions["default"] = {
+          id: "default",
+          title: "新对话",
+          tempTitle: "新对话",
           isTitleGenerated: false,
-          status: 'pending',
+          status: "pending",
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
       }
 
-      if (!conversations['default']) {
-        conversations['default'] = [];
+      if (!conversations["default"]) {
+        conversations["default"] = [];
       }
 
       // 4. 更新状态
@@ -167,12 +176,12 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         messages: conversations[get().currentConversationId] || [],
       });
 
-      console.log('[ChatStore] Hydrated:', {
+      console.log("[ChatStore] Hydrated:", {
         sessionCount: Object.keys(sessions).length,
         conversationCount: Object.keys(conversations).length,
       });
     } catch (error) {
-      console.error('[ChatStore] Failed to hydrate:', error);
+      console.error("[ChatStore] Failed to hydrate:", error);
     }
   },
 
@@ -183,7 +192,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
    */
   createSession: (id?: string) => {
     const newId = id || Date.now().toString();
-    const tempTitle = '新对话';
+    const tempTitle = "新对话";
 
     // 创建会话元数据
     const meta: ConversationMeta = {
@@ -191,7 +200,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       title: tempTitle,
       tempTitle,
       isTitleGenerated: false,
-      status: 'pending',
+      status: "pending",
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -210,8 +219,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }));
 
     // 异步保存到主进程
-    saveConversationMeta(newId, tempTitle).catch(error => {
-      console.error('[ChatStore] Failed to save conversation meta:', error);
+    saveConversationMeta(newId, tempTitle).catch((error) => {
+      console.error("[ChatStore] Failed to save conversation meta:", error);
     });
 
     return newId;
@@ -243,7 +252,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         delete newConversations[id];
 
         // 如果删除的是当前会话，切换到 default
-        const newCurrentId = id === state.currentConversationId ? 'default' : state.currentConversationId;
+        const newCurrentId =
+          id === state.currentConversationId
+            ? "default"
+            : state.currentConversationId;
 
         return {
           sessions: newSessions,
@@ -256,7 +268,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       // 保存到 localStorage
       get().saveToStorage();
     } catch (error) {
-      console.error('[ChatStore] Failed to delete session:', error);
+      console.error("[ChatStore] Failed to delete session:", error);
       throw error;
     }
   },
@@ -264,7 +276,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   /**
    * 更新会话标题
    */
-  updateSessionTitle: (id: string, title: string, isGenerated: boolean = false) => {
+  updateSessionTitle: (
+    id: string,
+    title: string,
+    isGenerated: boolean = false,
+  ) => {
     set((state) => {
       const session = state.sessions[id];
       if (!session) return state;
@@ -276,7 +292,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
             ...session,
             title,
             isTitleGenerated: isGenerated,
-            status: isGenerated ? 'ready' : session.status,
+            status: isGenerated ? "ready" : session.status,
             updatedAt: Date.now(),
           },
         },
@@ -288,27 +304,64 @@ export const useChatStore = create<ChatStore>((set, get) => ({
    * 生成智能标题
    */
   generateTitle: async (conversationId: string) => {
+    console.log("[ChatStore] ========== START generateTitle ==========");
+    console.log(
+      "[ChatStore] generateTitle called with conversationId:",
+      conversationId,
+    );
+
     const state = get();
     const messages = state.conversations[conversationId];
+    const session = state.sessions[conversationId];
+
+    console.log("[ChatStore] Current state:", {
+      conversationId,
+      hasMessages: !!messages,
+      messageCount: messages?.length || 0,
+      hasSession: !!session,
+      sessionTitle: session?.title,
+      isTitleGenerated: session?.isTitleGenerated,
+      sessionStatus: session?.status,
+    });
 
     if (!messages || messages.length === 0) {
-      console.warn('[ChatStore] No messages to generate title from');
+      console.warn("[ChatStore] No messages to generate title from");
       return;
     }
 
-    const firstUserMsg = messages.find(m => m.role === 'user');
-    const firstAssistantMsg = messages.find(m => m.role === 'assistant');
+    const firstUserMsg = messages.find((m) => m.role === "user");
+    const firstAssistantMsg = messages.find((m) => m.role === "assistant");
+
+    console.log("[ChatStore] Messages found:", {
+      firstUserMsg: firstUserMsg
+        ? {
+            role: firstUserMsg.role,
+            contentLength: firstUserMsg.content.length,
+            contentPreview: firstUserMsg.content.substring(0, 50),
+          }
+        : null,
+      firstAssistantMsg: firstAssistantMsg
+        ? {
+            role: firstAssistantMsg.role,
+            contentLength: firstAssistantMsg.content.length,
+            contentPreview: firstAssistantMsg.content.substring(0, 50),
+          }
+        : null,
+    });
 
     if (!firstUserMsg) {
-      console.warn('[ChatStore] No user message found');
+      console.warn("[ChatStore] No user message found");
       return;
     }
 
-    // 生成临时标题
-    const tempTitle = firstUserMsg.content.substring(0, 30) + (firstUserMsg.content.length > 30 ? '...' : '');
+    const tempTitle =
+      firstUserMsg.content.substring(0, 30) +
+      (firstUserMsg.content.length > 30 ? "..." : "");
+
+    console.log("[ChatStore] Temp title:", tempTitle);
 
     try {
-      // 调用 API 生成智能标题
+      console.log("[ChatStore] Calling generateConversationTitle API...");
       const result = await generateConversationTitle({
         conversationId,
         firstUserMessage: firstUserMsg.content,
@@ -316,14 +369,26 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         tempTitle,
       });
 
-      // 更新标题
+      console.log("[ChatStore] API returned:", result);
+
       get().updateSessionTitle(conversationId, result.title, true);
 
-      console.log('[ChatStore] Generated title:', result.title);
+      console.log("[ChatStore] Generated title successfully:", result.title);
+      console.log(
+        "[ChatStore] ========== END generateTitle (SUCCESS) ==========",
+      );
     } catch (error) {
-      console.error('[ChatStore] Failed to generate title:', error);
-      // 失败时使用临时标题
-      get().updateSessionTitle(conversationId, tempTitle, true);
+      console.error("[ChatStore] Failed to generate title:", error);
+      console.error("[ChatStore] Error details:", {
+        name: error instanceof Error ? error.name : "Unknown",
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+
+      get().updateSessionTitle(conversationId, tempTitle, false);
+      console.log(
+        "[ChatStore] ========== END generateTitle (FAILED) ==========",
+      );
     }
   },
 
@@ -335,29 +400,34 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   addMessage: (message) => {
     set((state) => {
       const conversationId = state.currentConversationId;
-      const messages = [...(state.conversations[conversationId] || []), message];
+      const messages = [
+        ...(state.conversations[conversationId] || []),
+        message,
+      ];
 
       // 确保 session 存在，如果不存在则创建
       let session = state.sessions[conversationId];
       if (!session) {
         // 自动创建 session
-        const tempTitle = message.role === 'user'
-          ? message.content.substring(0, 30) + (message.content.length > 30 ? '...' : '')
-          : '新对话';
+        const tempTitle =
+          message.role === "user"
+            ? message.content.substring(0, 30) +
+              (message.content.length > 30 ? "..." : "")
+            : "新对话";
 
         session = {
           id: conversationId,
           title: tempTitle,
           tempTitle,
           isTitleGenerated: false,
-          status: 'pending',
+          status: "pending",
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
 
         // 异步保存到主进程
-        saveConversationMeta(conversationId, tempTitle).catch(error => {
-          console.error('[ChatStore] Failed to save conversation meta:', error);
+        saveConversationMeta(conversationId, tempTitle).catch((error) => {
+          console.error("[ChatStore] Failed to save conversation meta:", error);
         });
       } else {
         // 更新现有 session 的最后活动时间
@@ -390,9 +460,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   updateMessage: (id, content) => {
     set((state) => {
       const conversationId = state.currentConversationId;
-      const messages = state.conversations[conversationId]?.map(msg =>
-        msg.id === id ? { ...msg, content } : msg
-      ) || [];
+      const messages =
+        state.conversations[conversationId]?.map((msg) =>
+          msg.id === id ? { ...msg, content } : msg,
+        ) || [];
       return {
         messages,
         conversations: {
@@ -412,12 +483,27 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       const conversations = { ...state.conversations };
       delete conversations[id];
 
-      // 如果清除的是当前对话，切换到 default
-      const newCurrentId = id === state.currentConversationId ? 'default' : state.currentConversationId;
+      const sessions = { ...state.sessions };
+      if (sessions[id]) {
+        sessions[id] = {
+          ...sessions[id],
+          title: "新对话",
+          tempTitle: "新对话",
+          isTitleGenerated: false,
+          status: "pending",
+          updatedAt: Date.now(),
+        };
+      }
+
+      const newCurrentId =
+        id === state.currentConversationId
+          ? "default"
+          : state.currentConversationId;
 
       return {
         messages: id === state.currentConversationId ? [] : state.messages,
         currentConversationId: newCurrentId,
+        sessions,
         conversations: {
           ...conversations,
           default: conversations.default || [],
@@ -473,12 +559,16 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     const state = get();
     const conversationId = state.currentConversationId;
     const messages = state.conversations[conversationId] || [];
-    const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
+    const lastUserMessage = [...messages]
+      .reverse()
+      .find((m) => m.role === "user");
     if (lastUserMessage) {
       set((state) => ({
         conversations: {
           ...state.conversations,
-          [conversationId]: messages.filter(m => m.id !== state.streamingMessageId),
+          [conversationId]: messages.filter(
+            (m) => m.id !== state.streamingMessageId,
+          ),
         },
       }));
     }
@@ -491,12 +581,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
    */
   streamChat: async (message, options = {}) => {
     const state = get();
+    const conversationId = state.currentConversationId;
 
     // 添加用户消息
     const userMessageId = Date.now().toString();
     const userMessage: ChatMessage = {
       id: userMessageId,
-      role: 'user',
+      role: "user",
       content: message,
       timestamp: Date.now(),
     };
@@ -506,8 +597,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     const assistantMessageId = (Date.now() + 1).toString();
     const assistantMessage: ChatMessage = {
       id: assistantMessageId,
-      role: 'assistant',
-      content: '',
+      role: "assistant",
+      content: "",
       parts: [], // 初始化 parts 数组
       timestamp: Date.now(),
     };
@@ -515,52 +606,51 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
     state.setStreaming(true, assistantMessageId);
 
-    let accumulatedContent = '';
+    let accumulatedContent = "";
 
     try {
-      console.log('[ChatStore] Importing sendChatMessageStream...');
-      const { sendChatMessageStream } = await import('@/api/ai');
-      console.log('[ChatStore] Calling sendChatMessageStream...');
+      console.log("[ChatStore] Importing sendChatMessageStream...");
+      const { sendChatMessageStream } = await import("@/api/ai");
+      console.log("[ChatStore] Calling sendChatMessageStream...");
       const result = await sendChatMessageStream(
         message,
-        state.currentConversationId,
+        conversationId,
         undefined,
         {
           onTextDelta: (text) => {
             accumulatedContent += text;
 
-            // 更新 parts 数组
             set((state) => {
-              const conversationId = state.currentConversationId;
-              const messages = state.conversations[conversationId]?.map(msg => {
-                if (msg.id === assistantMessageId) {
-                  const parts = [...(msg.parts || [])];
-                  const lastPartIndex = parts.length - 1;
-                  const lastPart = parts[lastPartIndex];
+              const messages =
+                state.conversations[conversationId]?.map((msg) => {
+                  if (msg.id === assistantMessageId) {
+                    const parts = [...(msg.parts || [])];
+                    const lastPartIndex = parts.length - 1;
+                    const lastPart = parts[lastPartIndex];
 
-                  // 如果最后一个 part 是 text，追加内容
-                  if (lastPart && lastPart.type === 'text') {
-                    parts[lastPartIndex] = {
-                      ...lastPart,
-                      content: (lastPart as TextPart).content + text,
+                    // 如果最后一个 part 是 text，追加内容
+                    if (lastPart && lastPart.type === "text") {
+                      parts[lastPartIndex] = {
+                        ...lastPart,
+                        content: (lastPart as TextPart).content + text,
+                      };
+                    } else {
+                      // 否则创建新的 TextPart
+                      parts.push({
+                        type: "text",
+                        id: `text_${Date.now()}`,
+                        content: text,
+                      } as TextPart);
+                    }
+
+                    return {
+                      ...msg,
+                      content: accumulatedContent,
+                      parts,
                     };
-                  } else {
-                    // 否则创建新的 TextPart
-                    parts.push({
-                      type: 'text',
-                      id: `text_${Date.now()}`,
-                      content: text,
-                    } as TextPart);
                   }
-
-                  return {
-                    ...msg,
-                    content: accumulatedContent,
-                    parts,
-                  };
-                }
-                return msg;
-              }) || [];
+                  return msg;
+                }) || [];
 
               return {
                 messages,
@@ -574,63 +664,108 @@ export const useChatStore = create<ChatStore>((set, get) => ({
             options.onTextDelta?.(text);
           },
           onToolCall: (toolCall) => {
-            console.log('[ChatStore] Tool call:', toolCall);
+            console.log("[ChatStore] Tool call:", toolCall);
 
-            // 添加 ToolCallPart
             set((state) => {
-              const conversationId = state.currentConversationId;
-              const messages = state.conversations[conversationId]?.map(msg => {
-                if (msg.id === assistantMessageId) {
-                  const parts = [...(msg.parts || [])];
-                  parts.push({
-                    type: 'tool-call',
-                    id: toolCall.toolCallId,
-                    toolName: toolCall.toolName,
-                    args: toolCall.args,
-                  } as ToolCallPart);
+              const messages =
+                state.conversations[conversationId]?.map((msg) => {
+                  if (msg.id === assistantMessageId) {
+                    const parts = [...(msg.parts || [])];
 
-                  return {
-                    ...msg,
-                    parts,
-                  };
-                }
-                return msg;
-              }) || [];
+                    const existingToolIndex = parts.findIndex(
+                      (p) => p.type === "tool_call" && p.id === toolCall.id,
+                    );
 
-              return {
-                messages,
-                conversations: {
-                  ...state.conversations,
-                  [conversationId]: messages,
-                },
-              };
-            });
-          },
-          onToolResult: (toolResult) => {
-            console.log('[ChatStore] Tool result:', toolResult);
-
-            // 更新对应的 ToolCallPart，添加 result
-            set((state) => {
-              const conversationId = state.currentConversationId;
-              const messages = state.conversations[conversationId]?.map(msg => {
-                if (msg.id === assistantMessageId) {
-                  const parts = msg.parts?.map(part => {
-                    if (part.type === 'tool-call' && part.id === toolResult.toolCallId) {
-                      return {
-                        ...part,
-                        result: toolResult.result,
+                    if (existingToolIndex >= 0) {
+                      parts[existingToolIndex] = {
+                        type: "tool_call",
+                        id: toolCall.id,
+                        toolCallId: toolCall.id,
+                        toolName: toolCall.name,
+                        args: toolCall.arguments,
+                        status:
+                          toolCall.status === "result"
+                            ? "success"
+                            : toolCall.status === "error"
+                              ? "error"
+                              : "calling",
+                        result: toolCall.result,
+                        error: toolCall.error,
+                        startedAt: toolCall.startedAt,
+                        endedAt: toolCall.endedAt,
                       } as ToolCallPart;
-                    }
-                    return part;
-                  }) || [];
+                    } else {
+                      if (
+                        toolCall.status === "result" ||
+                        toolCall.status === "error"
+                      ) {
+                        parts.push({
+                          type: "tool_call",
+                          id: toolCall.id,
+                          toolCallId: toolCall.id,
+                          toolName: toolCall.name,
+                          args: toolCall.arguments,
+                          status: "calling",
+                          startedAt: toolCall.startedAt || Date.now(),
+                        } as ToolCallPart);
 
-                  return {
-                    ...msg,
-                    parts,
-                  };
-                }
-                return msg;
-              }) || [];
+                        setTimeout(() => {
+                          set((state) => {
+                            const updatedMessages =
+                              state.conversations[conversationId]?.map((m) => {
+                                if (m.id === assistantMessageId) {
+                                  const updatedParts =
+                                    m.parts?.map((p) => {
+                                      if (
+                                        p.type === "tool_call" &&
+                                        p.id === toolCall.id
+                                      ) {
+                                        return {
+                                          ...p,
+                                          status:
+                                            toolCall.status === "result"
+                                              ? "success"
+                                              : "error",
+                                          result: toolCall.result,
+                                          error: toolCall.error,
+                                          endedAt: toolCall.endedAt,
+                                        } as ToolCallPart;
+                                      }
+                                      return p;
+                                    }) || [];
+                                  return { ...m, parts: updatedParts };
+                                }
+                                return m;
+                              }) || [];
+
+                            return {
+                              conversations: {
+                                ...state.conversations,
+                                [conversationId]: updatedMessages,
+                              },
+                            };
+                          });
+                        }, 300);
+                      } else {
+                        parts.push({
+                          type: "tool_call",
+                          id: toolCall.id,
+                          toolCallId: toolCall.id,
+                          toolName: toolCall.name,
+                          args: toolCall.arguments,
+                          status: "calling",
+                          startedAt: toolCall.startedAt || Date.now(),
+                        } as ToolCallPart);
+                      }
+                    }
+
+                    return {
+                      ...msg,
+                      parts,
+                    };
+                  }
+                  return msg;
+                }) || [];
 
               return {
                 messages,
@@ -642,43 +777,51 @@ export const useChatStore = create<ChatStore>((set, get) => ({
             });
           },
           onComplete: (data) => {
-            console.log('[ChatStore] Stream complete:', data);
+            console.log("[ChatStore] Stream complete:", data);
             state.setStreaming(false, null);
 
             // 保存到 localStorage
             state.saveToStorage();
 
-            // 🔥 关键：检查是否需要生成标题
-            const currentMessages = get().conversations[get().currentConversationId] || [];
-            const session = get().sessions[get().currentConversationId];
+            const currentMessages = get().conversations[conversationId] || [];
+            const session = get().sessions[conversationId];
 
-            console.log('[ChatStore] Title generation check:', {
-              conversationId: get().currentConversationId,
+            console.log("[ChatStore] Title generation check:", {
+              conversationId,
               messageCount: currentMessages.length,
               hasSession: !!session,
               isTitleGenerated: session?.isTitleGenerated,
-              shouldGenerate: currentMessages.length === 2 && session && !session.isTitleGenerated,
+              shouldGenerate:
+                currentMessages.length >= 2 &&
+                session &&
+                !session.isTitleGenerated,
             });
 
-            // 如果是第一次对话（2条消息：1问1答）且未生成标题
-            if (currentMessages.length === 2 && session && !session.isTitleGenerated) {
-              console.log('[ChatStore] Triggering title generation...');
-              get().generateTitle(get().currentConversationId);
+            if (
+              currentMessages.length >= 2 &&
+              session &&
+              !session.isTitleGenerated
+            ) {
+              console.log(
+                "[ChatStore] Triggering title generation for:",
+                conversationId,
+              );
+              get().generateTitle(conversationId);
             }
 
             options.onComplete?.(data);
           },
           onError: (error) => {
-            console.error('[ChatStore] Stream error:', error);
+            console.error("[ChatStore] Stream error:", error);
             state.setStreaming(false, null);
             options.onError?.(error);
           },
-        }
+        },
       );
 
       return result;
     } catch (error) {
-      console.error('[ChatStore] Send message error:', error);
+      console.error("[ChatStore] Send message error:", error);
       state.setStreaming(false, null);
       throw error;
     }
@@ -691,11 +834,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     const state = get();
     if (state.currentStreamSession) {
       try {
-        const { abortChatStream } = await import('@/api/ai');
-        await abortChatStream(state.currentStreamSession);
+        const { abortChat } = await import("@/api/ai");
+        await abortChat(state.currentStreamSession);
         state.setStreaming(false, null);
       } catch (error) {
-        console.error('[ChatStore] Failed to abort stream:', error);
+        console.error("[ChatStore] Failed to abort stream:", error);
       }
     }
   },
@@ -705,7 +848,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
    */
   processQueue: async () => {
     // 队列处理逻辑（保持原有实现）
-    console.log('[ChatStore] Process queue called');
+    console.log("[ChatStore] Process queue called");
   },
 
   // ========== 存储操作 ==========
@@ -722,7 +865,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       };
       localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(data));
     } catch (error) {
-      console.error('[ChatStore] Failed to save to localStorage:', error);
+      console.error("[ChatStore] Failed to save to localStorage:", error);
     }
   },
 
@@ -736,12 +879,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         const parsed = JSON.parse(data);
         set({
           conversations: parsed.conversations || {},
-          currentConversationId: parsed.currentConversationId || 'default',
-          messages: parsed.conversations?.[parsed.currentConversationId || 'default'] || [],
+          currentConversationId: parsed.currentConversationId || "default",
+          messages:
+            parsed.conversations?.[parsed.currentConversationId || "default"] ||
+            [],
         });
       }
     } catch (error) {
-      console.error('[ChatStore] Failed to load from localStorage:', error);
+      console.error("[ChatStore] Failed to load from localStorage:", error);
     }
   },
 }));
@@ -754,8 +899,8 @@ export function initializeChatStore() {
   const store = useChatStore.getState();
 
   // 加载数据
-  store.hydrate().catch(error => {
-    console.error('[ChatStore] Failed to initialize:', error);
+  store.hydrate().catch((error) => {
+    console.error("[ChatStore] Failed to initialize:", error);
   });
 
   // 重置流式状态，防止卡住
@@ -782,17 +927,24 @@ export function getConversationSummary(conversationId: string) {
     // 如果没有会话元数据，返回默认值
     return {
       id: conversationId,
-      title: `对话 ${conversationId === 'default' ? '1' : conversationId.slice(-3)}`,
-      preview: messages.length > 0 ? messages[messages.length - 1].content.substring(0, 50) : '暂无消息',
+      title: `对话 ${conversationId === "default" ? "1" : conversationId.slice(-3)}`,
+      preview:
+        messages.length > 0
+          ? messages[messages.length - 1].content.substring(0, 50)
+          : "暂无消息",
       messageCount: messages.length,
-      lastMessageTime: messages.length > 0 ? messages[messages.length - 1].timestamp : 0,
+      lastMessageTime:
+        messages.length > 0 ? messages[messages.length - 1].timestamp : 0,
     };
   }
 
   return {
     id: session.id,
     title: session.title,
-    preview: messages.length > 0 ? messages[messages.length - 1].content.substring(0, 50) : '暂无消息',
+    preview:
+      messages.length > 0
+        ? messages[messages.length - 1].content.substring(0, 50)
+        : "暂无消息",
     messageCount: messages.length,
     lastMessageTime: session.updatedAt,
   };
