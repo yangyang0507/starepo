@@ -121,36 +121,34 @@ export class LanceDBSearchService {
 
     try {
       const whereClause = this.buildWhereClause({ language, minStars, maxStars });
-      const fetchLimit = normalizedLimit + normalizedOffset + 1;
 
+      // 使用 LanceDB 原生分页（性能优化：避免拉取全量数据）
+      // 获取 limit + 1 条数据用于判断是否有更多结果
       const searchResult = await lancedbService.searchRepositories(
         query,
-        fetchLimit,
-        whereClause
+        normalizedLimit + 1,  // 多获取一条用于判断 hasMore
+        whereClause,
+        normalizedOffset      // 使用原生 offset
       );
 
-      const sortedItems = this.sortRepositories(
-        [...searchResult.items],
-        sortBy,
-        sortOrder
-      );
+      // 对于 relevance 排序，LanceDB 已经返回按相关性排序的结果
+      // 对于其他排序字段，对有限结果进行排序（非全量数据）
+      let items = searchResult.items;
+      if (sortBy !== 'relevance') {
+        items = this.sortRepositories([...items], sortBy, sortOrder);
+      }
 
-      const pagedItems = this.sliceWithOffset(
-        sortedItems,
-        normalizedOffset,
-        normalizedLimit
-      );
+      // 检查是否有更多结果
+      const hasMore = items.length > normalizedLimit;
+      const repositories = items.slice(0, normalizedLimit);
 
-      const hasMore = sortedItems.length > normalizedOffset + pagedItems.length;
-      const totalCount = Math.max(
-        searchResult.totalCount,
-        normalizedOffset + pagedItems.length + (hasMore ? 1 : 0)
-      );
+      // 估算总数（基于当前页结果）
+      const totalCount = normalizedOffset + repositories.length + (hasMore ? 1 : 0);
 
       const searchTime = Date.now() - startTime;
 
       const response: SearchResponse = {
-        repositories: pagedItems.slice(0, normalizedLimit),
+        repositories,
         totalCount,
         searchTime,
         page: normalizedPage,

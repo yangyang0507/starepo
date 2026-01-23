@@ -3,6 +3,11 @@ import { lancedbSearchService } from '../services/search';
 import { SEARCH_CHANNELS } from '../../shared/constants/ipc-channels';
 import type { APIResponse, GitHubRepository } from '../../shared/types/index.js';
 import { getLogger } from '../utils/logger';
+import {
+  SearchRepositoriesOptionsSchema,
+  SearchSuggestionsInputSchema,
+  PopularSearchTermsLimitSchema,
+} from './schemas';
 
 /**
  * 搜索相关的 IPC 处理器
@@ -35,8 +40,11 @@ ipcMain.handle(SEARCH_CHANNELS.SEARCH_REPOSITORIES, async (_, options: {
   cached?: boolean;
 }>> => {
   try {
+    // 运行时校验
+    const validatedOptions = SearchRepositoriesOptionsSchema.parse(options);
+
     await lancedbSearchService.initialize();
-    const result = await lancedbSearchService.searchRepositories(options);
+    const result = await lancedbSearchService.searchRepositories(validatedOptions);
 
     return {
       success: true,
@@ -59,8 +67,14 @@ ipcMain.handle(SEARCH_CHANNELS.GET_SEARCH_SUGGESTIONS, async (_, input: string, 
   topics: string[];
 }>> => {
   try {
+    // 运行时校验
+    const validatedParams = SearchSuggestionsInputSchema.parse({ input, limit });
+
     await lancedbSearchService.initialize();
-    const result = await lancedbSearchService.getSearchSuggestions(input, limit);
+    const result = await lancedbSearchService.getSearchSuggestions(
+      validatedParams.input,
+      validatedParams.limit
+    );
 
     return {
       success: true,
@@ -82,8 +96,11 @@ ipcMain.handle(SEARCH_CHANNELS.GET_POPULAR_SEARCH_TERMS, async (_, limit: number
   topics: Array<{ name: string; count: number }>;
 }>> => {
   try {
+    // 运行时校验
+    const validatedLimit = PopularSearchTermsLimitSchema.parse(limit);
+
     await lancedbSearchService.initialize();
-    const result = await lancedbSearchService.getPopularSearchTerms(limit);
+    const result = await lancedbSearchService.getPopularSearchTerms(validatedLimit);
 
     return {
       success: true,

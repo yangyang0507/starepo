@@ -190,15 +190,7 @@ export class AIService {
     }
 
     try {
-      // 保存用户消息到历史
-      this.addMessageToHistory(conversationId, {
-        id: `msg_${Date.now()}`,
-        role: "user",
-        content: message,
-        timestamp: Date.now(),
-      });
-
-      // 构建上下文
+      // 构建上下文（不包含当前消息，避免重复）
       const context: ChatContext = {
         conversationHistory: this.getConversationHistory(conversationId),
         userId,
@@ -206,6 +198,7 @@ export class AIService {
 
       const model = await this.getModel();
       const systemPrompt = this.buildSystemPrompt();
+      // buildMessages 会将历史消息 + 当前消息组合
       const messages = this.buildMessages(message, context);
 
       // 使用 streamText 进行流式调用
@@ -335,9 +328,17 @@ export class AIService {
         }
       }
 
-      // 保存助手消息到历史
+      // 流式完成后，统一保存用户消息和助手消息到历史
+      // （避免在流式开始前保存导致 buildMessages 重复处理）
       this.addMessageToHistory(conversationId, {
-        id: `msg_${Date.now()}`,
+        id: `msg_${Date.now()}_user`,
+        role: "user",
+        content: message,
+        timestamp: Date.now(),
+      });
+
+      this.addMessageToHistory(conversationId, {
+        id: `msg_${Date.now()}_assistant`,
         role: "assistant",
         content: fullText,
         timestamp: Date.now(),

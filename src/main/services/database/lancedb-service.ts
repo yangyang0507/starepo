@@ -243,11 +243,16 @@ export class LanceDBService {
 
   /**
    * 语义搜索仓库
+   * @param query 搜索查询
+   * @param limit 返回结果数量限制
+   * @param where 额外的 WHERE 子句
+   * @param offset 分页偏移量（使用 LanceDB 原生分页）
    */
   async searchRepositories(
     query: string,
     limit: number = 10,
-    where?: string
+    where?: string,
+    offset: number = 0
   ): Promise<SearchResult<GitHubRepository>> {
     this.ensureInitialized();
 
@@ -272,7 +277,11 @@ export class LanceDBService {
       builder = builder.where(filters.join(' AND ')) as Query | VectorQuery;
     }
 
+    // 使用 LanceDB 原生分页
     builder = builder.limit(limit) as Query | VectorQuery;
+    if (offset > 0) {
+      builder = builder.offset(offset) as Query | VectorQuery;
+    }
 
     const rawResult = await builder.toArray();
     const repositories = this.parseRepositoryRecords(rawResult);

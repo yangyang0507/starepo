@@ -20,6 +20,15 @@ import {
 import type { AIProviderId } from "@shared/types/ai-provider";
 import { logger } from "@main/utils/logger";
 import { randomUUID } from "crypto";
+import {
+  AIChatPayloadSchema,
+  SessionIdSchema,
+  ProviderIdSchema,
+  GenerateTitlePayloadSchema,
+  SaveConversationMetaPayloadSchema,
+  ConversationIdSchema,
+} from "./schemas";
+import { ProviderAccountConfigSchema } from "@shared/types/ai-provider";
 
 // 活跃的流式会话管理
 const activeSessions = new Map<string, StreamSessionInfo>();
@@ -56,6 +65,9 @@ export function initializeAIHandlers(): void {
     IPC_CHANNELS.AI.CHAT,
     async (_event, payload: AIChatPayload) => {
       try {
+        // 运行时校验
+        const validatedPayload = AIChatPayloadSchema.parse(payload);
+
         if (!getAIService()) {
           return {
             success: false,
@@ -64,9 +76,9 @@ export function initializeAIHandlers(): void {
         }
 
         const response = await getAIService().chat(
-          payload.message,
-          payload.conversationId,
-          payload.userId,
+          validatedPayload.message,
+          validatedPayload.conversationId,
+          validatedPayload.userId,
         );
 
         return {
@@ -88,6 +100,9 @@ export function initializeAIHandlers(): void {
     IPC_CHANNELS.AI.CHAT_STREAM,
     async (event, payload: AIChatPayload) => {
       try {
+        // 运行时校验
+        const validatedPayload = AIChatPayloadSchema.parse(payload);
+
         if (!getAIService()) {
           return {
             success: false,
@@ -102,7 +117,7 @@ export function initializeAIHandlers(): void {
         // 创建会话信息
         const sessionInfo: StreamSessionInfo = {
           id: sessionId,
-          conversationId: payload.conversationId || 'default',
+          conversationId: validatedPayload.conversationId || 'default',
           status: 'active',
           startTime: Date.now(),
           lastUpdateTime: Date.now(),
@@ -116,8 +131,8 @@ export function initializeAIHandlers(): void {
         (async () => {
           try {
             await getAIService().streamChat(
-              payload.message,
-              payload.conversationId || 'default',
+              validatedPayload.message,
+              validatedPayload.conversationId || 'default',
               (chunk: StreamChunk) => {
                 // 更新会话时间
                 sessionInfo.lastUpdateTime = Date.now();
@@ -129,7 +144,7 @@ export function initializeAIHandlers(): void {
                 });
               },
               controller.signal,
-              payload.userId
+              validatedPayload.userId
             );
 
             // 流式完成
@@ -172,7 +187,10 @@ export function initializeAIHandlers(): void {
     IPC_CHANNELS.AI.CHAT_ABORT,
     async (_event, sessionId: string) => {
       try {
-        const session = activeSessions.get(sessionId);
+        // 运行时校验
+        const validatedSessionId = SessionIdSchema.parse(sessionId);
+
+        const session = activeSessions.get(validatedSessionId);
         if (!session) {
           return {
             success: false,
@@ -180,10 +198,10 @@ export function initializeAIHandlers(): void {
           } as IPCResponse;
         }
 
-        logger.debug(`[AI Handlers] Aborting stream session: ${sessionId}`);
+        logger.debug(`[AI Handlers] Aborting stream session: ${validatedSessionId}`);
         session.controller?.abort();
         session.status = 'aborted';
-        activeSessions.delete(sessionId);
+        activeSessions.delete(validatedSessionId);
 
         return {
           success: true,
@@ -254,7 +272,10 @@ export function initializeAIHandlers(): void {
     IPC_CHANNELS.AI.SAVE_PROVIDER_ACCOUNT,
     async (_event, config: ProviderAccountConfig) => {
       try {
-        await providerAccountService.saveAccount(config);
+        // 运行时校验
+        const validatedConfig = ProviderAccountConfigSchema.parse(config);
+
+        await providerAccountService.saveAccount(validatedConfig);
         return {
           success: true,
         } as IPCResponse;
@@ -273,7 +294,10 @@ export function initializeAIHandlers(): void {
     IPC_CHANNELS.AI.GET_PROVIDER_ACCOUNT,
     async (_event, providerId: AIProviderId) => {
       try {
-        const account = await providerAccountService.getAccount(providerId);
+        // 运行时校验
+        const validatedProviderId = ProviderIdSchema.parse(providerId);
+
+        const account = await providerAccountService.getAccount(validatedProviderId);
         return {
           success: true,
           data: account,
@@ -293,7 +317,10 @@ export function initializeAIHandlers(): void {
     IPC_CHANNELS.AI.DELETE_PROVIDER_ACCOUNT,
     async (_event, providerId: AIProviderId) => {
       try {
-        await providerAccountService.deleteAccount(providerId);
+        // 运行时校验
+        const validatedProviderId = ProviderIdSchema.parse(providerId);
+
+        await providerAccountService.deleteAccount(validatedProviderId);
         return {
           success: true,
         } as IPCResponse;
@@ -316,8 +343,11 @@ export function initializeAIHandlers(): void {
       forceRefresh: boolean = false,
     ) => {
       try {
+        // 运行时校验
+        const validatedConfig = ProviderAccountConfigSchema.parse(config);
+
         const result = await modelDiscoveryService.getModels(
-          config,
+          validatedConfig,
           forceRefresh,
         );
         return {
@@ -339,7 +369,10 @@ export function initializeAIHandlers(): void {
     IPC_CHANNELS.AI.TEST_PROVIDER_CONNECTION,
     async (_event, config: ProviderAccountConfig) => {
       try {
-        const result = await modelDiscoveryService.testConnection(config);
+        // 运行时校验
+        const validatedConfig = ProviderAccountConfigSchema.parse(config);
+
+        const result = await modelDiscoveryService.testConnection(validatedConfig);
         return {
           success: true,
           data: result,
@@ -383,6 +416,18 @@ export function initializeAIHandlers(): void {
       tempTitle: string;
       modelId?: string;
     }) => {
+      // 运行时校验（在 try 外面，这样 catch 也能访问）
+      let validatedPayload;
+      try {
+        validatedPayload = GenerateTitlePayloadSchema.parse(payload);
+      } catch (error) {
+        logger.error("[AI Handlers] Invalid generate title payload:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as IPCResponse;
+      }
+
       try {
         const { conversationMetadataService } = await import('@main/services/conversations');
 
@@ -391,16 +436,16 @@ export function initializeAIHandlers(): void {
 
         // 创建或获取会话元数据
         await conversationMetadataService.createOrGet(
-          payload.conversationId,
-          payload.tempTitle
+          validatedPayload.conversationId,
+          validatedPayload.tempTitle
         );
 
         // 调用 AI 生成标题
-        const result = await getAIService().generateTitle(payload);
+        const result = await getAIService().generateTitle(validatedPayload);
 
         // 更新元数据
         const meta = await conversationMetadataService.updateTitle(
-          payload.conversationId,
+          validatedPayload.conversationId,
           result.title,
           'ready'
         );
@@ -420,8 +465,8 @@ export function initializeAIHandlers(): void {
         try {
           const { conversationMetadataService } = await import('@main/services/conversations');
           await conversationMetadataService.updateTitle(
-            payload.conversationId,
-            payload.tempTitle,
+            validatedPayload.conversationId,
+            validatedPayload.tempTitle,
             'failed',
             error instanceof Error ? error.message : String(error)
           );
@@ -463,12 +508,15 @@ export function initializeAIHandlers(): void {
     IPC_CHANNELS.AI.SAVE_CONVERSATION_META,
     async (_event, payload: { conversationId: string; tempTitle: string }) => {
       try {
+        // 运行时校验
+        const validatedPayload = SaveConversationMetaPayloadSchema.parse(payload);
+
         const { conversationMetadataService } = await import('@main/services/conversations');
         await conversationMetadataService.initialize();
 
         const meta = await conversationMetadataService.createOrGet(
-          payload.conversationId,
-          payload.tempTitle
+          validatedPayload.conversationId,
+          validatedPayload.tempTitle
         );
 
         return {
@@ -490,14 +538,17 @@ export function initializeAIHandlers(): void {
     IPC_CHANNELS.AI.DELETE_CONVERSATION,
     async (_event, conversationId: string) => {
       try {
+        // 运行时校验
+        const validatedConversationId = ConversationIdSchema.parse(conversationId);
+
         const { conversationMetadataService } = await import('@main/services/conversations');
         await conversationMetadataService.initialize();
 
-        await conversationMetadataService.delete(conversationId);
+        await conversationMetadataService.delete(validatedConversationId);
 
         return {
           success: true,
-          data: { conversationId },
+          data: { conversationId: validatedConversationId },
         } as IPCResponse;
       } catch (error) {
         logger.error("[AI Handlers] Delete conversation error:", error);
