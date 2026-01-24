@@ -62,27 +62,28 @@ export function ToolCallCard({
   // 状态样式
   const statusConfig = {
     calling: {
-      icon: <Loader2 className="h-4 w-4 animate-spin" />,
+      icon: <Loader2 className="h-4 w-4 animate-spin text-blue-500" />,
       badge: (
-        <Badge variant="default" className="bg-blue-500">
+        <Badge variant="outline" className="border-blue-200 text-blue-600 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-400">
           执行中
         </Badge>
       ),
-      borderColor: "border-blue-500",
     },
     success: {
       icon: <CheckCircle2 className="h-4 w-4 text-green-500" />,
       badge: (
-        <Badge variant="default" className="bg-green-500">
+        <Badge variant="outline" className="border-green-200 text-green-600 bg-green-50 dark:border-green-800 dark:bg-green-950/30 dark:text-green-400">
           已完成
         </Badge>
       ),
-      borderColor: "border-green-500",
     },
     error: {
       icon: <XCircle className="h-4 w-4 text-red-500" />,
-      badge: <Badge variant="destructive">失败</Badge>,
-      borderColor: "border-red-500",
+      badge: (
+        <Badge variant="outline" className="border-red-200 text-red-600 bg-red-50 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
+          失败
+        </Badge>
+      ),
     },
   };
 
@@ -98,31 +99,37 @@ export function ToolCallCard({
   };
 
   return (
-    <Card className={`my-2 ${config.borderColor} border-l-4`}>
+    <Card className="my-2 overflow-hidden border bg-card/50 backdrop-blur-sm transition-all">
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CardHeader className="py-3">
+        <CardHeader className="py-3 px-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {config.icon}
-              <span className="text-sm font-medium">{toolName}</span>
-              {config.badge}
-              {executionTime && (
-                <span className="text-muted-foreground text-xs">
-                  {executionTime}s
-                </span>
-              )}
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted/50">
+                {config.icon}
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium">{toolName}</span>
+                <div className="flex items-center gap-2">
+                  {config.badge}
+                  {executionTime && (
+                    <span className="text-muted-foreground text-[10px]">
+                      {executionTime}s
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
             <CollapsibleTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 w-6 p-0"
+                className="h-8 w-8 p-0 hover:bg-muted"
                 aria-label={isOpen ? "收起" : "展开"}
               >
                 {isOpen ? (
-                  <ChevronDown className="h-4 w-4" />
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 ) : (
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 )}
               </Button>
             </CollapsibleTrigger>
@@ -130,46 +137,46 @@ export function ToolCallCard({
         </CardHeader>
 
         <CollapsibleContent>
-          <CardContent className="space-y-3 pt-0 pb-3">
+          <CardContent className="space-y-4 px-4 pb-4 pt-0">
             {/* 参数 */}
-            {Object.keys(args).length > 0 && (
-              <div>
-                <h4 className="text-muted-foreground mb-1 text-xs font-semibold">
+            {Object.keys(args).length > 0 ? (
+              <div className="rounded-lg bg-muted/30 p-3">
+                <h4 className="text-muted-foreground mb-2 text-xs font-semibold uppercase tracking-wider">
                   参数
                 </h4>
-                <div className="max-h-32 overflow-auto">
-                  <pre className="bg-muted rounded p-2 text-xs break-words whitespace-pre-wrap">
+                <div className="max-h-32 overflow-auto custom-scrollbar">
+                  <pre className="font-mono text-xs text-foreground/80 break-words whitespace-pre-wrap">
                     {formatJSON(args)}
                   </pre>
                 </div>
               </div>
-            )}
+            ) : null}
 
             {/* 结果 */}
-            {status === "success" && result && (
-              <div>
-                <h4 className="text-muted-foreground mb-1 text-xs font-semibold">
+            {status === "success" && result ? (
+              <div className="rounded-lg bg-green-50/50 dark:bg-green-900/10 p-3">
+                <h4 className="text-green-600/80 dark:text-green-400/80 mb-2 text-xs font-semibold uppercase tracking-wider">
                   结果
                 </h4>
-                <div className="max-h-48 overflow-auto">
-                  <pre className="bg-muted rounded p-2 text-xs break-words whitespace-pre-wrap">
+                <div className="max-h-48 overflow-auto custom-scrollbar">
+                  <pre className="font-mono text-xs text-foreground/80 break-words whitespace-pre-wrap">
                     {formatJSON(result)}
                   </pre>
                 </div>
               </div>
-            )}
+            ) : null}
 
             {/* 错误 */}
-            {status === "error" && error && (
-              <div>
-                <h4 className="mb-1 text-xs font-semibold text-red-500">
+            {status === "error" && error ? (
+              <div className="rounded-lg bg-red-50/50 dark:bg-red-900/10 p-3">
+                <h4 className="text-red-600/80 dark:text-red-400/80 mb-2 text-xs font-semibold uppercase tracking-wider">
                   错误信息
                 </h4>
-                <div className="rounded bg-red-50 p-2 text-xs break-words text-red-700 dark:bg-red-950 dark:text-red-300">
+                <div className="text-xs text-red-700 dark:text-red-300 break-words">
                   {error}
                 </div>
               </div>
-            )}
+            ) : null}
           </CardContent>
         </CollapsibleContent>
       </Collapsible>

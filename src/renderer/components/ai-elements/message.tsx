@@ -65,9 +65,8 @@ export const MessageContent = ({
   <div
     className={cn(
       "relative rounded-2xl px-5 py-3.5 text-sm shadow-sm transition-all overflow-hidden",
-      "group-[.is-user]:rounded-tr-sm group-[.is-assistant]:rounded-tl-sm",
-      "group-[.is-user]:bg-primary group-[.is-user]:text-primary-foreground",
-      "group-[.is-assistant]:bg-card group-[.is-assistant]:border list-disc-outside",
+      "group-[.is-user]:rounded-br-sm group-[.is-user]:bg-primary group-[.is-user]:text-primary-foreground",
+      "group-[.is-assistant]:rounded-bl-sm group-[.is-assistant]:bg-muted/40 list-disc-outside",
       className
     )}
     {...props}

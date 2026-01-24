@@ -80,22 +80,22 @@ export function ChatHistoryList() {
   const groupKeys = Object.keys(grouped).filter((k) => grouped[k].length > 0);
 
   return (
-    <div className="bg-muted/20 flex h-full flex-col">
-      <div className="border-border/50 flex h-14 items-center justify-between border-b px-3">
+    <div className="flex h-full flex-col">
+      <div className="border-border/40 flex h-14 items-center justify-between border-b px-3">
         <Button
           variant="ghost"
-          className="hover:bg-accent text-muted-foreground hover:text-foreground h-9 w-full justify-start gap-2"
+          className="hover:bg-accent text-muted-foreground hover:text-foreground h-9 w-full justify-start gap-2 rounded-lg font-normal"
           onClick={handleNewChat}
         >
           <Plus className="h-4 w-4" />
-          <span className="text-sm font-medium">新对话</span>
+          <span className="text-sm">新对话</span>
         </Button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-3">
         {groupKeys.map((groupName) => (
-          <div key={groupName} className="mb-5">
-            <div className="text-muted-foreground px-2 py-1.5 text-xs font-semibold tracking-wide uppercase">
+          <div key={groupName} className="mb-6">
+            <div className="text-muted-foreground/60 px-3 py-2 text-[11px] font-medium tracking-wider uppercase">
               {groupName}
             </div>
             <div className="space-y-0.5">
@@ -114,16 +114,19 @@ export function ChatHistoryList() {
                         handleSelectConversation(id);
                       }
                     }}
-                    className={`group relative flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 transition-all ${
+                    className={`group relative flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 transition-all duration-200 ${
                       isActive
-                        ? "bg-accent text-accent-foreground shadow-sm"
-                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                        ? "bg-accent text-accent-foreground shadow-sm font-medium"
+                        : "text-muted-foreground/80 hover:bg-accent/50 hover:text-foreground"
                     }`}
                   >
+                    {isActive && (
+                      <div className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
+                    )}
                     <MessageSquare
-                      className={`h-4 w-4 flex-shrink-0 ${
+                      className={`h-4 w-4 flex-shrink-0 transition-colors ${
                         isActive
-                          ? "text-accent-foreground"
+                          ? "text-primary"
                           : "text-muted-foreground group-hover:text-foreground"
                       }`}
                     />
@@ -133,7 +136,7 @@ export function ChatHistoryList() {
                     {isActive && (
                       <button
                         onClick={(e) => handleDeleteConversation(e, id)}
-                        className="hover:bg-destructive/20 hover:text-destructive -mr-1.5 flex-shrink-0 rounded-md p-1.5 opacity-0 transition-all group-hover:opacity-100"
+                        className="hover:bg-destructive/10 hover:text-destructive -mr-1 flex-shrink-0 rounded-md p-1 opacity-0 transition-all group-hover:opacity-100"
                         title="删除对话"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -146,8 +149,8 @@ export function ChatHistoryList() {
           </div>
         ))}
         {conversationIds.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="bg-muted mb-3 flex h-12 w-12 items-center justify-center rounded-full">
+          <div className="flex flex-col items-center justify-center py-12 text-center opacity-60">
+            <div className="bg-muted/50 mb-3 flex h-12 w-12 items-center justify-center rounded-2xl">
               <MessageSquare className="text-muted-foreground h-5 w-5" />
             </div>
             <p className="text-muted-foreground text-sm">暂无对话记录</p>
