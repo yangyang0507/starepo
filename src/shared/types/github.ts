@@ -73,6 +73,8 @@ export interface GitHubRepository {
   fork: boolean;
   owner: GitHubRepositoryOwner;
   license?: GitHubLicense;
+  /** 用户 star 该仓库的时间（ISO 8601 格式） */
+  starred_at?: string;
 }
 
 /**

@@ -7,8 +7,14 @@ interface SearchCacheEntry {
   result: SearchResponse;
 }
 
-type SortField = 'relevance' | 'stars' | 'updated' | 'created';
+type SortField = 'relevance' | 'stars' | 'updated' | 'created' | 'starred';
 type SortOrder = 'asc' | 'desc';
+
+interface DateRangeFilter {
+  field: 'created' | 'updated' | 'starred';
+  start?: string;
+  end?: string;
+}
 
 interface SearchOptions {
   query?: string;
@@ -22,6 +28,7 @@ interface SearchOptions {
   sortBy?: SortField;
   sortOrder?: SortOrder;
   disableCache?: boolean;
+  dateRange?: DateRangeFilter;
 }
 
 interface SearchResponse {
@@ -89,7 +96,8 @@ export class LanceDBSearchService {
       offset,
       sortBy = 'relevance',
       sortOrder = 'desc',
-      disableCache = false
+      disableCache = false,
+      dateRange
     } = options;
 
     const normalizedPageSize = this.normalizePageSize(pageSize ?? limit ?? 50);
@@ -105,7 +113,8 @@ export class LanceDBSearchService {
       limit: normalizedLimit,
       offset: normalizedOffset,
       sortBy,
-      sortOrder
+      sortOrder,
+      dateRange
     });
 
     if (!disableCache) {
@@ -120,7 +129,7 @@ export class LanceDBSearchService {
     }
 
     try {
-      const whereClause = this.buildWhereClause({ language, minStars, maxStars });
+      const whereClause = this.buildWhereClause({ language, minStars, maxStars, dateRange });
 
       // 使用 LanceDB 原生分页（性能优化：避免拉取全量数据）
       // 获取 limit + 1 条数据用于判断是否有更多结果
@@ -134,6 +143,12 @@ export class LanceDBSearchService {
       // 对于 relevance 排序，LanceDB 已经返回按相关性排序的结果
       // 对于其他排序字段，对有限结果进行排序（非全量数据）
       let items = searchResult.items;
+
+      // 如果有时间范围筛选，在内存中过滤（LanceDB 的日期比较有限）
+      if (dateRange) {
+        items = this.filterByDateRange(items, dateRange);
+      }
+
       if (sortBy !== 'relevance') {
         items = this.sortRepositories([...items], sortBy, sortOrder);
       }
@@ -325,18 +340,25 @@ export class LanceDBSearchService {
           break;
         }
         case 'updated': {
-          comparison = (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * multiplier;
+          comparison = (new Date(a.updated_at ?? 0).getTime() - new Date(b.updated_at ?? 0).getTime()) * multiplier;
           break;
         }
         case 'created': {
-          comparison = (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * multiplier;
+          comparison = (new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime()) * multiplier;
+          break;
+        }
+        case 'starred': {
+          // 按用户 star 的时间排序
+          const aTime = a.starred_at ? new Date(a.starred_at).getTime() : 0;
+          const bTime = b.starred_at ? new Date(b.starred_at).getTime() : 0;
+          comparison = (aTime - bTime) * multiplier;
           break;
         }
         case 'relevance':
         default: {
           // 对于相关性，我们使用综合评分：star数 + 最近更新程度
-          const scoreA = a.stargazers_count + (Date.now() - new Date(a.updated_at).getTime()) / (1000 * 60 * 60 * 24 * 365); // 年数作为衰减因子
-          const scoreB = b.stargazers_count + (Date.now() - new Date(b.updated_at).getTime()) / (1000 * 60 * 60 * 24 * 365);
+          const scoreA = a.stargazers_count + (Date.now() - new Date(a.updated_at ?? 0).getTime()) / (1000 * 60 * 60 * 24 * 365); // 年数作为衰减因子
+          const scoreB = b.stargazers_count + (Date.now() - new Date(b.updated_at ?? 0).getTime()) / (1000 * 60 * 60 * 24 * 365);
           comparison = (scoreA - scoreB) * multiplier;
           break;
         }
@@ -400,11 +422,14 @@ export class LanceDBSearchService {
 
   /**
    * 构造过滤条件
+   * 注意：dateRange 参数在这里不处理，因为 LanceDB 对日期字符串比较支持有限
+   * 时间范围筛选在 filterByDateRange 方法中进行内存过滤
    */
   private buildWhereClause(filters: {
     language?: string;
     minStars?: number;
     maxStars?: number;
+    dateRange?: DateRangeFilter;
   }): string | undefined {
     const conditions: string[] = [];
 
@@ -425,6 +450,41 @@ export class LanceDBSearchService {
     }
 
     return conditions.length ? conditions.join(' AND ') : undefined;
+  }
+
+  /**
+   * 按时间范围过滤仓库
+   */
+  private filterByDateRange(
+    repositories: GitHubRepository[],
+    dateRange: DateRangeFilter
+  ): GitHubRepository[] {
+    const { field, start, end } = dateRange;
+    const startTime = start ? new Date(start).getTime() : 0;
+    const endTime = end ? new Date(end).getTime() : Infinity;
+
+    return repositories.filter(repo => {
+      let dateValue: string | null | undefined;
+
+      switch (field) {
+        case 'created':
+          dateValue = repo.created_at;
+          break;
+        case 'updated':
+          dateValue = repo.updated_at;
+          break;
+        case 'starred':
+          dateValue = repo.starred_at;
+          break;
+      }
+
+      if (!dateValue) {
+        return false;
+      }
+
+      const time = new Date(dateValue).getTime();
+      return time >= startTime && time <= endTime;
+    });
   }
 
   private normalizePage(page?: number): number {

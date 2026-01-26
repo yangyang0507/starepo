@@ -100,6 +100,7 @@ export class LanceDBService {
       topics: '',
       created_at: '2023-01-01T00:00:00Z',
       updated_at: '2023-01-01T00:00:00Z',
+      starred_at: '2023-01-01T00:00:00Z',
       owner_login: 'placeholder',
       document: 'placeholder',
       vector: new Array(1536).fill(0.0),
@@ -186,6 +187,7 @@ export class LanceDBService {
         topics: repo.topics?.join(',') || '',
         created_at: repo.created_at,
         updated_at: repo.updated_at,
+        starred_at: repo.starred_at || repo.created_at || new Date().toISOString(),
         owner_login: repo.owner.login,
         document,
         vector: this.generateEmbedding(document),
@@ -525,6 +527,7 @@ export class LanceDBService {
         avatar_url: '', // 需要从其他地方获取
       },
       license: undefined, // 暂不支持
+      starred_at: record.starred_at || undefined,
     };
   }
 
