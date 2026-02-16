@@ -11,6 +11,8 @@ import {
   RefreshCw,
   TrendingUp,
   Star,
+  GitFork,
+  Eye,
 } from "lucide-react";
 import { githubAPI } from "@/api";
 import type { GitHubUser, GitHubRepository, AuthState } from "@shared/types";
@@ -20,6 +22,12 @@ import {
   TopicsDistributionChart,
   TimelineChart,
   RepositoriesRanking,
+  StarDistributionChart,
+  LicenseDistributionChart,
+  ActivityAnalysisChart,
+  OwnerDistributionChart,
+  RepoAgeChart,
+  ForkRatioChart,
 } from "@/components/charts";
 import { useExternalLink } from "@/hooks/use-external-link";
 import { useCountAnimation } from "@/hooks/use-count-animation";
@@ -198,8 +206,8 @@ export default function StatsPage() {
   }, []);
 
   const renderCardsSkeleton = () => (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
-      {Array.from({ length: 6 }).map((_, i) => (
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
+      {Array.from({ length: 8 }).map((_, i) => (
         <div
           key={i}
           className="bg-card text-card-foreground rounded-xl border p-6 shadow-sm"
@@ -235,6 +243,42 @@ export default function StatsPage() {
           </CardContent>
         </Card>
       </div>
+      <div className="grid gap-4 lg:grid-cols-2 lg:gap-6 xl:grid-cols-2">
+        <Card>
+          <CardContent className="pt-6">
+            <Skeleton className="h-72 w-full rounded-lg" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <Skeleton className="h-72 w-full rounded-lg" />
+          </CardContent>
+        </Card>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2 lg:gap-6 xl:grid-cols-2">
+        <Card>
+          <CardContent className="pt-6">
+            <Skeleton className="h-72 w-full rounded-lg" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <Skeleton className="h-72 w-full rounded-lg" />
+          </CardContent>
+        </Card>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2 lg:gap-6 xl:grid-cols-2">
+        <Card>
+          <CardContent className="pt-6">
+            <Skeleton className="h-72 w-full rounded-lg" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <Skeleton className="h-72 w-full rounded-lg" />
+          </CardContent>
+        </Card>
+      </div>
       <Card>
         <CardContent className="pt-6">
           <Skeleton className="h-64 w-full rounded-lg" />
@@ -249,8 +293,17 @@ export default function StatsPage() {
 
     const { statsData } = state;
 
+    const totalForks = statsData.repositories.reduce(
+      (sum, r) => sum + (r.forks_count || 0),
+      0,
+    );
+    const totalWatchers = statsData.repositories.reduce(
+      (sum, r) => sum + (r.watchers_count || 0),
+      0,
+    );
+
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
         <StatCard
           title="总收藏数"
           value={
@@ -321,6 +374,29 @@ export default function StatsPage() {
               ? () => openExternal(statsData.basic.recently_starred!.html_url)
               : undefined
           }
+        />
+        <StatCard
+          title="总 Fork 数"
+          value={
+            <AnimatedNumber key={`forks-${animationKey}`} value={totalForks} />
+          }
+          subtitle="所有收藏仓库的 Fork 总数"
+          icon={GitFork}
+          colorClass="text-cyan-500"
+          delay={600}
+        />
+        <StatCard
+          title="总 Watcher 数"
+          value={
+            <AnimatedNumber
+              key={`watchers-${animationKey}`}
+              value={totalWatchers}
+            />
+          }
+          subtitle="所有收藏仓库的关注总数"
+          icon={Eye}
+          colorClass="text-pink-500"
+          delay={700}
         />
       </div>
     );
@@ -397,6 +473,26 @@ export default function StatsPage() {
               <TopicsDistributionChart
                 topics={state.statsData.insights.topTopics}
               />
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2 lg:gap-6 xl:grid-cols-2">
+              <StarDistributionChart
+                repositories={state.statsData.repositories}
+              />
+              <ActivityAnalysisChart
+                repositories={state.statsData.repositories}
+              />
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2 lg:gap-6 xl:grid-cols-2">
+              <LicenseDistributionChart
+                repositories={state.statsData.repositories}
+              />
+              <ForkRatioChart repositories={state.statsData.repositories} />
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2 lg:gap-6 xl:grid-cols-2">
+              <OwnerDistributionChart
+                repositories={state.statsData.repositories}
+              />
+              <RepoAgeChart repositories={state.statsData.repositories} />
             </div>
             <RepositoriesRanking
               repositories={state.statsData.repositories || []}

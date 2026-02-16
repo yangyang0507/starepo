@@ -1,4 +1,10 @@
-export { LanguageDistributionChart } from './language-distribution-chart';
-export { TopicsDistributionChart } from './topics-distribution-chart';
-export { TimelineChart } from './timeline-chart';
-export { RepositoriesRanking } from './repositories-ranking';
+export { LanguageDistributionChart } from "./language-distribution-chart";
+export { TopicsDistributionChart } from "./topics-distribution-chart";
+export { TimelineChart } from "./timeline-chart";
+export { RepositoriesRanking } from "./repositories-ranking";
+export { StarDistributionChart } from "./star-distribution-chart";
+export { LicenseDistributionChart } from "./license-distribution-chart";
+export { ActivityAnalysisChart } from "./activity-analysis-chart";
+export { OwnerDistributionChart } from "./owner-distribution-chart";
+export { RepoAgeChart } from "./repo-age-chart";
+export { ForkRatioChart } from "./fork-ratio-chart";
