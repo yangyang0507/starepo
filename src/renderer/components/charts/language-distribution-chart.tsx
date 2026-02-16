@@ -35,15 +35,6 @@ const getLanguageColor = (language: string): string => {
   return colors[language] || "#6b7280";
 };
 
-// 定义数据类型
-interface _LanguageData {
-  language: string;
-  count: number;
-  percentage: number;
-  color: string;
-}
-
-// 自定义 Tooltip 组件的类型定义
 interface CustomTooltipProps {
   active?: boolean;
   payload?: Array<{
@@ -62,9 +53,9 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const data = payload[0];
     return (
-      <div className="rounded-lg border bg-background p-3 shadow-md">
+      <div className="bg-background rounded-lg border p-3 shadow-md">
         <p className="font-medium">{data.payload.language}</p>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           {data.value} 个仓库 ({data.payload.percentage.toFixed(1)}%)
         </p>
       </div>
@@ -74,13 +65,15 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload }) => {
 };
 
 // 自定义 Legend 组件
-const CustomLegend: React.FC<{ payload?: Array<{ color: string; value: string }> }> = ({ payload }) => {
+const CustomLegend: React.FC<{
+  payload?: Array<{ color: string; value: string }>;
+}> = ({ payload }) => {
   return (
-    <div className="flex flex-wrap justify-center gap-2 mt-4">
+    <div className="mt-4 flex flex-wrap justify-center gap-2">
       {payload?.map((entry, index: number) => (
         <div key={index} className="flex items-center gap-1 text-xs">
           <div
-            className="w-3 h-3 rounded-full"
+            className="h-3 w-3 rounded-full"
             style={{ backgroundColor: entry.color }}
           />
           <span className="text-muted-foreground">{entry.value}</span>
@@ -125,8 +118,8 @@ const LanguageDistributionChart: React.FC<LanguageDistributionChartProps> = ({
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-12">
-            <div className="text-center space-y-2">
-              <Code className="h-12 w-12 text-muted-foreground mx-auto" />
+            <div className="space-y-2 text-center">
+              <Code className="text-muted-foreground mx-auto h-12 w-12" />
               <p className="text-muted-foreground">暂无语言数据</p>
             </div>
           </div>
@@ -136,7 +129,9 @@ const LanguageDistributionChart: React.FC<LanguageDistributionChartProps> = ({
   }
 
   return (
-    <Card className={`rounded-xl shadow-sm transition-all duration-300 hover:shadow-md ${className}`}>
+    <Card
+      className={`rounded-xl shadow-sm transition-all duration-300 hover:shadow-md ${className}`}
+    >
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Code className="h-5 w-5" />
@@ -144,15 +139,15 @@ const LanguageDistributionChart: React.FC<LanguageDistributionChartProps> = ({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-60 sm:h-72 lg:h-80 w-full">
+        <div className="h-60 w-full sm:h-72 lg:h-80">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={chartData}
                 cx="50%"
                 cy="50%"
-                outerRadius={60}
-                innerRadius={30}
+                outerRadius="70%"
+                innerRadius="35%"
                 dataKey="value"
                 label={false}
                 labelLine={false}
@@ -168,26 +163,31 @@ const LanguageDistributionChart: React.FC<LanguageDistributionChartProps> = ({
         </div>
 
         {/* 语言统计列表 */}
-        <div className="mt-2 sm:mt-4 space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground">详细统计</h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+        <div className="mt-2 space-y-2 sm:mt-4">
+          <h4 className="text-muted-foreground text-sm font-medium">
+            详细统计
+          </h4>
+          <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
             {languages.slice(0, 4).map((lang) => (
-              <div key={lang.name} className="flex items-center justify-between text-xs sm:text-sm p-1 sm:p-2 rounded-md bg-muted/30">
-                <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+              <div
+                key={lang.name}
+                className="bg-muted/30 flex items-center justify-between rounded-md p-1 text-xs sm:p-2 sm:text-sm"
+              >
+                <div className="flex min-w-0 items-center gap-1 sm:gap-2">
                   <div
-                    className="w-2 sm:w-3 h-2 sm:h-3 rounded-full flex-shrink-0"
+                    className="h-2 w-2 flex-shrink-0 rounded-full sm:h-3 sm:w-3"
                     style={{ backgroundColor: getLanguageColor(lang.name) }}
                   />
                   <span className="truncate">{lang.name}</span>
                 </div>
-                <div className="flex items-center gap-1 text-muted-foreground flex-shrink-0 text-xs">
+                <div className="text-muted-foreground flex flex-shrink-0 items-center gap-1 text-xs">
                   <span className="font-medium">{lang.count}</span>
                 </div>
               </div>
             ))}
           </div>
           {languages.length > 4 && (
-            <div className="text-xs text-muted-foreground text-center pt-1 sm:pt-2">
+            <div className="text-muted-foreground pt-1 text-center text-xs sm:pt-2">
               还有 {languages.length - 4} 种其他语言...
             </div>
           )}
@@ -197,24 +197,5 @@ const LanguageDistributionChart: React.FC<LanguageDistributionChartProps> = ({
   );
 };
 
-// 使用 React.memo 优化性能
-const MemoizedLanguageDistributionChart = React.memo(LanguageDistributionChart, (prevProps, nextProps) => {
-  // 比较 languages 数组的内容
-  if (prevProps.languages.length !== nextProps.languages.length) {
-    return false;
-  }
-
-  for (let i = 0; i < prevProps.languages.length; i++) {
-    const prev = prevProps.languages[i];
-    const next = nextProps.languages[i];
-    if (prev.name !== next.name || prev.count !== next.count || prev.percentage !== next.percentage) {
-      return false;
-    }
-  }
-
-  return prevProps.className === nextProps.className;
-});
-
-// 同时提供默认导出和命名导出
-export { MemoizedLanguageDistributionChart as LanguageDistributionChart };
-export default MemoizedLanguageDistributionChart;
+export { LanguageDistributionChart };
+export default LanguageDistributionChart;

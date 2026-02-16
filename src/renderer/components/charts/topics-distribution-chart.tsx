@@ -11,13 +11,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tag } from "lucide-react";
 
-// 定义数据类型
-interface _TopicData {
-  topic: string;
-  count: number;
-  percentage: number;
-}
-
 // 自定义 Tooltip 组件的类型定义
 interface CustomTooltipProps {
   active?: boolean;
@@ -31,13 +24,17 @@ interface CustomTooltipProps {
 }
 
 // 自定义 Tooltip 组件
-const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label }) => {
+const CustomTooltip: React.FC<CustomTooltipProps> = ({
+  active,
+  payload,
+  label,
+}) => {
   if (active && payload && payload.length) {
     const data = payload[0];
     return (
-      <div className="rounded-lg border bg-background p-3 shadow-md">
+      <div className="bg-background rounded-lg border p-3 shadow-md">
         <p className="font-medium">{label}</p>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           {data.value} 次使用 ({data.payload.percentage.toFixed(1)}%)
         </p>
       </div>
@@ -55,14 +52,14 @@ interface TopicsDistributionChartProps {
   className?: string;
 }
 
-export const TopicsDistributionChart: React.FC<TopicsDistributionChartProps> = ({
-  topics,
-  className = "",
-}) => {
+export const TopicsDistributionChart: React.FC<
+  TopicsDistributionChartProps
+> = ({ topics, className = "" }) => {
   // 准备图表数据
   const chartData = useMemo(() => {
     return topics.slice(0, 10).map((topic) => ({
-      name: topic.name.length > 12 ? `${topic.name.slice(0, 12)}...` : topic.name,
+      name:
+        topic.name.length > 12 ? `${topic.name.slice(0, 12)}...` : topic.name,
       fullName: topic.name,
       value: topic.count,
       percentage: topic.percentage,
@@ -81,8 +78,8 @@ export const TopicsDistributionChart: React.FC<TopicsDistributionChartProps> = (
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-12">
-            <div className="text-center space-y-2">
-              <Tag className="h-12 w-12 text-muted-foreground mx-auto" />
+            <div className="space-y-2 text-center">
+              <Tag className="text-muted-foreground mx-auto h-12 w-12" />
               <p className="text-muted-foreground">暂无主题数据</p>
             </div>
           </div>
@@ -92,7 +89,9 @@ export const TopicsDistributionChart: React.FC<TopicsDistributionChartProps> = (
   }
 
   return (
-    <Card className={`rounded-xl shadow-sm transition-all duration-300 hover:shadow-md ${className}`}>
+    <Card
+      className={`rounded-xl shadow-sm transition-all duration-300 hover:shadow-md ${className}`}
+    >
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Tag className="h-5 w-5" />
@@ -100,7 +99,7 @@ export const TopicsDistributionChart: React.FC<TopicsDistributionChartProps> = (
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-60 sm:h-72 lg:h-80 w-full">
+        <div className="h-60 w-full sm:h-72 lg:h-80">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={chartData}
@@ -133,27 +132,32 @@ export const TopicsDistributionChart: React.FC<TopicsDistributionChartProps> = (
         </div>
 
         {/* 主题统计列表 */}
-        <div className="mt-2 sm:mt-4 space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground">热门主题</h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+        <div className="mt-2 space-y-2 sm:mt-4">
+          <h4 className="text-muted-foreground text-sm font-medium">
+            热门主题
+          </h4>
+          <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
             {topics.slice(0, 6).map((topic, index) => (
-              <div key={topic.name} className="flex items-center justify-between text-xs sm:text-sm p-1 sm:p-2 rounded-md bg-muted/30">
-                <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-                  <div className="flex-shrink-0 w-4 sm:w-5 h-4 sm:h-5 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium text-primary">
+              <div
+                key={topic.name}
+                className="bg-muted/30 flex items-center justify-between rounded-md p-1 text-xs sm:p-2 sm:text-sm"
+              >
+                <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+                  <div className="bg-primary/20 text-primary flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-xs font-medium sm:h-5 sm:w-5">
                     {index + 1}
                   </div>
                   <span className="truncate" title={topic.name}>
                     {topic.name}
                   </span>
                 </div>
-                <div className="flex items-center gap-1 text-muted-foreground flex-shrink-0">
-                  <span className="font-medium text-xs">{topic.count}</span>
+                <div className="text-muted-foreground flex flex-shrink-0 items-center gap-1">
+                  <span className="text-xs font-medium">{topic.count}</span>
                 </div>
               </div>
             ))}
           </div>
           {topics.length > 6 && (
-            <div className="text-xs text-muted-foreground text-center pt-1 sm:pt-2">
+            <div className="text-muted-foreground pt-1 text-center text-xs sm:pt-2">
               还有 {topics.length - 6} 个其他主题...
             </div>
           )}
