@@ -104,5 +104,9 @@ out/
 .idea/
 .vscode/
 .claude/
-.mcp.json
+.agents/
+.pi/
+.omp/
 .ace-tool/
+.mcp.json
+skills-lock.json
