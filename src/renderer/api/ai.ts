@@ -70,6 +70,7 @@ export interface StreamChatOptions {
   }) => void;
   onComplete?: (data: AIResponse) => void;
   onError?: (error: string) => void;
+  modelId?: string;
 }
 
 /**
@@ -84,6 +85,7 @@ export async function sendChatMessageStream(
   console.log("[AI API] sendChatMessageStream called:", {
     message,
     conversationId,
+    modelId: options?.modelId,
   });
 
   const electronAPI = (window as any).electronAPI;
@@ -137,6 +139,7 @@ export async function sendChatMessageStream(
           break;
       }
     },
+    options?.modelId,
   );
 
   console.log("[AI API] chatStream response:", response);

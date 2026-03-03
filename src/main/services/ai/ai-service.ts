@@ -181,6 +181,7 @@ export class AIService {
     onChunk: (chunk: StreamChunk) => void,
     signal?: AbortSignal,
     userId?: string,
+    modelId?: string,
   ): Promise<void> {
     if (!this.settings) {
       throw new AIError(
@@ -196,7 +197,7 @@ export class AIService {
         userId,
       };
 
-      const model = await this.getModel();
+      const model = await this.getModel(modelId);
       const systemPrompt = this.buildSystemPrompt();
       // buildMessages 会将历史消息 + 当前消息组合
       const messages = this.buildMessages(message, context);
@@ -359,13 +360,13 @@ export class AIService {
   /**
    * 获取模型实例（带缓存）
    */
-  private async getModel() {
+  private async getModel(requestedModelId?: string) {
     if (!this.settings) {
       throw new AIError(AIErrorCode.NOT_CONFIGURED, "Settings not available");
     }
 
     const account = this.toProviderAccountConfig(this.settings);
-    const modelId = this.settings.model?.trim() || undefined;
+    const modelId = requestedModelId?.trim() || this.settings.model?.trim() || undefined;
     const modelSpec = modelId
       ? `${account.providerId}|${modelId}`
       : account.providerId;

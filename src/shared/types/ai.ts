@@ -118,6 +118,7 @@ export interface AIChatPayload {
   message: string;
   userId?: string;
   conversationId?: string;
+  modelId?: string;
 }
 
 // 流式聊天载荷

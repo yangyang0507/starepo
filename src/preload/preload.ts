@@ -300,9 +300,10 @@ const aiAPI = {
   chatStream: (
     message: string,
     conversationId?: string,
-    onChunk?: (chunk: StreamChunk & { sessionId: string }) => void
+    onChunk?: (chunk: StreamChunk & { sessionId: string }) => void,
+    modelId?: string,
   ): Promise<APIResponse<{ sessionId: string }>> => {
-    console.log('[Preload] chatStream called:', { message, conversationId });
+    console.log('[Preload] chatStream called:', { message, conversationId, modelId });
 
     return new Promise((resolve, reject) => {
       // 🔧 修复竞态条件：在 invoke 前注册全局监听器
@@ -331,7 +332,7 @@ const aiAPI = {
       console.log('[Preload] Chunk handler registered (before invoke)');
 
       // 再启动流
-      ipcRenderer.invoke(IPC_CHANNELS.AI.CHAT_STREAM, { message, conversationId })
+      ipcRenderer.invoke(IPC_CHANNELS.AI.CHAT_STREAM, { message, conversationId, modelId })
         .then((response: APIResponse<{ sessionId: string }>) => {
           console.log('[Preload] CHAT_STREAM response:', response);
 

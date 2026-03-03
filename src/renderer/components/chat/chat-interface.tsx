@@ -107,7 +107,9 @@ export function ChatInterface({
       setError(null);
 
       try {
-        await streamChat(trimmedMessage);
+        await streamChat(trimmedMessage, {
+          modelId: selectedModel || undefined,
+        });
       } catch (err) {
         console.error("[ChatInterface] Failed to send message:", err);
         setError(
@@ -115,7 +117,7 @@ export function ChatInterface({
         );
       }
     },
-    [hasEnabledProvider, streamChat],
+    [hasEnabledProvider, selectedModel, streamChat],
   );
 
   // 快捷提示

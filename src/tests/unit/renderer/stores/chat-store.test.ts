@@ -203,6 +203,28 @@ describe('ChatStore - 流式处理', () => {
     });
   });
 
+  it('应该将选中模型透传到流式请求', async () => {
+    const { result } = renderHook(() => useChatStore());
+    const { sendChatMessageStream } = await import('@/api/ai');
+
+    vi.mocked(sendChatMessageStream).mockImplementation(
+      async (_message, _conversationId, _userId, callbacks) => {
+        callbacks?.onComplete?.({ content: 'ok', references: [] });
+        return { sessionId: 'test-session', abort: async () => {} };
+      }
+    );
+
+    await act(async () => {
+      await result.current.streamChat('Test message', { modelId: 'gpt-4o-mini' });
+    });
+
+    expect(sendChatMessageStream).toHaveBeenCalledWith(
+      'Test message',
+      'default',
+      undefined,
+      expect.objectContaining({ modelId: 'gpt-4o-mini' })
+    );
+  });
   it('应该支持中断流式会话', async () => {
     const { result } = renderHook(() => useChatStore());
     const { sendChatMessageStream, abortChat } = await import('@/api/ai');

@@ -144,7 +144,8 @@ export function initializeAIHandlers(): void {
                 });
               },
               controller.signal,
-              validatedPayload.userId
+              validatedPayload.userId,
+              validatedPayload.modelId,
             );
 
             // 流式完成

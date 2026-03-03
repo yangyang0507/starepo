@@ -17,6 +17,7 @@ export const AIChatPayloadSchema = z.object({
     .max(100000, '消息长度不能超过 100000 字符'),
   conversationId: z.string().optional(),
   userId: z.string().optional(),
+  modelId: z.string().optional(),
 });
 
 /**

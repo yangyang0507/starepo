@@ -94,6 +94,7 @@ interface ChatStore {
       onTextDelta?: (text: string) => void;
       onComplete?: (data: AIResponse) => void;
       onError?: (error: string) => void;
+      modelId?: string;
     },
   ) => Promise<{ sessionId: string; abort: () => Promise<void> }>;
   abortCurrentStream: () => Promise<void>;
@@ -549,7 +550,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
    * 设置流式状态
    */
   setStreaming: (isStreaming, messageId = null) => {
-    set({ isStreaming, streamingMessageId: messageId });
+    set((state) => ({
+      isStreaming,
+      streamingMessageId: isStreaming ? messageId : null,
+      currentStreamSession: isStreaming ? state.currentStreamSession : null,
+    }));
   },
 
   /**
@@ -617,6 +622,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         conversationId,
         undefined,
         {
+          modelId: options.modelId,
           onTextDelta: (text) => {
             accumulatedContent += text;
 
@@ -819,6 +825,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         },
       );
 
+      if (get().isStreaming) {
+        set({ currentStreamSession: result.sessionId });
+      }
       return result;
     } catch (error) {
       console.error("[ChatStore] Send message error:", error);
@@ -832,14 +841,18 @@ export const useChatStore = create<ChatStore>((set, get) => ({
    */
   abortCurrentStream: async () => {
     const state = get();
-    if (state.currentStreamSession) {
-      try {
-        const { abortChat } = await import("@/api/ai");
-        await abortChat(state.currentStreamSession);
-        state.setStreaming(false, null);
-      } catch (error) {
-        console.error("[ChatStore] Failed to abort stream:", error);
-      }
+
+    if (!state.currentStreamSession) {
+      state.setStreaming(false, null);
+      return;
+    }
+
+    try {
+      const { abortChat } = await import("@/api/ai");
+      await abortChat(state.currentStreamSession);
+      state.setStreaming(false, null);
+    } catch (error) {
+      console.error("[ChatStore] Failed to abort stream:", error);
     }
   },
 
