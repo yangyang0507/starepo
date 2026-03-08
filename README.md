@@ -2,6 +2,8 @@
 
 Search your GitHub starred repositories with semantic search.
 
+English | [简体中文](./README.zh.md)
+
 ## Features
 
 - 🔍 **Semantic Search** - Natural language queries powered by local embeddings

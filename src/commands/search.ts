@@ -57,7 +57,7 @@ export async function runSearch(query: string | undefined, options: SearchComman
   }
 
   if (options.json) {
-    console.log(JSON.stringify(results, null, 2));
+    console.log(JSON.stringify(results.map(({ vector: _, ...r }) => r), null, 2));
     return;
   }
 

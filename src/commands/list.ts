@@ -43,7 +43,7 @@ export async function runList(options: ListCommandOptions = {}): Promise<void> {
     });
 
   if (options.json) {
-    console.log(JSON.stringify(repos, null, 2));
+    console.log(JSON.stringify(repos.map(({ vector: _, ...r }) => r), null, 2));
     return;
   }
 
