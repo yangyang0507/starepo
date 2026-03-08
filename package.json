@@ -1,0 +1,72 @@
+{
+  "name": "starepo",
+  "version": "0.1.0",
+  "description": "Search your GitHub stars with semantic search",
+  "type": "module",
+  "bin": {
+    "starepo": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "npm run build"
+  },
+  "vitest": {
+    "environment": "node",
+    "include": [
+      "tests/**/*.test.ts"
+    ],
+    "coverage": {
+      "include": [
+        "src/**"
+      ]
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yangyang0507/starepo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yangyang0507/starepo/issues"
+  },
+  "homepage": "https://github.com/yangyang0507/starepo#readme",
+  "author": "D.Yang <koyangslash@gmail.com>",
+  "dependencies": {
+    "@lancedb/lancedb": "^0.22.3",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@octokit/auth-oauth-device": "^7.0.0",
+    "@octokit/rest": "^21.0.0",
+    "@xenova/transformers": "^2.17.2",
+    "apache-arrow": "^18.1.0",
+    "commander": "^12.0.0",
+    "xdg-basedir": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^4.0.18",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.0.18"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "github",
+    "stars",
+    "search",
+    "mcp",
+    "cli"
+  ],
+  "license": "MIT"
+}
