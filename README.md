@@ -23,6 +23,19 @@ Or use with `npx` (no installation required):
 npx starepo <command>
 ```
 
+## Agent Integration (skills.sh)
+
+Install the starepo skill into Claude Code, Cursor, and other AI agents with one command:
+
+```bash
+npx skills add yangyang0507/starepo
+```
+
+Once installed, your AI agent can search your GitHub stars directly. Just ask naturally:
+
+> "Find my starred repos about semantic search"
+> "Show me TypeScript repos I starred this month"
+
 ## Quick Start
 
 ### 1. Authenticate with GitHub
