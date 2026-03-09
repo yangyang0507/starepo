@@ -50,6 +50,10 @@ npx starepo search "cli tools" --json
 
 # Control number of results (default: 10)
 npx starepo search "databases" --limit 20
+
+# Sort results (default: relevance)
+npx starepo search "vector database" --sort stars    # most starred first
+npx starepo search "react" --sort forks --order asc  # fewest forks first
 ```
 
 ## List & Filter
@@ -68,6 +72,11 @@ npx starepo list --topic "machine-learning"
 npx starepo list --since 2026-01-01
 npx starepo list --days 30        # starred in last 30 days
 npx starepo list --since 2026-01-01 --until 2026-03-01
+
+# Sort results (default: starred desc — most recently starred first)
+npx starepo list --sort stars              # most starred first
+npx starepo list --sort updated            # recently updated first
+npx starepo list --sort starred --order asc  # oldest starred first
 ```
 
 ## Repo Details
