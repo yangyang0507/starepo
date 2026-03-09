@@ -8,6 +8,7 @@
 
 - 🔍 **语义搜索** - 基于本地向量嵌入的自然语言查询
 - ⚡ **快速关键词搜索** - 全文搜索兜底，结果即时返回
+- 🔃 **灵活排序** - 按 star 数、fork 数、star 时间、更新时间排序
 - 🤖 **MCP 服务器** - 集成 Claude Desktop、Cursor 等 AI 工具
 - 🔐 **零配置认证** - GitHub Device Flow 授权，无需手动填写 Token
 - 💾 **本地存储** - 所有数据通过 LanceDB 存储在本地（无需编译）
@@ -37,6 +38,50 @@ npx skills add yangyang0507/starepo
 
 > "帮我找和语义搜索相关的 star"
 > "列出这个月 star 的 TypeScript 项目"
+
+## MCP 服务器集成
+
+Starepo 可作为 MCP 服务器接入 AI 助手。
+
+### Claude Desktop
+
+添加到 `~/Library/Application Support/Claude/claude_desktop_config.json`（macOS）或 `%APPDATA%\Claude\claude_desktop_config.json`（Windows）：
+
+```json
+{
+  "mcpServers": {
+    "starepo": {
+      "command": "starepo",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+或使用 npx：
+
+```json
+{
+  "mcpServers": {
+    "starepo": {
+      "command": "npx",
+      "args": ["starepo", "serve"]
+    }
+  }
+}
+```
+
+### 可用 MCP 工具
+
+- `search_stars(query?, language?, topic?, since?, until?, days?, limit?)` - 带过滤的语义搜索
+- `list_stars(query?, language?, topic?, since?, until?, days?, limit?)` - 带过滤的列表
+- `get_star_info(full_name)` - 获取仓库详情
+- `sync_stars()` - 触发 GitHub 同步
+
+### MCP 资源
+
+- `starepo://stars` - 所有 Star 仓库概览
+- `starepo://stars/{owner}/{repo}` - 指定仓库详情
 
 ## 快速开始
 
@@ -75,6 +120,10 @@ starepo search --lang TypeScript --days 7
 
 # 限制结果数量
 starepo search "python web 框架" --limit 5
+
+# 排序
+starepo search "rust cli" --sort stars
+starepo search "react" --sort forks --order asc
 
 # JSON 输出
 starepo search "rust cli" --json
@@ -128,12 +177,18 @@ starepo search "query" --limit 10
 starepo search "query" --lang TypeScript --topic react
 starepo search "query" --since 2026-03-01 --until 2026-03-08
 starepo search --lang TypeScript --days 7
+starepo search "query" --sort stars              # 按 star 数降序
+starepo search "query" --sort forks --order asc  # 按 fork 数升序
 starepo search "query" --json
 ```
 
 **搜索模式：**
 - 有向量数据时：**混合搜索**（向量 + 关键词）
 - 无向量数据时：**关键词搜索**（全文检索兜底）
+
+**排序字段（`--sort`）：** `relevance`（默认）、`stars`、`forks`、`starred`、`updated`
+
+**排序方向（`--order`）：** `desc`（默认）、`asc`
 
 ### `list`
 
@@ -147,8 +202,15 @@ starepo list --topic ai
 starepo list --since 2026-03-01 --until 2026-03-08
 starepo list --days 7
 starepo list --limit 20
+starepo list --sort stars                 # 按 star 数降序
+starepo list --sort starred --order asc   # 最早 star 的在前
+starepo list --sort updated               # 最近更新的在前
 starepo list --json
 ```
+
+**排序字段（`--sort`）：** `starred`（默认）、`stars`、`forks`、`updated`
+
+**排序方向（`--order`）：** `desc`（默认）、`asc`
 
 ### `info <owner/repo>`
 
@@ -165,50 +227,6 @@ starepo info facebook/react
 ```bash
 starepo serve
 ```
-
-## MCP 服务器集成
-
-Starepo 可作为 MCP 服务器接入 AI 助手。
-
-### Claude Desktop
-
-添加到 `~/Library/Application Support/Claude/claude_desktop_config.json`（macOS）或 `%APPDATA%\Claude\claude_desktop_config.json`（Windows）：
-
-```json
-{
-  "mcpServers": {
-    "starepo": {
-      "command": "starepo",
-      "args": ["serve"]
-    }
-  }
-}
-```
-
-或使用 npx：
-
-```json
-{
-  "mcpServers": {
-    "starepo": {
-      "command": "npx",
-      "args": ["starepo", "serve"]
-    }
-  }
-}
-```
-
-### 可用 MCP 工具
-
-- `search_stars(query?, language?, topic?, since?, until?, days?, limit?)` - 带过滤的语义搜索
-- `list_stars(query?, language?, topic?, since?, until?, days?, limit?)` - 带过滤的列表
-- `get_star_info(full_name)` - 获取仓库详情
-- `sync_stars()` - 触发 GitHub 同步
-
-### MCP 资源
-
-- `starepo://stars` - 所有 Star 仓库概览
-- `starepo://stars/{owner}/{repo}` - 指定仓库详情
 
 ## 配置存储
 
@@ -276,14 +294,6 @@ starepo --help
 ```
 
 ## 常见问题
-
-### "device_flow_disabled" 错误
-
-需要在 GitHub OAuth App 中开启 Device Flow：
-1. 前往 https://github.com/settings/developers
-2. 点击你的 OAuth App
-3. 勾选 **Enable Device Flow**
-4. 保存
 
 ### 搜索无结果
 

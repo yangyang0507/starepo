@@ -8,6 +8,7 @@ English | [简体中文](./README.zh.md)
 
 - 🔍 **Semantic Search** - Natural language queries powered by local embeddings
 - ⚡ **Fast Keyword Search** - Full-text search fallback for instant results
+- 🔃 **Flexible Sorting** - Sort results by stars, forks, starred date, or updated date
 - 🤖 **MCP Server** - Integrate with Claude Desktop, Cursor, and other AI tools
 - 🔐 **Zero Config** - GitHub Device Flow authentication, no tokens needed
 - 💾 **Local Storage** - All data stored locally with LanceDB (no compilation required)
@@ -37,6 +38,50 @@ Once installed, your AI agent can search your GitHub stars directly. Just ask na
 
 > "Find my starred repos about semantic search"
 > "Show me TypeScript repos I starred this month"
+
+## MCP Server Integration
+
+Starepo can run as an MCP server to integrate with AI assistants.
+
+### Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
+```json
+{
+  "mcpServers": {
+    "starepo": {
+      "command": "starepo",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+Or if installed locally:
+
+```json
+{
+  "mcpServers": {
+    "starepo": {
+      "command": "npx",
+      "args": ["starepo", "serve"]
+    }
+  }
+}
+```
+
+### Available MCP Tools
+
+- `search_stars(query?, language?, topic?, since?, until?, days?, limit?)` - Search repositories with combined filters
+- `list_stars(query?, language?, topic?, since?, until?, days?, limit?)` - List with combined filters
+- `get_star_info(full_name)` - Get repository details
+- `sync_stars()` - Trigger sync from GitHub
+
+### MCP Resources
+
+- `starepo://stars` - All starred repositories overview
+- `starepo://stars/{owner}/{repo}` - Specific repository details
 
 ## Quick Start
 
@@ -75,6 +120,10 @@ starepo search --lang TypeScript --days 7
 
 # Limit results
 starepo search "python web framework" --limit 5
+
+# Sort results
+starepo search "rust cli" --sort stars
+starepo search "react" --sort forks --order asc
 
 # JSON output
 starepo search "rust cli" --json
@@ -128,12 +177,18 @@ starepo search "query" --limit 10
 starepo search "query" --lang TypeScript --topic react
 starepo search "query" --since 2026-03-01 --until 2026-03-08
 starepo search --lang TypeScript --days 7
+starepo search "query" --sort stars           # Sort by star count (desc)
+starepo search "query" --sort forks --order asc  # Sort by forks ascending
 starepo search "query" --json
 ```
 
 **Search modes:**
 - If embeddings exist: **Hybrid search** (vector + keyword)
 - Otherwise: **Keyword search** (full-text fallback)
+
+**Sort options (`--sort`):** `relevance` (default), `stars`, `forks`, `starred`, `updated`
+
+**Order options (`--order`):** `desc` (default), `asc`
 
 ### `list`
 
@@ -147,8 +202,15 @@ starepo list --topic ai
 starepo list --since 2026-03-01 --until 2026-03-08
 starepo list --days 7
 starepo list --limit 20
+starepo list --sort stars              # Sort by star count (desc)
+starepo list --sort starred --order asc  # Oldest starred first
+starepo list --sort updated            # Recently updated first
 starepo list --json
 ```
+
+**Sort options (`--sort`):** `starred` (default), `stars`, `forks`, `updated`
+
+**Order options (`--order`):** `desc` (default), `asc`
 
 ### `info <owner/repo>`
 
@@ -165,50 +227,6 @@ Start the MCP server (stdio mode).
 ```bash
 starepo serve
 ```
-
-## MCP Server Integration
-
-Starepo can run as an MCP server to integrate with AI assistants.
-
-### Claude Desktop
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
-
-```json
-{
-  "mcpServers": {
-    "starepo": {
-      "command": "starepo",
-      "args": ["serve"]
-    }
-  }
-}
-```
-
-Or if installed locally:
-
-```json
-{
-  "mcpServers": {
-    "starepo": {
-      "command": "npx",
-      "args": ["starepo", "serve"]
-    }
-  }
-}
-```
-
-### Available MCP Tools
-
-- `search_stars(query?, language?, topic?, since?, until?, days?, limit?)` - Search repositories with combined filters
-- `list_stars(query?, language?, topic?, since?, until?, days?, limit?)` - List with combined filters
-- `get_star_info(full_name)` - Get repository details
-- `sync_stars()` - Trigger sync from GitHub
-
-### MCP Resources
-
-- `starepo://stars` - All starred repositories overview
-- `starepo://stars/{owner}/{repo}` - Specific repository details
 
 ## Configuration
 
@@ -276,14 +294,6 @@ starepo --help
 ```
 
 ## Troubleshooting
-
-### "device_flow_disabled" error
-
-Enable Device Flow in your GitHub OAuth App:
-1. Go to https://github.com/settings/developers
-2. Click your OAuth App
-3. Check **Enable Device Flow**
-4. Save
 
 ### No search results
 

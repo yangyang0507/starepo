@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-03-09
+
+### Added
+
+- `--sort <field>` option for `list` and `search` commands: `stars`, `forks`, `starred`, `updated`, `relevance`
+- `--order <direction>` option for `list` and `search` commands: `asc`, `desc`
+- `list` default sort: `starred desc` (most recently starred first)
+- `search` default sort: `relevance desc` (semantic similarity order preserved)
+- Enum validation for `--sort` and `--order`; invalid values exit with an error
+
+### Changed
+
+- `list` now fetches all matching repos before sorting, then slices to `--limit`, ensuring globally accurate top-N results
+- MCP Server Integration section moved above Quick Start in both README files
+
 ## [0.2.0] - 2026-03-08
 
 ### Added
@@ -39,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration management with XDG Base Directory support
 - Test suite covering config, embeddings, search, storage, and time utilities
 
-[Unreleased]: https://github.com/yangyang0507/starepo/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/yangyang0507/starepo/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/yangyang0507/starepo/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/yangyang0507/starepo/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/yangyang0507/starepo/releases/tag/v0.1.0

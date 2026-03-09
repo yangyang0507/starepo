@@ -1,5 +1,6 @@
 import { listRepos, getRepoByName, getStats, Repo } from '../lib/storage.js';
 import { hybridSearch } from '../lib/search.js';
+import { sortRepos, SortField, SortOrder } from '../lib/sort.js';
 
 export interface ListCommandOptions {
   query?: string;
@@ -8,6 +9,8 @@ export interface ListCommandOptions {
   starredAfter?: string;
   starredBefore?: string;
   limit?: number;
+  sort?: SortField;
+  order?: SortOrder;
   json?: boolean;
 }
 
@@ -27,20 +30,29 @@ function formatRepo(repo: Repo): string {
 
 export async function runList(options: ListCommandOptions = {}): Promise<void> {
   const { count, lastSync } = await getStats();
-  const repos = options.query
-    ? await hybridSearch(options.query, options.limit ?? 50, {
+  const sort = options.sort ?? 'starred';
+  const order = options.order ?? 'desc';
+  const limit = options.limit ?? 50;
+
+  let repos: Repo[];
+  if (options.query) {
+    repos = await hybridSearch(options.query, limit, {
       language: options.language,
       topic: options.topic,
       starredAfter: options.starredAfter,
       starredBefore: options.starredBefore,
-    })
-    : await listRepos({
-      language: options.language,
-      topic: options.topic,
-      starredAfter: options.starredAfter,
-      starredBefore: options.starredBefore,
-      limit: options.limit,
     });
+    repos = sortRepos(repos, sort, order);
+  } else {
+    const all = await listRepos({
+      language: options.language,
+      topic: options.topic,
+      starredAfter: options.starredAfter,
+      starredBefore: options.starredBefore,
+      limit: undefined,
+    });
+    repos = sortRepos(all, sort, order).slice(0, limit);
+  }
 
   if (options.json) {
     console.log(JSON.stringify(repos.map(({ vector: _, ...r }) => r), null, 2));

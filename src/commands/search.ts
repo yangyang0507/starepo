@@ -1,5 +1,6 @@
 import { hybridSearch } from '../lib/search.js';
 import { Repo } from '../lib/storage.js';
+import { sortRepos, SortField, SortOrder } from '../lib/sort.js';
 
 export interface SearchCommandOptions {
   query?: string;
@@ -8,6 +9,8 @@ export interface SearchCommandOptions {
   starredAfter?: string;
   starredBefore?: string;
   limit?: number;
+  sort?: SortField;
+  order?: SortOrder;
   json?: boolean;
 }
 
@@ -51,18 +54,22 @@ export async function runSearch(query: string | undefined, options: SearchComman
     starredBefore: options.starredBefore,
   });
 
-  if (results.length === 0) {
+  const sort = options.sort ?? 'relevance';
+  const order = options.order ?? 'desc';
+  const sorted = sortRepos(results, sort, order);
+
+  if (sorted.length === 0) {
     console.log('No results found.');
     return;
   }
 
   if (options.json) {
-    console.log(JSON.stringify(results.map(({ vector: _, ...r }) => r), null, 2));
+    console.log(JSON.stringify(sorted.map(({ vector: _, ...r }) => r), null, 2));
     return;
   }
 
-  console.log(`\nFound ${results.length} result(s):\n`);
-  results.forEach((repo, i) => {
+  console.log(`\nFound ${sorted.length} result(s):\n`);
+  sorted.forEach((repo, i) => {
     console.log(formatRepo(repo, i));
     console.log();
   });

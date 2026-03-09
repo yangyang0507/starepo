@@ -164,7 +164,7 @@ export async function listRepos(options: {
   starredBefore?: string;
   limit?: number;
 } = {}): Promise<Repo[]> {
-  const { language, topic, starredAfter, starredBefore, limit = 50 } = options;
+  const { language, topic, starredAfter, starredBefore, limit } = options;
   const table = await getTable();
 
   const conditions: string[] = [];
@@ -190,7 +190,7 @@ export async function listRepos(options: {
     return true;
   });
 
-  return filtered.slice(0, limit);
+  return limit !== undefined ? filtered.slice(0, limit) : filtered;
 }
 
 export async function getRepoByName(fullName: string): Promise<Repo | null> {

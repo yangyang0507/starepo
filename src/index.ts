@@ -8,6 +8,7 @@ import { runServe } from './commands/serve.js';
 import { runEmbed } from './commands/embed.js';
 import { getStats } from './lib/storage.js';
 import { resolveStarredTimeRange } from './lib/time.js';
+import { SortField, SortOrder } from './lib/sort.js';
 
 const program = new Command();
 
@@ -51,12 +52,24 @@ program
   .option('--until <date>', 'Filter stars on/before date (e.g. 2026-03-08)')
   .option('--days <number>', 'Filter stars from the last N days')
   .option('-n, --limit <number>', 'Max number of results', '10')
+  .option('--sort <field>', 'Sort by: stars, forks, starred, updated, relevance (default: relevance)')
+  .option('--order <direction>', 'Sort direction: asc or desc (default: desc)')
   .option('--json', 'Output as JSON')
   .action(async (query: string | undefined, opts) => {
     try {
       const { count } = await getStats();
       if (count === 0) {
         console.log('No local data found. Run `starepo sync` first.');
+        process.exit(1);
+      }
+      const validSortFields: SortField[] = ['stars', 'forks', 'starred', 'updated', 'relevance'];
+      const validOrders: SortOrder[] = ['asc', 'desc'];
+      if (opts.sort && !validSortFields.includes(opts.sort)) {
+        console.error(`Invalid --sort value "${opts.sort}". Must be one of: ${validSortFields.join(', ')}`);
+        process.exit(1);
+      }
+      if (opts.order && !validOrders.includes(opts.order)) {
+        console.error(`Invalid --order value "${opts.order}". Must be one of: ${validOrders.join(', ')}`);
         process.exit(1);
       }
       const days = opts.days !== undefined ? parseFloat(opts.days) : undefined;
@@ -72,6 +85,8 @@ program
         starredAfter: range.starredAfter,
         starredBefore: range.starredBefore,
         limit: parseInt(opts.limit, 10),
+        sort: opts.sort as SortField | undefined,
+        order: opts.order as SortOrder | undefined,
         json: opts.json,
       });
     } catch (err) {
@@ -91,9 +106,21 @@ program
   .option('--until <date>', 'Filter stars on/before date (e.g. 2026-03-08)')
   .option('--days <number>', 'Filter stars from the last N days')
   .option('-n, --limit <number>', 'Max number of results', '50')
+  .option('--sort <field>', 'Sort by: stars, forks, starred, updated (default: starred)')
+  .option('--order <direction>', 'Sort direction: asc or desc (default: desc)')
   .option('--json', 'Output as JSON')
   .action(async (opts) => {
     try {
+      const validSortFields: SortField[] = ['stars', 'forks', 'starred', 'updated', 'relevance'];
+      const validOrders: SortOrder[] = ['asc', 'desc'];
+      if (opts.sort && !validSortFields.includes(opts.sort)) {
+        console.error(`Invalid --sort value "${opts.sort}". Must be one of: ${validSortFields.join(', ')}`);
+        process.exit(1);
+      }
+      if (opts.order && !validOrders.includes(opts.order)) {
+        console.error(`Invalid --order value "${opts.order}". Must be one of: ${validOrders.join(', ')}`);
+        process.exit(1);
+      }
       const days = opts.days !== undefined ? parseFloat(opts.days) : undefined;
       const range = resolveStarredTimeRange({
         since: opts.since,
@@ -107,6 +134,8 @@ program
         starredAfter: range.starredAfter,
         starredBefore: range.starredBefore,
         limit: parseInt(opts.limit, 10),
+        sort: opts.sort as SortField | undefined,
+        order: opts.order as SortOrder | undefined,
         json: opts.json,
       });
     } catch (err) {
