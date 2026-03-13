@@ -105,6 +105,30 @@ describe('storage: upsertRepos / getRepoByName', () => {
     const topics = JSON.parse(found!.topics);
     expect(topics).toEqual(['ai', 'ml']);
   });
+
+  it('stores normalized topics_text for topic filtering', async () => {
+    const { upsertRepos, getRepoByName } = await import('../src/lib/storage.js');
+    await upsertRepos([
+      makeRepo({ full_name: 'x/topics', topics: ['AI', 'Vector-Search', '  MCP  '] }),
+    ]);
+
+    const found = await getRepoByName('x/topics');
+    expect(found!.topics_text).toBe('ai vector-search mcp');
+  });
+
+  it('stores numeric timestamp columns for time-based filtering and sorting', async () => {
+    const { upsertRepos, getRepoByName } = await import('../src/lib/storage.js');
+    const repo = makeRepo({
+      full_name: 'x/time',
+      starred_at: '2026-01-02T03:04:05Z',
+      updated_at: '2026-01-03T04:05:06Z',
+    });
+    await upsertRepos([repo]);
+
+    const found = await getRepoByName('x/time');
+    expect(found!.starred_at_ts).toBe(Date.parse('2026-01-02T03:04:05Z'));
+    expect(found!.updated_at_ts).toBe(Date.parse('2026-01-03T04:05:06Z'));
+  });
 });
 
 describe('storage: listRepos', () => {
@@ -222,6 +246,17 @@ describe('storage: hasAnyEmbeddings', () => {
   });
 });
 
+describe('storage: schema migrations', () => {
+  it('persists the current schema version after initialization', async () => {
+    const { getTable } = await import('../src/lib/storage.js');
+    const { getMeta } = await import('../src/lib/config.js');
+
+    await getTable();
+
+    expect(getMeta('schema_version')).toBe('3');
+  });
+});
+
 describe('storage: deleteReposMissingFromFullNames', () => {
   it('deletes stale repos and returns the number removed', async () => {
     const { upsertRepos, deleteReposMissingFromFullNames, getRepoByName, getStats } = await import('../src/lib/storage.js');
@@ -298,13 +333,18 @@ describe('storage: FTS index initialization', () => {
     }));
 
     const createIndex = vi.fn().mockResolvedValue(undefined);
+    const addColumns = vi.fn().mockResolvedValue(undefined);
     const searchToArray = vi.fn().mockResolvedValue([]);
     const limit = vi.fn().mockReturnValue({ toArray: searchToArray });
     const search = vi.fn().mockReturnValue({ limit });
+    const backfillToArray = vi.fn().mockResolvedValue([]);
+    const select = vi.fn().mockReturnValue({ toArray: backfillToArray });
+    const where = vi.fn().mockReturnValue({ select });
     const table = {
+      addColumns,
       createIndex,
       search,
-      query: vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) }),
+      query: vi.fn().mockReturnValue({ where, toArray: vi.fn().mockResolvedValue([]) }),
       countRows: vi.fn().mockResolvedValue(0),
     };
 

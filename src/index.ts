@@ -9,13 +9,14 @@ import { runEmbed } from './commands/embed.js';
 import { getStats } from './lib/storage.js';
 import { resolveStarredTimeRange } from './lib/time.js';
 import { SortField, SortOrder } from './lib/sort.js';
+import { VERSION } from './lib/version.js';
 
 const program = new Command();
 
 program
   .name('starepo')
   .description('Search your GitHub stars with semantic search and MCP server support')
-  .version('0.1.0');
+  .version(VERSION);
 
 program
   .command('auth')

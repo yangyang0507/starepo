@@ -21,33 +21,6 @@ function dedup(repos: Repo[]): Repo[] {
   });
 }
 
-function applyFilters(repos: Repo[], filters: SearchFilterOptions): Repo[] {
-  return repos.filter((repo) => {
-    if (filters.language && repo.language.toLowerCase() !== filters.language.toLowerCase()) {
-      return false;
-    }
-    if (filters.topic && !repo.topics.toLowerCase().includes(filters.topic.toLowerCase())) {
-      return false;
-    }
-
-    if (filters.starredAfter || filters.starredBefore) {
-      const starredAt = repo.starred_at ? new Date(repo.starred_at).getTime() : NaN;
-      if (Number.isNaN(starredAt)) return false;
-
-      if (filters.starredAfter) {
-        const after = new Date(filters.starredAfter).getTime();
-        if (!Number.isNaN(after) && starredAt < after) return false;
-      }
-      if (filters.starredBefore) {
-        const before = new Date(filters.starredBefore).getTime();
-        if (!Number.isNaN(before) && starredAt > before) return false;
-      }
-    }
-
-    return true;
-  });
-}
-
 export async function hybridSearch(query: string, limit = 20, options: SearchOptions = {}): Promise<Repo[]> {
   const trimmed = query.trim();
   const sort = options.sort ?? 'relevance';
@@ -68,20 +41,22 @@ export async function hybridSearch(query: string, limit = 20, options: SearchOpt
     return sorted.slice(0, limit);
   }
 
-  const { getTable, hasAnyEmbeddings } = await import('./storage.js');
+  const { getTable, hasAnyEmbeddings, countRepos } = await import('./storage.js');
   const table = await getTable();
   const count = await table.countRows();
 
   if (count === 0) return [];
 
+  const filteredCount = hasStructuredFilters ? await countRepos(options) : count;
+  if (filteredCount === 0) return [];
+
   const hasEmbeddings = await hasAnyEmbeddings(count);
-  const initialCandidateLimit = Math.min(count, Math.max(limit * 5, 50));
+  const initialCandidateLimit = Math.min(filteredCount, Math.max(limit * 5, 50));
   const shouldProgressivelyExpand = hasStructuredFilters && sort === 'relevance';
-  const initialCandidateLimitForMode = sort === 'relevance' ? initialCandidateLimit : count;
+  const initialCandidateLimitForMode = sort === 'relevance' ? initialCandidateLimit : filteredCount;
 
   const finalizeResults = (repos: Repo[]): Repo[] => {
-    const filtered = applyFilters(repos, options);
-    const sorted = sortRepos(filtered, sort, order);
+    const sorted = sortRepos(repos, sort, order);
     return sorted.slice(0, limit);
   };
 
@@ -92,13 +67,13 @@ export async function hybridSearch(query: string, limit = 20, options: SearchOpt
     const vector = await generateEmbedding(trimmed);
     fetchCandidates = async (candidateLimit: number) => {
       const [vectorResults, ftsResults] = await Promise.all([
-        searchVector(vector, candidateLimit),
-        searchFTS(trimmed, candidateLimit),
+        searchVector(vector, candidateLimit, options),
+        searchFTS(trimmed, candidateLimit, options),
       ]);
       return dedup([...vectorResults, ...ftsResults]);
     };
   } else {
-    fetchCandidates = async (candidateLimit: number) => searchFTS(trimmed, candidateLimit);
+    fetchCandidates = async (candidateLimit: number) => searchFTS(trimmed, candidateLimit, options);
   }
 
   let candidateLimit = initialCandidateLimitForMode;
@@ -107,10 +82,10 @@ export async function hybridSearch(query: string, limit = 20, options: SearchOpt
     const results = await fetchCandidates(candidateLimit);
     const finalResults = finalizeResults(results);
 
-    if (!shouldProgressivelyExpand || finalResults.length >= limit || candidateLimit >= count) {
+    if (!shouldProgressivelyExpand || finalResults.length >= limit || candidateLimit >= filteredCount) {
       return finalResults;
     }
 
-    candidateLimit = Math.min(count, candidateLimit * 2);
+    candidateLimit = Math.min(filteredCount, candidateLimit * 2);
   }
 }

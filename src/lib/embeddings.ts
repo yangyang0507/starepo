@@ -8,6 +8,7 @@ type FeatureExtractionPipeline = (
 ) => Promise<{ data: Float32Array }>;
 
 let _pipeline: FeatureExtractionPipeline | null = null;
+const EMBEDDING_CONCURRENCY = 3;
 
 async function getPipeline(): Promise<FeatureExtractionPipeline> {
   if (_pipeline) return _pipeline;
@@ -53,12 +54,22 @@ export async function generateAndStoreEmbeddings(
   }
 
   let done = 0;
-  for (const repo of repos) {
-    const vector = await generateEmbedding(repoToText(repo));
-    await updateEmbedding(repo.full_name, vector);
-    done++;
-    onProgress?.(done, repos.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= repos.length) return;
+
+      const repo = repos[index];
+      const vector = await generateEmbedding(repoToText(repo));
+      await updateEmbedding(repo.full_name, vector);
+      done++;
+      onProgress?.(done, repos.length);
+    }
   }
 
+  const workerCount = Math.min(EMBEDDING_CONCURRENCY, repos.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
   setHasEmbeddings(true);
 }

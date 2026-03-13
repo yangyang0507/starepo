@@ -9,11 +9,10 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { hybridSearch } from '../lib/search.js';
-import { listRepos, getRepoByName, getStats, upsertRepos, Repo } from '../lib/storage.js';
-import { ensureAuth } from './auth.js';
-import { createOctokit, fetchAllStars } from '../lib/github.js';
-import { setMeta } from '../lib/config.js';
+import { listRepos, getRepoByName, getStats, Repo } from '../lib/storage.js';
 import { resolveStarredTimeRange } from '../lib/time.js';
+import { VERSION } from '../lib/version.js';
+import { runSync } from './sync.js';
 
 function repoToObject(repo: Repo): Record<string, unknown> {
   return {
@@ -33,7 +32,7 @@ function repoToObject(repo: Repo): Record<string, unknown> {
 
 export async function runServe(): Promise<void> {
   const server = new Server(
-    { name: 'starepo', version: '0.1.0' },
+    { name: 'starepo', version: VERSION },
     { capabilities: { tools: {}, resources: {} } }
   );
 
@@ -85,7 +84,12 @@ export async function runServe(): Promise<void> {
       {
         name: 'sync_stars',
         description: 'Sync your GitHub starred repositories from GitHub.',
-        inputSchema: { type: 'object', properties: {} },
+        inputSchema: {
+          type: 'object',
+          properties: {
+            incremental: { type: 'boolean', description: 'Only fetch newly starred repositories since last sync' },
+          },
+        },
       },
     ],
   }));
@@ -173,11 +177,9 @@ export async function runServe(): Promise<void> {
       }
 
       case 'sync_stars': {
-        const token = await ensureAuth();
-        const octokit = createOctokit(token);
-        const repos = await fetchAllStars(octokit);
-        await upsertRepos(repos);
-        setMeta('last_sync', new Date().toISOString());
+        await runSync({
+          incremental: (args?.incremental as boolean | undefined) ?? false,
+        });
         const stats = await getStats();
         return {
           content: [{ type: 'text', text: `Sync complete. Total: ${stats.count} starred repos.` }],

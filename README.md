@@ -76,12 +76,12 @@ Or if installed locally:
 - `search_stars(query?, language?, topic?, since?, until?, days?, limit?)` - Search repositories with combined filters
 - `list_stars(query?, language?, topic?, since?, until?, days?, limit?)` - List with combined filters
 - `get_star_info(full_name)` - Get repository details
-- `sync_stars()` - Trigger sync from GitHub
+- `sync_stars(incremental?)` - Trigger full or incremental sync from GitHub
 
 ### MCP Resources
 
 - `starepo://stars` - All starred repositories overview
-- `starepo://stars/{owner}/{repo}` - Specific repository details
+- `starepo://stars/{owner}/{repo}` - Specific repository details (direct URI access; not enumerated in `resources/list`)
 
 ## Quick Start
 

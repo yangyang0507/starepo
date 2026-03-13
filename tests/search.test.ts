@@ -154,14 +154,17 @@ describe('hybridSearch: candidate expansion for correctness', () => {
     const allResults = Array.from({ length: count }, (_, i) =>
       makeStoredRepo(i, { language: i === 75 || i === 90 ? 'Rust' : 'TypeScript' })
     );
-    const searchFTS = vi.fn().mockImplementation(async (_query: string, limit: number) =>
-      allResults.slice(0, limit)
+    const searchFTS = vi.fn().mockImplementation(async (_query: string, limit: number, filters?: { language?: string }) =>
+      allResults
+        .filter((repo) => !filters?.language || repo.language === filters.language)
+        .slice(0, limit)
     );
 
     vi.doMock('../src/lib/storage.js', () => ({
       listRepos: vi.fn(),
       searchVector: vi.fn(),
       searchFTS,
+      countRepos: vi.fn().mockResolvedValue(count),
       getTable: vi.fn().mockResolvedValue({
         countRows: vi.fn().mockResolvedValue(count),
       }),
@@ -172,8 +175,7 @@ describe('hybridSearch: candidate expansion for correctness', () => {
     const results = await hybridSearch('tooling', 2, { language: 'Rust' });
 
     expect(searchFTS.mock.calls).toEqual([
-      ['tooling', 50],
-      ['tooling', 100],
+      ['tooling', 50, { language: 'Rust' }],
     ]);
     expect(results).toHaveLength(2);
     expect(results.map(r => r.full_name)).toEqual(['user/repo-75', 'user/repo-90']);
@@ -196,6 +198,7 @@ describe('hybridSearch: candidate expansion for correctness', () => {
       listRepos: vi.fn(),
       searchVector: vi.fn(),
       searchFTS,
+      countRepos: vi.fn().mockResolvedValue(count),
       getTable: vi.fn().mockResolvedValue({
         countRows: vi.fn().mockResolvedValue(count),
       }),
@@ -205,7 +208,7 @@ describe('hybridSearch: candidate expansion for correctness', () => {
     const { hybridSearch } = await import('../src/lib/search.js');
     const results = await hybridSearch('tooling', 3, { sort: 'stars', order: 'desc' });
 
-    expect(searchFTS).toHaveBeenCalledWith('tooling', count);
+    expect(searchFTS).toHaveBeenCalledWith('tooling', count, { sort: 'stars', order: 'desc' });
     expect(results.map(r => r.full_name)).toEqual([
       'user/sort-119',
       'user/sort-118',
@@ -224,6 +227,7 @@ describe('hybridSearch: candidate expansion for correctness', () => {
       listRepos,
       searchVector: vi.fn(),
       searchFTS: vi.fn(),
+      countRepos: vi.fn(),
       getTable: vi.fn(),
       hasAnyEmbeddings: vi.fn(),
     }));
@@ -272,6 +276,7 @@ describe('hybridSearch: embedding availability lookup', () => {
       listRepos: vi.fn(),
       searchVector: vi.fn(),
       searchFTS,
+      countRepos: vi.fn().mockResolvedValue(count),
       hasAnyEmbeddings,
       getTable: vi.fn().mockResolvedValue({
         countRows: vi.fn().mockResolvedValue(count),
