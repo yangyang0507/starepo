@@ -41,8 +41,9 @@ export async function runList(options: ListCommandOptions = {}): Promise<void> {
       topic: options.topic,
       starredAfter: options.starredAfter,
       starredBefore: options.starredBefore,
+      sort: options.sort,
+      order: options.order,
     });
-    repos = sortRepos(repos, sort, order);
   } else {
     const all = await listRepos({
       language: options.language,

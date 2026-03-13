@@ -124,3 +124,165 @@ describe('hybridSearch: deduplication', () => {
     expect(unique.size).toBe(names.length);
   });
 });
+
+describe('hybridSearch: candidate expansion for correctness', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  function makeStoredRepo(i: number, overrides: Record<string, unknown> = {}) {
+    return {
+      id: i,
+      full_name: `user/repo-${i}`,
+      name: `repo-${i}`,
+      description: 'tooling utility',
+      html_url: `https://github.com/user/repo-${i}`,
+      homepage: '',
+      language: 'TypeScript',
+      topics: '["tooling"]',
+      stars_count: i,
+      forks_count: i,
+      starred_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+      vector: new Array(1024).fill(0),
+      ...overrides,
+    };
+  }
+
+  it('expands FTS candidates when structured filters are present', async () => {
+    const count = 120;
+    const allResults = Array.from({ length: count }, (_, i) =>
+      makeStoredRepo(i, { language: i === 75 || i === 90 ? 'Rust' : 'TypeScript' })
+    );
+    const searchFTS = vi.fn().mockImplementation(async (_query: string, limit: number) =>
+      allResults.slice(0, limit)
+    );
+
+    vi.doMock('../src/lib/storage.js', () => ({
+      listRepos: vi.fn(),
+      searchVector: vi.fn(),
+      searchFTS,
+      getTable: vi.fn().mockResolvedValue({
+        countRows: vi.fn().mockResolvedValue(count),
+      }),
+      hasAnyEmbeddings: vi.fn().mockResolvedValue(false),
+    }));
+
+    const { hybridSearch } = await import('../src/lib/search.js');
+    const results = await hybridSearch('tooling', 2, { language: 'Rust' });
+
+    expect(searchFTS.mock.calls).toEqual([
+      ['tooling', 50],
+      ['tooling', 100],
+    ]);
+    expect(results).toHaveLength(2);
+    expect(results.map(r => r.full_name)).toEqual(['user/repo-75', 'user/repo-90']);
+  });
+
+  it('expands candidates for non-relevance sorting in query mode', async () => {
+    const count = 120;
+    const searchFTS = vi.fn().mockResolvedValue(
+      Array.from({ length: count }, (_, i) =>
+        makeStoredRepo(i, {
+          full_name: `user/sort-${i}`,
+          name: `sort-${i}`,
+          stars_count: i,
+          forks_count: count - i,
+        })
+      )
+    );
+
+    vi.doMock('../src/lib/storage.js', () => ({
+      listRepos: vi.fn(),
+      searchVector: vi.fn(),
+      searchFTS,
+      getTable: vi.fn().mockResolvedValue({
+        countRows: vi.fn().mockResolvedValue(count),
+      }),
+      hasAnyEmbeddings: vi.fn().mockResolvedValue(false),
+    }));
+
+    const { hybridSearch } = await import('../src/lib/search.js');
+    const results = await hybridSearch('tooling', 3, { sort: 'stars', order: 'desc' });
+
+    expect(searchFTS).toHaveBeenCalledWith('tooling', count);
+    expect(results.map(r => r.full_name)).toEqual([
+      'user/sort-119',
+      'user/sort-118',
+      'user/sort-117',
+    ]);
+  });
+
+  it('does not pre-limit list mode before business sorting', async () => {
+    const listRepos = vi.fn().mockResolvedValue([
+      makeStoredRepo(1, { full_name: 'user/low', name: 'low', stars_count: 1 }),
+      makeStoredRepo(2, { full_name: 'user/high', name: 'high', stars_count: 100 }),
+      makeStoredRepo(3, { full_name: 'user/mid', name: 'mid', stars_count: 50 }),
+    ]);
+
+    vi.doMock('../src/lib/storage.js', () => ({
+      listRepos,
+      searchVector: vi.fn(),
+      searchFTS: vi.fn(),
+      getTable: vi.fn(),
+      hasAnyEmbeddings: vi.fn(),
+    }));
+
+    const { hybridSearch } = await import('../src/lib/search.js');
+    const results = await hybridSearch('', 2, { sort: 'stars', order: 'desc' });
+
+    expect(listRepos).toHaveBeenCalledWith({
+      language: undefined,
+      topic: undefined,
+      starredAfter: undefined,
+      starredBefore: undefined,
+      limit: undefined,
+    });
+    expect(results.map(r => r.full_name)).toEqual(['user/high', 'user/mid']);
+  });
+});
+
+describe('hybridSearch: embedding availability lookup', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('uses cached embedding availability instead of scanning repos on every search', async () => {
+    const count = 10;
+    const hasAnyEmbeddings = vi.fn().mockResolvedValue(false);
+    const searchFTS = vi.fn().mockResolvedValue([
+      {
+        id: 1,
+        full_name: 'user/repo',
+        name: 'repo',
+        description: 'tooling utility',
+        html_url: 'https://github.com/user/repo',
+        homepage: '',
+        language: 'TypeScript',
+        topics: '["tooling"]',
+        stars_count: 1,
+        forks_count: 1,
+        starred_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        vector: new Array(1024).fill(0),
+      },
+    ]);
+
+    vi.doMock('../src/lib/storage.js', () => ({
+      listRepos: vi.fn(),
+      searchVector: vi.fn(),
+      searchFTS,
+      hasAnyEmbeddings,
+      getTable: vi.fn().mockResolvedValue({
+        countRows: vi.fn().mockResolvedValue(count),
+      }),
+    }));
+
+    const { hybridSearch } = await import('../src/lib/search.js');
+    await hybridSearch('tooling', 1);
+    await hybridSearch('tooling', 1);
+
+    expect(hasAnyEmbeddings).toHaveBeenCalledTimes(2);
+    expect(hasAnyEmbeddings).toHaveBeenCalledWith(count);
+  });
+});

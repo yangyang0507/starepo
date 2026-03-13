@@ -1,11 +1,16 @@
 import { Repo, listRepos, searchVector, searchFTS } from './storage.js';
+import { sortRepos, SortField, SortOrder } from './sort.js';
 
-export interface SearchFilters {
+export interface SearchOptions {
   language?: string;
   topic?: string;
   starredAfter?: string;
   starredBefore?: string;
+  sort?: SortField;
+  order?: SortOrder;
 }
+
+type SearchFilterOptions = Pick<SearchOptions, 'language' | 'topic' | 'starredAfter' | 'starredBefore'>;
 
 function dedup(repos: Repo[]): Repo[] {
   const seen = new Set<string>();
@@ -16,7 +21,7 @@ function dedup(repos: Repo[]): Repo[] {
   });
 }
 
-function applyFilters(repos: Repo[], filters: SearchFilters): Repo[] {
+function applyFilters(repos: Repo[], filters: SearchFilterOptions): Repo[] {
   return repos.filter((repo) => {
     if (filters.language && repo.language.toLowerCase() !== filters.language.toLowerCase()) {
       return false;
@@ -43,33 +48,69 @@ function applyFilters(repos: Repo[], filters: SearchFilters): Repo[] {
   });
 }
 
-export async function hybridSearch(query: string, limit = 20, filters: SearchFilters = {}): Promise<Repo[]> {
+export async function hybridSearch(query: string, limit = 20, options: SearchOptions = {}): Promise<Repo[]> {
   const trimmed = query.trim();
+  const sort = options.sort ?? 'relevance';
+  const order = options.order ?? 'desc';
+  const hasStructuredFilters = Boolean(
+    options.language || options.topic || options.starredAfter || options.starredBefore
+  );
+
   if (!trimmed) {
-    return listRepos({ ...filters, limit });
+    const repos = await listRepos({
+      language: options.language,
+      topic: options.topic,
+      starredAfter: options.starredAfter,
+      starredBefore: options.starredBefore,
+      limit: sort === 'relevance' ? limit : undefined,
+    });
+    const sorted = sortRepos(repos, sort, order);
+    return sorted.slice(0, limit);
   }
 
-  const { getTable, getReposWithoutEmbedding } = await import('./storage.js');
+  const { getTable, hasAnyEmbeddings } = await import('./storage.js');
   const table = await getTable();
   const count = await table.countRows();
 
   if (count === 0) return [];
 
-  // Check if any embeddings exist by checking repos without embeddings
-  const withoutEmbedding = await getReposWithoutEmbedding();
-  const hasEmbeddings = withoutEmbedding.length < count;
-  const candidateLimit = Math.max(limit * 5, 50);
+  const hasEmbeddings = await hasAnyEmbeddings(count);
+  const initialCandidateLimit = Math.min(count, Math.max(limit * 5, 50));
+  const shouldProgressivelyExpand = hasStructuredFilters && sort === 'relevance';
+  const initialCandidateLimitForMode = sort === 'relevance' ? initialCandidateLimit : count;
+
+  const finalizeResults = (repos: Repo[]): Repo[] => {
+    const filtered = applyFilters(repos, options);
+    const sorted = sortRepos(filtered, sort, order);
+    return sorted.slice(0, limit);
+  };
+
+  let fetchCandidates: (candidateLimit: number) => Promise<Repo[]>;
 
   if (hasEmbeddings) {
     const { generateEmbedding } = await import('./embeddings.js');
     const vector = await generateEmbedding(trimmed);
-    const [vectorResults, ftsResults] = await Promise.all([
-      searchVector(vector, candidateLimit),
-      searchFTS(trimmed, candidateLimit),
-    ]);
-    return applyFilters(dedup([...vectorResults, ...ftsResults]), filters).slice(0, limit);
+    fetchCandidates = async (candidateLimit: number) => {
+      const [vectorResults, ftsResults] = await Promise.all([
+        searchVector(vector, candidateLimit),
+        searchFTS(trimmed, candidateLimit),
+      ]);
+      return dedup([...vectorResults, ...ftsResults]);
+    };
   } else {
-    const results = await searchFTS(trimmed, candidateLimit);
-    return applyFilters(results, filters).slice(0, limit);
+    fetchCandidates = async (candidateLimit: number) => searchFTS(trimmed, candidateLimit);
+  }
+
+  let candidateLimit = initialCandidateLimitForMode;
+
+  while (true) {
+    const results = await fetchCandidates(candidateLimit);
+    const finalResults = finalizeResults(results);
+
+    if (!shouldProgressivelyExpand || finalResults.length >= limit || candidateLimit >= count) {
+      return finalResults;
+    }
+
+    candidateLimit = Math.min(count, candidateLimit * 2);
   }
 }

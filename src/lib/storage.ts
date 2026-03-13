@@ -1,6 +1,6 @@
 import * as lancedb from '@lancedb/lancedb';
 import { Schema, Field, Utf8, Int32, Float32, FixedSizeList } from 'apache-arrow';
-import { getDBPath } from './config.js';
+import { getDBPath, getMeta, setMeta } from './config.js';
 
 export interface Repo {
   id: number;
@@ -40,6 +40,33 @@ const EMBEDDING_DIM = 1024; // Xenova/bge-m3
 
 let _db: lancedb.Connection | null = null;
 let _table: lancedb.Table | null = null;
+let _hasEmbeddings: boolean | null = null;
+let _ftsIndexReady = false;
+
+export function setHasEmbeddings(hasEmbeddings: boolean): void {
+  _hasEmbeddings = hasEmbeddings;
+  setMeta('has_embeddings', String(hasEmbeddings));
+}
+
+async function ensureFTSIndex(table: lancedb.Table): Promise<void> {
+  if (_ftsIndexReady) return;
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (table as any).createIndex('fts_idx', {
+      config: {
+        type: 'INVERTED',
+        columns: ['name', 'full_name', 'description', 'topics', 'language'],
+      },
+    });
+  } catch (err) {
+    if (!(err instanceof Error && err.message.includes('already exists'))) {
+      return;
+    }
+  }
+
+  _ftsIndexReady = true;
+}
 
 async function getDB(): Promise<lancedb.Connection> {
   if (!_db) _db = await lancedb.connect(getDBPath());
@@ -94,15 +121,46 @@ function toRow(r: RepoInput): Record<string, unknown> {
   };
 }
 
+async function getExistingVectors(fullNames: string[]): Promise<Map<string, number[]>> {
+  if (fullNames.length === 0) return new Map();
+
+  const wanted = new Set(fullNames);
+  const table = await getTable();
+  const existing = await table.query().toArray() as unknown as Repo[];
+  const vectors = new Map<string, number[]>();
+
+  for (const repo of existing) {
+    if (!wanted.has(repo.full_name) || !repo.vector) continue;
+    const vector = Array.isArray(repo.vector)
+      ? repo.vector
+      : Array.from(repo.vector as unknown as ArrayLike<number>);
+    vectors.set(repo.full_name, vector);
+  }
+
+  return vectors;
+}
+
 export async function upsertRepos(repos: RepoInput[]): Promise<void> {
   const table = await getTable();
-  const rows = repos.map(toRow);
+  const wasEmpty = await table.countRows() === 0;
+  const reposWithoutVector = repos.filter((repo) => repo.vector === undefined).map((repo) => repo.full_name);
+  const existingVectors = await getExistingVectors(reposWithoutVector);
+  const rows = repos.map((repo) => toRow({
+    ...repo,
+    vector: repo.vector ?? existingVectors.get(repo.full_name),
+  }));
 
   await (table
     .mergeInsert('full_name') as lancedb.MergeInsertBuilder)
     .whenMatchedUpdateAll()
     .whenNotMatchedInsertAll()
     .execute(rows);
+
+  if (repos.some((repo) => repo.vector?.some((value) => value !== 0))) {
+    setHasEmbeddings(true);
+  } else if (wasEmpty) {
+    setHasEmbeddings(false);
+  }
 }
 
 export async function updateEmbedding(fullName: string, vector: number[]): Promise<void> {
@@ -113,6 +171,7 @@ export async function updateEmbedding(fullName: string, vector: number[]): Promi
     values: { vector },
     where: `full_name = '${escaped}'`,
   });
+  setHasEmbeddings(true);
 }
 
 export async function searchVector(vector: number[], limit = 20): Promise<Repo[]> {
@@ -125,36 +184,23 @@ export async function searchVector(vector: number[], limit = 20): Promise<Repo[]
 
 export async function searchFTS(query: string, limit = 20): Promise<Repo[]> {
   const table = await getTable();
-
-  // Create FTS index if not exists (LanceDB requires INVERTED index for full-text search)
+  await ensureFTSIndex(table);
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (table as any).createIndex('fts_idx', {
-      config: {
-        type: 'INVERTED',
-        columns: ['name', 'full_name', 'description', 'topics', 'language'],
-      },
-    });
-  } catch (err) {
-    // Index may already exist, ignore
-    if (!(err instanceof Error && err.message.includes('already exists'))) {
-      // If FTS not available, fallback to filter-based search
-      const pattern = query.toLowerCase();
-      const results = await table.query().toArray() as unknown as Repo[];
-      return results
-        .filter(r =>
-          r.name.toLowerCase().includes(pattern) ||
-          r.full_name.toLowerCase().includes(pattern) ||
-          r.description.toLowerCase().includes(pattern) ||
-          r.topics.toLowerCase().includes(pattern) ||
-          r.language.toLowerCase().includes(pattern)
-        )
-        .slice(0, limit);
-    }
+    const results = await table.search(query).limit(limit).toArray();
+    return results as unknown as Repo[];
+  } catch {
+    const pattern = query.toLowerCase();
+    const results = await table.query().toArray() as unknown as Repo[];
+    return results
+      .filter(r =>
+        r.name.toLowerCase().includes(pattern) ||
+        r.full_name.toLowerCase().includes(pattern) ||
+        r.description.toLowerCase().includes(pattern) ||
+        r.topics.toLowerCase().includes(pattern) ||
+        r.language.toLowerCase().includes(pattern)
+      )
+      .slice(0, limit);
   }
-
-  const results = await table.search(query).limit(limit).toArray();
-  return results as unknown as Repo[];
 }
 
 export async function listRepos(options: {
@@ -193,6 +239,32 @@ export async function listRepos(options: {
   return limit !== undefined ? filtered.slice(0, limit) : filtered;
 }
 
+export async function deleteReposMissingFromFullNames(fullNames: string[]): Promise<number> {
+  const table = await getTable();
+  const currentNames = new Set(fullNames);
+  const existing = await table.query().toArray() as unknown as Repo[];
+  const staleNames = existing
+    .map((repo) => repo.full_name)
+    .filter((fullName) => !currentNames.has(fullName));
+
+  if (staleNames.length === 0) return 0;
+
+  const chunkSize = 200;
+  for (let i = 0; i < staleNames.length; i += chunkSize) {
+    const chunk = staleNames.slice(i, i + chunkSize);
+    const where = chunk
+      .map((fullName) => `full_name = '${fullName.replace(/'/g, "''")}'`)
+      .join(' OR ');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (table as any).delete(where);
+  }
+
+  const remaining = await table.countRows();
+  if (remaining === 0) setHasEmbeddings(false);
+
+  return staleNames.length;
+}
+
 export async function getRepoByName(fullName: string): Promise<Repo | null> {
   const table = await getTable();
   const escaped = fullName.replace(/'/g, "''");
@@ -201,7 +273,6 @@ export async function getRepoByName(fullName: string): Promise<Repo | null> {
 }
 
 export async function getStats(): Promise<{ count: number; lastSync: string | null }> {
-  const { getMeta } = await import('./config.js');
   const table = await getTable();
   const count = await table.countRows();
   return { count, lastSync: getMeta('last_sync') };
@@ -216,4 +287,25 @@ export async function getReposWithoutEmbedding(): Promise<Repo[]> {
     const vec = Array.isArray(r.vector) ? r.vector : Array.from(r.vector as unknown as ArrayLike<number>);
     return vec.length === 0 || vec.every(v => v === 0);
   });
+}
+
+export async function hasAnyEmbeddings(totalCount?: number): Promise<boolean> {
+  const count = totalCount ?? await (await getTable()).countRows();
+  if (count === 0) {
+    if (_hasEmbeddings === false) return false;
+    setHasEmbeddings(false);
+    return false;
+  }
+
+  if (_hasEmbeddings !== null) return _hasEmbeddings;
+
+  const cached = getMeta('has_embeddings');
+  if (cached === 'true' || cached === 'false') {
+    _hasEmbeddings = cached === 'true';
+    return _hasEmbeddings;
+  }
+
+  const withoutEmbedding = await getReposWithoutEmbedding();
+  setHasEmbeddings(withoutEmbedding.length < count);
+  return _hasEmbeddings;
 }

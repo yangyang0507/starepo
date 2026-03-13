@@ -65,6 +65,24 @@ describe('storage: upsertRepos / getRepoByName', () => {
     expect(found!.stars_count).toBe(999);
   });
 
+  it('preserves existing embeddings when upserting metadata without vector', async () => {
+    const { upsertRepos, updateEmbedding, getRepoByName } = await import('../src/lib/storage.js');
+    const repo = makeRepo({ full_name: 'alice/hello', stars_count: 10 });
+    await upsertRepos([repo]);
+    await updateEmbedding('alice/hello', new Array(1024).fill(0.1));
+
+    await upsertRepos([{ ...repo, stars_count: 999 }]);
+
+    const found = await getRepoByName('alice/hello');
+    const vector = Array.isArray(found!.vector)
+      ? found!.vector
+      : Array.from(found!.vector as unknown as ArrayLike<number>);
+
+    expect(found!.stars_count).toBe(999);
+    expect(vector[0]).toBeCloseTo(0.1);
+    expect(vector.every(v => v === 0)).toBe(false);
+  });
+
   it('inserts multiple repos in one call', async () => {
     const { upsertRepos, getStats } = await import('../src/lib/storage.js');
     const repos = [
@@ -173,5 +191,74 @@ describe('storage: getReposWithoutEmbedding', () => {
     const repos = await getReposWithoutEmbedding();
     expect(repos.length).toBe(1);
     expect(repos[0].full_name).toBe('x/b');
+  });
+});
+
+describe('storage: hasAnyEmbeddings', () => {
+  it('returns false and persists metadata when no embeddings exist', async () => {
+    const { upsertRepos, hasAnyEmbeddings } = await import('../src/lib/storage.js');
+    const { getMeta } = await import('../src/lib/config.js');
+
+    await upsertRepos([
+      makeRepo({ id: 1, full_name: 'x/a' }),
+      makeRepo({ id: 2, full_name: 'x/b' }),
+    ]);
+
+    expect(await hasAnyEmbeddings()).toBe(false);
+    expect(getMeta('has_embeddings')).toBe('false');
+  });
+
+  it('returns true after an embedding is stored and persists metadata', async () => {
+    const { upsertRepos, updateEmbedding, hasAnyEmbeddings } = await import('../src/lib/storage.js');
+    const { getMeta } = await import('../src/lib/config.js');
+
+    await upsertRepos([
+      makeRepo({ id: 1, full_name: 'x/a' }),
+    ]);
+    await updateEmbedding('x/a', new Array(1024).fill(0.1));
+
+    expect(await hasAnyEmbeddings()).toBe(true);
+    expect(getMeta('has_embeddings')).toBe('true');
+  });
+});
+
+describe('storage: FTS index initialization', () => {
+  it('creates the FTS index once during table setup, not on every search', async () => {
+    vi.resetModules();
+
+    vi.doMock('apache-arrow', () => ({
+      Schema: class Schema {},
+      Field: class Field {},
+      Utf8: class Utf8 {},
+      Int32: class Int32 {},
+      Float32: class Float32 {},
+      FixedSizeList: class FixedSizeList {},
+    }));
+
+    const createIndex = vi.fn().mockResolvedValue(undefined);
+    const searchToArray = vi.fn().mockResolvedValue([]);
+    const limit = vi.fn().mockReturnValue({ toArray: searchToArray });
+    const search = vi.fn().mockReturnValue({ limit });
+    const table = {
+      createIndex,
+      search,
+      query: vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) }),
+      countRows: vi.fn().mockResolvedValue(0),
+    };
+
+    vi.doMock('@lancedb/lancedb', () => ({
+      connect: vi.fn().mockResolvedValue({
+        tableNames: vi.fn().mockResolvedValue(['repos']),
+        openTable: vi.fn().mockResolvedValue(table),
+      }),
+    }));
+
+    const { searchFTS } = await import('../src/lib/storage.js');
+
+    await searchFTS('react', 10);
+    await searchFTS('vue', 10);
+
+    expect(createIndex).toHaveBeenCalledTimes(1);
+    expect(search).toHaveBeenCalledTimes(2);
   });
 });

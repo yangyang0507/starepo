@@ -44,9 +44,13 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 export async function generateAndStoreEmbeddings(
   onProgress?: (done: number, total: number) => void
 ): Promise<void> {
-  const { getReposWithoutEmbedding, updateEmbedding } = await import('./storage.js');
+  const { getReposWithoutEmbedding, updateEmbedding, setHasEmbeddings, getTable } = await import('./storage.js');
   const repos = await getReposWithoutEmbedding();
-  if (repos.length === 0) return;
+  if (repos.length === 0) {
+    const count = await (await getTable()).countRows();
+    if (count > 0) setHasEmbeddings(true);
+    return;
+  }
 
   let done = 0;
   for (const repo of repos) {
@@ -55,4 +59,6 @@ export async function generateAndStoreEmbeddings(
     done++;
     onProgress?.(done, repos.length);
   }
+
+  setHasEmbeddings(true);
 }

@@ -1,6 +1,6 @@
 import { ensureAuth } from './auth.js';
 import { createOctokit, fetchAllStars, fetchStarsSince } from '../lib/github.js';
-import { upsertRepos, getStats } from '../lib/storage.js';
+import { upsertRepos, getStats, deleteReposMissingFromFullNames } from '../lib/storage.js';
 import { getMeta, setMeta } from '../lib/config.js';
 import { generateAndStoreEmbeddings } from '../lib/embeddings.js';
 
@@ -34,6 +34,19 @@ export async function runSync(options: { incremental?: boolean; noEmbeddings?: b
   console.log();
 
   if (repos.length === 0) {
+    if (!options.incremental) {
+      const removed = await deleteReposMissingFromFullNames([]);
+      setMeta('last_sync', new Date().toISOString());
+      if (removed > 0) {
+        console.log(`Removed ${removed} stale repos from local database.`);
+      } else {
+        console.log('No starred repositories found. Local database is already up to date.');
+      }
+      const { count } = await getStats();
+      console.log(`\nSync complete: ${count} total stars.`);
+      return;
+    }
+
     console.log('No new stars found.');
     return;
   }
@@ -41,6 +54,13 @@ export async function runSync(options: { incremental?: boolean; noEmbeddings?: b
   process.stdout.write(`Saving ${repos.length} repos to local database...`);
   await upsertRepos(repos);
   console.log(' Done.');
+
+  if (!options.incremental) {
+    const removed = await deleteReposMissingFromFullNames(repos.map((repo) => repo.full_name));
+    if (removed > 0) {
+      console.log(`Removed ${removed} stale repos from local database.`);
+    }
+  }
 
   setMeta('last_sync', new Date().toISOString());
 
