@@ -2,8 +2,10 @@ node_modules/
 dist/
 *.js.map
 .env
+.agents/
 .claude/
 .codex/
 .opencode/
 .pi/
 .omp/
+skills-lock.json
