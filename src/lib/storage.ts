@@ -124,6 +124,22 @@ function toRow(r: RepoInput): Record<string, unknown> {
 async function getExistingVectors(fullNames: string[]): Promise<Map<string, number[]>> {
   if (fullNames.length === 0) return new Map();
 
+  if (fullNames.length <= 50) {
+    const repos = await Promise.all(fullNames.map((fullName) => getRepoByName(fullName)));
+    const vectors = new Map<string, number[]>();
+
+    for (const repo of repos) {
+      if (!repo?.vector) continue;
+      const vector = Array.isArray(repo.vector)
+        ? repo.vector
+        : Array.from(repo.vector as unknown as ArrayLike<number>);
+      if (vector.every(v => v === 0)) continue;
+      vectors.set(repo.full_name, vector);
+    }
+
+    return vectors;
+  }
+
   const wanted = new Set(fullNames);
   const table = await getTable();
   const existing = await table.query().toArray() as unknown as Repo[];
@@ -134,6 +150,7 @@ async function getExistingVectors(fullNames: string[]): Promise<Map<string, numb
     const vector = Array.isArray(repo.vector)
       ? repo.vector
       : Array.from(repo.vector as unknown as ArrayLike<number>);
+    if (vector.every(v => v === 0)) continue;
     vectors.set(repo.full_name, vector);
   }
 
@@ -144,7 +161,7 @@ export async function upsertRepos(repos: RepoInput[]): Promise<void> {
   const table = await getTable();
   const wasEmpty = await table.countRows() === 0;
   const reposWithoutVector = repos.filter((repo) => repo.vector === undefined).map((repo) => repo.full_name);
-  const existingVectors = await getExistingVectors(reposWithoutVector);
+  const existingVectors = wasEmpty ? new Map<string, number[]>() : await getExistingVectors(reposWithoutVector);
   const rows = repos.map((repo) => toRow({
     ...repo,
     vector: repo.vector ?? existingVectors.get(repo.full_name),
@@ -258,6 +275,8 @@ export async function deleteReposMissingFromFullNames(fullNames: string[]): Prom
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (table as any).delete(where);
   }
+
+  _ftsIndexReady = false;
 
   const remaining = await table.countRows();
   if (remaining === 0) setHasEmbeddings(false);

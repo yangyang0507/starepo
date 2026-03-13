@@ -35,6 +35,8 @@ export async function runSync(options: { incremental?: boolean; noEmbeddings?: b
 
   if (repos.length === 0) {
     if (!options.incremental) {
+      // Full sync with an empty remote result means the user currently has no starred repos,
+      // so the local cache must be fully cleared to stay in sync.
       const removed = await deleteReposMissingFromFullNames([]);
       setMeta('last_sync', new Date().toISOString());
       if (removed > 0) {

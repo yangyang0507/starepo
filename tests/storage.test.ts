@@ -222,6 +222,68 @@ describe('storage: hasAnyEmbeddings', () => {
   });
 });
 
+describe('storage: deleteReposMissingFromFullNames', () => {
+  it('deletes stale repos and returns the number removed', async () => {
+    const { upsertRepos, deleteReposMissingFromFullNames, getRepoByName, getStats } = await import('../src/lib/storage.js');
+    await upsertRepos([
+      makeRepo({ id: 1, full_name: 'a/keep' }),
+      makeRepo({ id: 2, full_name: 'b/stale' }),
+      makeRepo({ id: 3, full_name: 'c/stale' }),
+    ]);
+
+    const removed = await deleteReposMissingFromFullNames(['a/keep']);
+
+    expect(removed).toBe(2);
+    expect(await getRepoByName('a/keep')).not.toBeNull();
+    expect(await getRepoByName('b/stale')).toBeNull();
+    expect(await getRepoByName('c/stale')).toBeNull();
+    expect((await getStats()).count).toBe(1);
+  });
+
+  it('deletes all repos when the keep set is empty', async () => {
+    const { upsertRepos, deleteReposMissingFromFullNames, getStats } = await import('../src/lib/storage.js');
+    await upsertRepos([
+      makeRepo({ id: 1, full_name: 'a/keep' }),
+      makeRepo({ id: 2, full_name: 'b/stale' }),
+    ]);
+
+    const removed = await deleteReposMissingFromFullNames([]);
+
+    expect(removed).toBe(2);
+    expect((await getStats()).count).toBe(0);
+  });
+
+  it('returns zero when all repos are retained', async () => {
+    const { upsertRepos, deleteReposMissingFromFullNames, getStats } = await import('../src/lib/storage.js');
+    await upsertRepos([
+      makeRepo({ id: 1, full_name: 'a/keep' }),
+      makeRepo({ id: 2, full_name: 'b/keep' }),
+    ]);
+
+    const removed = await deleteReposMissingFromFullNames(['a/keep', 'b/keep']);
+
+    expect(removed).toBe(0);
+    expect((await getStats()).count).toBe(2);
+  });
+
+  it('resets embedding availability when deletion empties the table', async () => {
+    const { upsertRepos, updateEmbedding, deleteReposMissingFromFullNames, hasAnyEmbeddings } = await import('../src/lib/storage.js');
+    const { getMeta } = await import('../src/lib/config.js');
+
+    await upsertRepos([
+      makeRepo({ id: 1, full_name: 'a/keep' }),
+    ]);
+    await updateEmbedding('a/keep', new Array(1024).fill(0.1));
+    expect(await hasAnyEmbeddings()).toBe(true);
+
+    const removed = await deleteReposMissingFromFullNames([]);
+
+    expect(removed).toBe(1);
+    expect(await hasAnyEmbeddings()).toBe(false);
+    expect(getMeta('has_embeddings')).toBe('false');
+  });
+});
+
 describe('storage: FTS index initialization', () => {
   it('creates the FTS index once during table setup, not on every search', async () => {
     vi.resetModules();
