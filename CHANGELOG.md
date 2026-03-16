@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-03-16
+
+### Added
+
+- `has_embedding` boolean column (schema v4) for O(1) embedding status queries, replacing full-table vector scans
+- `embed --force` flag to fully rebuild all embeddings when the model or version changes
+- Embedding model/version metadata (`embedding_model`, `embedding_version`) stored in config for upgrade detection
+- `countReposWithoutEmbedding()` using `countRows()` for lightweight status checks
+- `updateEmbeddingsBatch()` for chunked batch writes during embedding generation
+- `getReposForEmbedding()` for the force-rebuild path (fetches all repos without vector filter)
+- `EmbeddingGenerationOptions` / `EmbeddingGenerationResult` types; `generateAndStoreEmbeddings` now returns a structured result
+- `embed` and `sync` commands show embedding coverage, outdated-model warnings, and `--force` hints
+
+### Changed
+
+- `generateAndStoreEmbeddings` accepts an options object instead of a bare `onProgress` callback
+- Progress callback now fires during the generation phase (per repo), not the write phase
+- `getReposWithoutEmbedding()` uses `WHERE has_embedding IS FALSE` instead of loading all rows into memory
+- `hasAnyEmbeddings()` uses `countRows()` instead of `getReposWithoutEmbedding()` on the search hot path
+- Schema migration to v4 backfills `has_embedding` from existing non-zero vectors automatically
+
 ## [0.3.0] - 2026-03-09
 
 ### Added
@@ -54,7 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration management with XDG Base Directory support
 - Test suite covering config, embeddings, search, storage, and time utilities
 
-[Unreleased]: https://github.com/yangyang0507/starepo/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/yangyang0507/starepo/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/yangyang0507/starepo/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/yangyang0507/starepo/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/yangyang0507/starepo/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/yangyang0507/starepo/releases/tag/v0.1.0
