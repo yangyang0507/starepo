@@ -87,7 +87,7 @@ export async function runServe(): Promise<void> {
         inputSchema: {
           type: 'object',
           properties: {
-            incremental: { type: 'boolean', description: 'Only fetch newly starred repositories since last sync' },
+            force: { type: 'boolean', description: 'Force full sync (default: incremental if last_sync exists)' },
           },
         },
       },
@@ -178,7 +178,7 @@ export async function runServe(): Promise<void> {
 
       case 'sync_stars': {
         await runSync({
-          incremental: (args?.incremental as boolean | undefined) ?? false,
+          force: (args?.force as boolean | undefined) ?? false,
         });
         const stats = await getStats();
         return {

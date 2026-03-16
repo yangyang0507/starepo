@@ -9,28 +9,26 @@ import {
   getEmbeddingStatus,
 } from '../lib/embeddings.js';
 
-export async function runSync(options: { incremental?: boolean; noEmbeddings?: boolean } = {}): Promise<void> {
+export async function runSync(options: { force?: boolean; noEmbeddings?: boolean } = {}): Promise<void> {
   const token = await ensureAuth();
   const octokit = createOctokit(token);
 
   let repos;
+  const lastSync = getMeta('last_sync');
+  const isIncremental = !options.force && !!lastSync;
 
-  if (options.incremental) {
-    const lastSync = getMeta('last_sync');
-    if (!lastSync) {
-      console.log('No previous sync found, running full sync...');
-      repos = await fetchAllStars(octokit, (count) => {
-        process.stdout.write(`\r  Fetched ${count} repos...`);
-      });
-    } else {
-      const since = new Date(lastSync);
-      console.log(`Incremental sync: fetching stars since ${since.toLocaleString()}...`);
-      repos = await fetchStarsSince(octokit, since, (count) => {
-        process.stdout.write(`\r  Fetched ${count} new stars...`);
-      });
-    }
+  if (isIncremental) {
+    const since = new Date(lastSync!);
+    console.log(`Incremental sync: fetching stars since ${since.toLocaleString()}...`);
+    repos = await fetchStarsSince(octokit, since, (count) => {
+      process.stdout.write(`\r  Fetched ${count} new stars...`);
+    });
   } else {
-    console.log('Full sync: fetching all starred repositories...');
+    if (options.force) {
+      console.log('Full sync (forced): fetching all starred repositories...');
+    } else {
+      console.log('Full sync: fetching all starred repositories...');
+    }
     repos = await fetchAllStars(octokit, (count) => {
       process.stdout.write(`\r  Fetched ${count} repos...`);
     });
@@ -39,7 +37,7 @@ export async function runSync(options: { incremental?: boolean; noEmbeddings?: b
   console.log();
 
   if (repos.length === 0) {
-    if (!options.incremental) {
+    if (!isIncremental) {
       // Full sync with an empty remote result means the user currently has no starred repos,
       // so the local cache must be fully cleared to stay in sync.
       const removed = await deleteReposMissingFromFullNames([]);
@@ -62,7 +60,7 @@ export async function runSync(options: { incremental?: boolean; noEmbeddings?: b
   await upsertRepos(repos);
   console.log(' Done.');
 
-  if (!options.incremental) {
+  if (!isIncremental) {
     const removed = await deleteReposMissingFromFullNames(repos.map((repo) => repo.full_name));
     if (removed > 0) {
       console.log(`Removed ${removed} stale repos from local database.`);

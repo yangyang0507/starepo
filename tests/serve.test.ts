@@ -40,7 +40,7 @@ describe('runServe', () => {
     vi.resetModules();
   });
 
-  it('exposes sync_stars with incremental support and forwards the option to runSync', async () => {
+  it('exposes sync_stars with force support and forwards the option to runSync', async () => {
     const runSync = vi.fn().mockResolvedValue(undefined);
 
     vi.doMock('../src/lib/search.js', () => ({
@@ -73,16 +73,16 @@ describe('runServe', () => {
     const listed = await listToolsHandler!({ params: {} });
     const syncTool = listed.tools.find((tool: { name: string }) => tool.name === 'sync_stars');
     expect(syncTool).toBeDefined();
-    expect(syncTool.inputSchema.properties.incremental).toBeDefined();
+    expect(syncTool.inputSchema.properties.force).toBeDefined();
 
     const result = await callToolHandler!({
       params: {
         name: 'sync_stars',
-        arguments: { incremental: true },
+        arguments: { force: true },
       },
     });
 
-    expect(runSync).toHaveBeenCalledWith({ incremental: true });
+    expect(runSync).toHaveBeenCalledWith({ force: true });
     expect(result.content[0].text).toContain('42');
   });
 });

@@ -29,10 +29,10 @@ program
 program
   .command('sync')
   .description('Sync your GitHub starred repositories')
-  .option('-i, --incremental', 'Only fetch new stars since last sync')
+  .option('-f, --force', 'Force full sync (default: incremental if last_sync exists)')
   .option('--no-embeddings', 'Skip generating embeddings after sync')
   .action(async (opts) => {
-    await runSync({ incremental: opts.incremental, noEmbeddings: !opts.embeddings });
+    await runSync({ force: opts.force, noEmbeddings: !opts.embeddings });
   });
 
 program
