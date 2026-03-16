@@ -344,6 +344,12 @@ async function ensureSchema(table: lancedb.Table): Promise<void> {
   if (version < CURRENT_SCHEMA_VERSION) {
     setMeta('schema_version', String(CURRENT_SCHEMA_VERSION));
   }
+
+  if (version !== storedVersion) {
+    // Compact deleted rows left by mergeInsert-based backfills
+    await table.optimize({ cleanupOlderThan: new Date() });
+  }
+
   _schemaReady = true;
 }
 
