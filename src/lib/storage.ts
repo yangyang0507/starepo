@@ -135,8 +135,8 @@ async function batchMergeInsert(table: lancedb.Table, rows: Record<string, unkno
   }
 }
 
-function repoRecordToRow(repo: Repo): Record<string, unknown> {
-  return {
+function repoRecordToRow(repo: Repo, schemaVersion = CURRENT_SCHEMA_VERSION): Record<string, unknown> {
+  const row: Record<string, unknown> = {
     id: repo.id,
     full_name: repo.full_name,
     name: repo.name,
@@ -145,16 +145,27 @@ function repoRecordToRow(repo: Repo): Record<string, unknown> {
     homepage: repo.homepage,
     language: repo.language,
     topics: repo.topics,
-    topics_text: repo.topics_text ?? topicsTextFromSerialized(repo.topics),
-    stars_count: repo.stars_count,
-    forks_count: repo.forks_count,
     starred_at: repo.starred_at,
     updated_at: repo.updated_at,
-    starred_at_ts: repo.starred_at_ts ?? toEpochMillis(repo.starred_at),
-    updated_at_ts: repo.updated_at_ts ?? toEpochMillis(repo.updated_at),
-    has_embedding: repo.has_embedding ?? false,
-    vector: repo.vector ?? new Array(EMBEDDING_DIM).fill(0),
+    stars_count: repo.stars_count,
+    forks_count: repo.forks_count,
+    vector: Array.isArray(repo.vector)
+      ? repo.vector
+      : repo.vector
+        ? Array.from(repo.vector as unknown as ArrayLike<number>)
+        : new Array(EMBEDDING_DIM).fill(0),
   };
+  if (schemaVersion >= 2) {
+    row.starred_at_ts = repo.starred_at_ts ?? toEpochMillis(repo.starred_at);
+    row.updated_at_ts = repo.updated_at_ts ?? toEpochMillis(repo.updated_at);
+  }
+  if (schemaVersion >= 3) {
+    row.topics_text = repo.topics_text ?? topicsTextFromSerialized(repo.topics);
+  }
+  if (schemaVersion >= 4) {
+    row.has_embedding = repo.has_embedding ?? false;
+  }
+  return row;
 }
 
 function hasNonZeroVector(vector?: number[] | ArrayLike<number>): boolean {
@@ -260,11 +271,11 @@ async function ensureSchema(table: lancedb.Table): Promise<void> {
 
     if (rowsNeedingBackfill.length > 0) {
       process.stderr.write(`Migrating starepo schema v2 (${rowsNeedingBackfill.length} rows)...\n`);
-      const rows = rowsNeedingBackfill.map((row) => ({
+      const rows = normalizeRepos(rowsNeedingBackfill).map((row) => repoRecordToRow({
         ...row,
         starred_at_ts: row.starred_at_ts && row.starred_at_ts > 0 ? row.starred_at_ts : toEpochMillis(row.starred_at),
         updated_at_ts: row.updated_at_ts && row.updated_at_ts > 0 ? row.updated_at_ts : toEpochMillis(row.updated_at),
-      }));
+      }, 2));
       await batchMergeInsert(table, rows);
       process.stderr.write('Schema v2 migration complete.\n');
     }
@@ -288,10 +299,10 @@ async function ensureSchema(table: lancedb.Table): Promise<void> {
 
     if (rowsNeedingBackfill.length > 0) {
       process.stderr.write(`Migrating starepo schema v3 (${rowsNeedingBackfill.length} rows)...\n`);
-      const rows = rowsNeedingBackfill.map((row) => ({
+      const rows = normalizeRepos(rowsNeedingBackfill).map((row) => repoRecordToRow({
         ...row,
         topics_text: row.topics_text?.trim() ? row.topics_text : topicsTextFromSerialized(row.topics),
-      }));
+      }, 3));
       await batchMergeInsert(table, rows);
       process.stderr.write('Schema v3 migration complete.\n');
     }
@@ -318,7 +329,7 @@ async function ensureSchema(table: lancedb.Table): Promise<void> {
 
     if (rowsNeedingBackfill.length > 0) {
       process.stderr.write(`Migrating starepo schema v4 (${rowsNeedingBackfill.length} rows)...\n`);
-      const rows = rowsNeedingBackfill.map((row) => ({
+      const rows = normalizeRepos(rowsNeedingBackfill).map((row) => repoRecordToRow({
         ...row,
         has_embedding: hasNonZeroVector(row.vector),
       }));
