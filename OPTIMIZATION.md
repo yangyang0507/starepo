@@ -26,6 +26,7 @@
 - 已完成：topics 已增加规范化列 `topics_text`
 - 已完成：过滤和候选收窄已尽量下推到存储层
 - 已完成：embedding 生成已改为小并发 worker 池
+- 已完成：embedding 已支持批量写入、模型/版本 metadata 和恢复提示
 - 已完成：CLI / MCP / README 的版本和 `sync_stars(incremental)` 契约已对齐
 
 ---
@@ -245,12 +246,12 @@ for (const repo of repos) {
 - **Claude：** 批量生成（可并发），批量写入 DB
 - **Codex：** 2-4 个 worker 并发；存储 `embedding_model` + `embedding_version` 元数据以支持模型升级；改善中断/恢复的进度报告
 
-**状态：** 部分完成。
+**状态：** 已完成。
 
 - 已完成：小并发 worker 池
-- 未完成：批量写入
-- 未完成：`embedding_model` / `embedding_version` 元数据
-- 未完成：更清晰的恢复/升级流程
+- 已完成：批量写入 DB
+- 已完成：`embedding_model` / `embedding_version` 元数据
+- 已完成：更清晰的恢复/升级提示与 `embed --force` 重建路径
 
 ---
 

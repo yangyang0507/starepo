@@ -125,4 +125,44 @@ describe('runSync: full sync cleanup', () => {
     expect(vector[0]).toBeCloseTo(0.1);
     expect(vector.every(v => v === 0)).toBe(false);
   });
+
+  it('warns about outdated embedding metadata and skips regeneration when coverage is complete', async () => {
+    const logs: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((message?: string) => {
+      logs.push(String(message ?? ''));
+    });
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+    vi.doMock('../src/commands/auth.js', () => ({
+      ensureAuth: vi.fn().mockResolvedValue('token'),
+    }));
+    vi.doMock('../src/lib/github.js', () => ({
+      createOctokit: vi.fn().mockReturnValue({}),
+      fetchAllStars: vi.fn().mockResolvedValue([
+        makeRepo({ id: 1, full_name: 'keep/repo', name: 'repo' }),
+      ]),
+      fetchStarsSince: vi.fn(),
+    }));
+
+    const generateAndStoreEmbeddings = vi.fn();
+    vi.doMock('../src/lib/embeddings.js', () => ({
+      EMBEDDING_MODEL: 'Xenova/bge-m3',
+      EMBEDDING_VERSION: '1',
+      getEmbeddingStatus: vi.fn().mockResolvedValue({
+        totalRepos: 1,
+        embeddedRepos: 1,
+        missingRepos: 0,
+        metadataStatus: 'outdated',
+        metadata: { model: 'legacy/model', version: '0' },
+      }),
+      generateAndStoreEmbeddings,
+    }));
+
+    const { runSync } = await import('../src/commands/sync.js');
+    await runSync();
+
+    expect(logs.join('\n')).toContain('starepo embed --force');
+    expect(logs.join('\n')).toContain('Embeddings already up to date.');
+    expect(generateAndStoreEmbeddings).not.toHaveBeenCalled();
+  });
 });

@@ -1,5 +1,5 @@
 import * as lancedb from '@lancedb/lancedb';
-import { Schema, Field, Utf8, Int32, Int64, Float32, FixedSizeList } from 'apache-arrow';
+import { Schema, Field, Utf8, Int32, Int64, Float32, FixedSizeList, Bool } from 'apache-arrow';
 import { getDBPath, getMeta, setMeta } from './config.js';
 
 export interface Repo {
@@ -18,8 +18,11 @@ export interface Repo {
   updated_at: string;
   starred_at_ts?: number;
   updated_at_ts?: number;
+  has_embedding?: boolean;
   vector?: number[];    // embedding, zeros if not yet generated
 }
+
+export type EmbeddingRepo = Pick<Repo, 'full_name' | 'name' | 'description' | 'topics' | 'language'>;
 
 // What github.ts hands us (topics is string[], vector optional)
 export interface RepoInput {
@@ -41,7 +44,7 @@ export interface RepoInput {
 const TABLE_NAME = 'repos';
 const EMBEDDING_DIM = 1024; // Xenova/bge-m3
 const BASE_SCHEMA_VERSION = 1;
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 
 let _db: lancedb.Connection | null = null;
 let _table: lancedb.Table | null = null;
@@ -64,6 +67,7 @@ const SEARCH_RESULT_COLUMNS = [
   'updated_at',
   'starred_at_ts',
   'updated_at_ts',
+  'has_embedding',
 ] as const;
 const SEARCH_RESULT_COLUMNS_WITH_DISTANCE = [...SEARCH_RESULT_COLUMNS, '_distance'] as const;
 
@@ -103,6 +107,7 @@ function normalizeRepo(repo: Repo): Repo {
     topics_text: repo.topics_text ?? topicsTextFromSerialized(repo.topics),
     starred_at_ts: toOptionalNumber(repo.starred_at_ts),
     updated_at_ts: toOptionalNumber(repo.updated_at_ts),
+    has_embedding: repo.has_embedding ?? false,
   };
 }
 
@@ -115,6 +120,34 @@ function buildFullNameWhereClause(fullNames: string[]): string | undefined {
   return fullNames
     .map((fullName) => `full_name = '${escapeSqlString(fullName)}'`)
     .join(' OR ');
+}
+
+function repoRecordToRow(repo: Repo): Record<string, unknown> {
+  return {
+    id: repo.id,
+    full_name: repo.full_name,
+    name: repo.name,
+    description: repo.description,
+    html_url: repo.html_url,
+    homepage: repo.homepage,
+    language: repo.language,
+    topics: repo.topics,
+    topics_text: repo.topics_text ?? topicsTextFromSerialized(repo.topics),
+    stars_count: repo.stars_count,
+    forks_count: repo.forks_count,
+    starred_at: repo.starred_at,
+    updated_at: repo.updated_at,
+    starred_at_ts: repo.starred_at_ts ?? toEpochMillis(repo.starred_at),
+    updated_at_ts: repo.updated_at_ts ?? toEpochMillis(repo.updated_at),
+    has_embedding: repo.has_embedding ?? false,
+    vector: repo.vector ?? new Array(EMBEDDING_DIM).fill(0),
+  };
+}
+
+function hasNonZeroVector(vector?: number[] | ArrayLike<number>): boolean {
+  if (!vector) return false;
+  const values = Array.isArray(vector) ? vector : Array.from(vector);
+  return values.some((value) => value !== 0);
 }
 
 export interface RepoQueryFilters {
@@ -268,6 +301,43 @@ async function ensureSchema(table: lancedb.Table): Promise<void> {
     setMeta('schema_version', '3');
   }
 
+  if (version < 4) {
+    try {
+      await table.addColumns([{ name: 'has_embedding', valueSql: 'cast(false as boolean)' }]);
+    } catch (err) {
+      if (!(err instanceof Error && err.message.includes('already exists'))) {
+        throw err;
+      }
+    }
+
+    // v4 adds the boolean column with a default false value, so the initial
+    // backfill query intentionally scans all existing rows once and flips only
+    // the rows whose stored vectors are non-zero.
+    const rowsNeedingBackfill = await table.query()
+      .where('has_embedding IS FALSE')
+      .select(['full_name', 'vector'])
+      .toArray() as Array<Pick<Repo, 'full_name' | 'vector'>>;
+
+    if (rowsNeedingBackfill.length > 0) {
+      process.stderr.write(`Migrating starepo schema v4 (${rowsNeedingBackfill.length} rows)...\n`);
+    }
+    for (const row of rowsNeedingBackfill) {
+      if (!hasNonZeroVector(row.vector)) continue;
+      const escaped = escapeSqlString(row.full_name);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (table.update as any)({
+        values: { has_embedding: true },
+        where: `full_name = '${escaped}'`,
+      });
+    }
+    if (rowsNeedingBackfill.length > 0) {
+      process.stderr.write('Schema v4 migration complete.\n');
+    }
+
+    version = 4;
+    setMeta('schema_version', '4');
+  }
+
   if (version < CURRENT_SCHEMA_VERSION) {
     setMeta('schema_version', String(CURRENT_SCHEMA_VERSION));
   }
@@ -300,6 +370,7 @@ export async function getTable(): Promise<lancedb.Table> {
       new Field('updated_at', new Utf8()),
       new Field('starred_at_ts', new Int64()),
       new Field('updated_at_ts', new Int64()),
+      new Field('has_embedding', new Bool()),
       new Field('vector', new FixedSizeList(EMBEDDING_DIM, new Field('item', new Float32()))),
     ]);
     _table = await db.createEmptyTable(TABLE_NAME, schema, { existOk: true });
@@ -329,6 +400,7 @@ function toRow(r: RepoInput): Record<string, unknown> {
     updated_at: r.updated_at,
     starred_at_ts: toEpochMillis(r.starred_at),
     updated_at_ts: toEpochMillis(r.updated_at),
+    has_embedding: hasNonZeroVector(r.vector),
     vector: r.vector ?? new Array(EMBEDDING_DIM).fill(0),
   };
 }
@@ -367,10 +439,13 @@ export async function upsertRepos(repos: RepoInput[]): Promise<void> {
   const wasEmpty = await table.countRows() === 0;
   const reposWithoutVector = repos.filter((repo) => repo.vector === undefined).map((repo) => repo.full_name);
   const existingVectors = wasEmpty ? new Map<string, number[]>() : await getExistingVectors(reposWithoutVector);
-  const rows = repos.map((repo) => toRow({
-    ...repo,
-    vector: repo.vector ?? existingVectors.get(repo.full_name),
-  }));
+  const rows = repos.map((repo) => {
+    const vector = repo.vector ?? existingVectors.get(repo.full_name);
+    return toRow({
+      ...repo,
+      vector,
+    });
+  });
 
   await (table
     .mergeInsert('full_name') as lancedb.MergeInsertBuilder)
@@ -378,7 +453,7 @@ export async function upsertRepos(repos: RepoInput[]): Promise<void> {
     .whenNotMatchedInsertAll()
     .execute(rows);
 
-  if (repos.some((repo) => repo.vector?.some((value) => value !== 0))) {
+  if (rows.some((row) => row.has_embedding === true)) {
     setHasEmbeddings(true);
   } else if (wasEmpty) {
     setHasEmbeddings(false);
@@ -390,9 +465,42 @@ export async function updateEmbedding(fullName: string, vector: number[]): Promi
   const escaped = escapeSqlString(fullName);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (table.update as any)({
-    values: { vector },
+    values: { vector, has_embedding: true },
     where: `full_name = '${escaped}'`,
   });
+  setHasEmbeddings(true);
+}
+
+export async function updateEmbeddingsBatch(entries: Array<{ fullName: string; vector: number[] }>): Promise<void> {
+  if (entries.length === 0) return;
+
+  const table = await getTable();
+  const vectorMap = new Map(entries.map((entry) => [entry.fullName, entry.vector]));
+  const chunkSize = 200;
+
+  for (let i = 0; i < entries.length; i += chunkSize) {
+    const chunkNames = entries.slice(i, i + chunkSize).map((entry) => entry.fullName);
+    const where = buildFullNameWhereClause(chunkNames);
+    if (!where) continue;
+
+    const existing = normalizeRepos(await table.query().where(where).toArray() as unknown as Repo[]);
+    const rows = existing
+      .filter((repo) => vectorMap.has(repo.full_name))
+      .map((repo) => repoRecordToRow({
+        ...repo,
+        has_embedding: true,
+        vector: vectorMap.get(repo.full_name)!,
+      }));
+
+    if (rows.length === 0) continue;
+
+    await (table
+      .mergeInsert('full_name') as lancedb.MergeInsertBuilder)
+      .whenMatchedUpdateAll()
+      .whenNotMatchedInsertAll()
+      .execute(rows);
+  }
+
   setHasEmbeddings(true);
 }
 
@@ -504,15 +612,24 @@ export async function getStats(): Promise<{ count: number; lastSync: string | nu
   return { count, lastSync: getMeta('last_sync') };
 }
 
-export async function getReposWithoutEmbedding(): Promise<Repo[]> {
+export async function getReposWithoutEmbedding(): Promise<EmbeddingRepo[]> {
   const table = await getTable();
-  const results = normalizeRepos(await table.query().toArray() as unknown as Repo[]);
-  return results.filter(r => {
-    if (!r.vector) return true;
-    // Convert Arrow FixedSizeList to array if needed
-    const vec = Array.isArray(r.vector) ? r.vector : Array.from(r.vector as unknown as ArrayLike<number>);
-    return vec.length === 0 || vec.every(v => v === 0);
-  });
+  return await table.query()
+    .where('has_embedding IS FALSE')
+    .select(['full_name', 'name', 'description', 'topics', 'language'])
+    .toArray() as EmbeddingRepo[];
+}
+
+export async function countReposWithoutEmbedding(): Promise<number> {
+  const table = await getTable();
+  return table.countRows('has_embedding IS FALSE');
+}
+
+export async function getReposForEmbedding(): Promise<EmbeddingRepo[]> {
+  const table = await getTable();
+  return await table.query()
+    .select(['full_name', 'name', 'description', 'topics', 'language'])
+    .toArray() as EmbeddingRepo[];
 }
 
 export async function hasAnyEmbeddings(totalCount?: number): Promise<boolean> {
@@ -531,8 +648,8 @@ export async function hasAnyEmbeddings(totalCount?: number): Promise<boolean> {
     return _hasEmbeddings;
   }
 
-  const withoutEmbedding = await getReposWithoutEmbedding();
-  const hasEmbeddings = withoutEmbedding.length < count;
+  const withoutEmbeddingCount = await countReposWithoutEmbedding();
+  const hasEmbeddings = withoutEmbeddingCount < count;
   setHasEmbeddings(hasEmbeddings);
   return hasEmbeddings;
 }

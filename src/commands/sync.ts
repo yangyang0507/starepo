@@ -2,7 +2,12 @@ import { ensureAuth } from './auth.js';
 import { createOctokit, fetchAllStars, fetchStarsSince } from '../lib/github.js';
 import { upsertRepos, getStats, deleteReposMissingFromFullNames } from '../lib/storage.js';
 import { getMeta, setMeta } from '../lib/config.js';
-import { generateAndStoreEmbeddings } from '../lib/embeddings.js';
+import {
+  EMBEDDING_MODEL,
+  EMBEDDING_VERSION,
+  generateAndStoreEmbeddings,
+  getEmbeddingStatus,
+} from '../lib/embeddings.js';
 
 export async function runSync(options: { incremental?: boolean; noEmbeddings?: boolean } = {}): Promise<void> {
   const token = await ensureAuth();
@@ -70,11 +75,37 @@ export async function runSync(options: { incremental?: boolean; noEmbeddings?: b
   console.log(`\nSync complete: ${count} total stars.`);
 
   if (!options.noEmbeddings) {
-    console.log('\nGenerating embeddings for semantic search...');
+    const embeddingStatus = await getEmbeddingStatus();
+    console.log(
+      `\nEmbedding coverage: ${embeddingStatus.embeddedRepos}/${embeddingStatus.totalRepos} ready, ` +
+      `${embeddingStatus.missingRepos} missing.`
+    );
+    if (embeddingStatus.metadataStatus === 'outdated') {
+      console.log(
+        `Stored embeddings use ${embeddingStatus.metadata.model}@${embeddingStatus.metadata.version}; ` +
+        `sync only fills missing vectors. Run \`starepo embed --force\` to rebuild with ${EMBEDDING_MODEL}@${EMBEDDING_VERSION}.`
+      );
+    }
+
+    if (embeddingStatus.missingRepos === 0) {
+      console.log('Embeddings already up to date.');
+      console.log('Semantic search is now available.');
+      return;
+    }
+
+    console.log('Generating embeddings for semantic search...');
     console.log('(First run downloads ~23MB model)');
-    await generateAndStoreEmbeddings((done, total) => {
-      process.stdout.write(`\r  Embedding: ${done}/${total}`);
+    const result = await generateAndStoreEmbeddings({
+      onProgress: (done, total) => {
+        process.stdout.write(`\r  Embedding: ${done}/${total}`);
+      },
     });
-    console.log('\nEmbeddings ready. Semantic search is now available.');
+    console.log(`\nEmbeddings ready. Processed ${result.processedRepos} repositories.`);
+    if (result.metadataStatusBefore === 'outdated') {
+      console.log(
+        `Older vectors still remain. Run \`starepo embed --force\` to fully rebuild with ${EMBEDDING_MODEL}@${EMBEDDING_VERSION}.`
+      );
+    }
+    console.log('Semantic search is now available.');
   }
 }

@@ -79,6 +79,7 @@ describe('storage: upsertRepos / getRepoByName', () => {
       : Array.from(found!.vector as unknown as ArrayLike<number>);
 
     expect(found!.stars_count).toBe(999);
+    expect(found!.has_embedding).toBe(true);
     expect(vector[0]).toBeCloseTo(0.1);
     expect(vector.every(v => v === 0)).toBe(false);
   });
@@ -128,6 +129,7 @@ describe('storage: upsertRepos / getRepoByName', () => {
     const found = await getRepoByName('x/time');
     expect(found!.starred_at_ts).toBe(Date.parse('2026-01-02T03:04:05Z'));
     expect(found!.updated_at_ts).toBe(Date.parse('2026-01-03T04:05:06Z'));
+    expect(found!.has_embedding).toBe(false);
   });
 });
 
@@ -253,7 +255,7 @@ describe('storage: schema migrations', () => {
 
     await getTable();
 
-    expect(getMeta('schema_version')).toBe('3');
+    expect(getMeta('schema_version')).toBe('4');
   });
 });
 
