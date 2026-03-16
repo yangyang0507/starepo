@@ -76,7 +76,7 @@ Or if installed locally:
 - `search_stars(query?, language?, topic?, since?, until?, days?, limit?)` - Search repositories with combined filters
 - `list_stars(query?, language?, topic?, since?, until?, days?, limit?)` - List with combined filters
 - `get_star_info(full_name)` - Get repository details
-- `sync_stars(incremental?)` - Trigger full or incremental sync from GitHub
+- `sync_stars(force?)` - Trigger smart or full sync from GitHub
 
 ### MCP Resources
 
@@ -96,11 +96,11 @@ Follow the prompts to authorize via GitHub Device Flow.
 ### 2. Sync Your Stars
 
 ```bash
-# Full sync (first time)
+# Smart sync (incremental if last_sync exists, full otherwise)
 starepo sync
 
-# Incremental sync (only new stars)
-starepo sync --incremental
+# Force full sync
+starepo sync --force
 
 # Skip embedding generation (faster)
 starepo sync --no-embeddings
@@ -145,8 +145,8 @@ starepo auth --force  # Re-authenticate
 Sync your GitHub starred repositories.
 
 ```bash
-starepo sync                # Full sync
-starepo sync --incremental  # Only new stars
+starepo sync                # Smart sync (incremental if synced before, full otherwise)
+starepo sync --force        # Force full sync
 starepo sync --no-embeddings # Skip embeddings
 ```
 

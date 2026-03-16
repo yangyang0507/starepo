@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-03-16
+
+### Changed
+
+- **BREAKING:** `sync` now defaults to smart sync (incremental if `last_sync` exists, full otherwise)
+- **BREAKING:** Removed `--incremental` flag; use `--force` to override to full sync
+- **BREAKING:** MCP `sync_stars` tool parameter changed from `incremental` to `force`
+
+### Added
+
+- Schema migration performance: batch `mergeInsert` replaces per-row `update` (10-100x faster for large migrations)
+- Table compaction (`optimize`) after schema migrations to reclaim deleted rows
+
+### Fixed
+
+- Schema migrations now correctly handle Arrow vector serialization and version-specific column sets
+
 ## [0.4.0] - 2026-03-16
 
 ### Added
@@ -75,7 +92,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration management with XDG Base Directory support
 - Test suite covering config, embeddings, search, storage, and time utilities
 
-[Unreleased]: https://github.com/yangyang0507/starepo/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/yangyang0507/starepo/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/yangyang0507/starepo/compare/v0.4.0...v1.0.0
 [0.4.0]: https://github.com/yangyang0507/starepo/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/yangyang0507/starepo/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/yangyang0507/starepo/compare/v0.1.0...v0.2.0

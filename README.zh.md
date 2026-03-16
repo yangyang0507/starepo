@@ -76,7 +76,7 @@ Starepo 可作为 MCP 服务器接入 AI 助手。
 - `search_stars(query?, language?, topic?, since?, until?, days?, limit?)` - 带过滤的语义搜索
 - `list_stars(query?, language?, topic?, since?, until?, days?, limit?)` - 带过滤的列表
 - `get_star_info(full_name)` - 获取仓库详情
-- `sync_stars()` - 触发 GitHub 同步
+- `sync_stars(force?)` - 触发智能同步或强制全量同步
 
 ### MCP 资源
 
@@ -96,11 +96,11 @@ starepo auth
 ### 2. 同步 Star
 
 ```bash
-# 首次全量同步
+# 智能同步（有同步记录则增量，否则全量）
 starepo sync
 
-# 增量同步（仅同步新 star）
-starepo sync --incremental
+# 强制全量同步
+starepo sync --force
 
 # 跳过向量生成（速度更快）
 starepo sync --no-embeddings
@@ -145,8 +145,8 @@ starepo auth --force  # 重新授权
 同步 GitHub Star 仓库。
 
 ```bash
-starepo sync                  # 全量同步
-starepo sync --incremental    # 仅同步新 star
+starepo sync                  # 智能同步（有记录则增量，否则全量）
+starepo sync --force          # 强制全量同步
 starepo sync --no-embeddings  # 跳过向量生成
 ```
 

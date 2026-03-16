@@ -89,11 +89,11 @@ npx starepo info vercel/next.js
 ## Sync & Embed
 
 ```bash
-# Quick sync (only new stars since last sync)
-npx starepo sync --incremental
-
-# Full re-sync
+# Smart sync (incremental if synced before, full otherwise)
 npx starepo sync
+
+# Force full sync
+npx starepo sync --force
 
 # Fix incomplete embeddings (optional, only if semantic search feels off)
 npx starepo embed --force
@@ -116,7 +116,7 @@ Add to `claude_desktop_config.json`:
 ## Workflow Tips
 
 1. **First search fails or returns nothing** → Run `npx starepo sync`
-2. **Stale results** → Run `npx starepo sync --incremental` to fetch new stars
+2. **Stale results** → Run `npx starepo sync` to fetch new stars (smart incremental)
 3. **Poor semantic relevance** → Run `npx starepo embed --force` to fix incomplete embeddings
 4. **Filter + search** → Combine `--query` with `--lang`/`--topic`/`--days` for precise results
 5. **Automation** → Use `--json` flag to pipe results to `jq` or other tools
