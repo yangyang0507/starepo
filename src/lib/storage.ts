@@ -122,6 +122,19 @@ function buildFullNameWhereClause(fullNames: string[]): string | undefined {
     .join(' OR ');
 }
 
+const MIGRATION_BATCH_SIZE = 500;
+
+async function batchMergeInsert(table: lancedb.Table, rows: Record<string, unknown>[]): Promise<void> {
+  for (let i = 0; i < rows.length; i += MIGRATION_BATCH_SIZE) {
+    const batch = rows.slice(i, i + MIGRATION_BATCH_SIZE);
+    await (table
+      .mergeInsert('full_name') as lancedb.MergeInsertBuilder)
+      .whenMatchedUpdateAll()
+      .whenNotMatchedInsertAll()
+      .execute(batch);
+  }
+}
+
 function repoRecordToRow(repo: Repo): Record<string, unknown> {
   return {
     id: repo.id,
@@ -243,23 +256,16 @@ async function ensureSchema(table: lancedb.Table): Promise<void> {
 
     const rowsNeedingBackfill = await table.query()
       .where('starred_at_ts = 0 OR updated_at_ts = 0')
-      .select(['full_name', 'starred_at', 'updated_at', 'starred_at_ts', 'updated_at_ts'])
-      .toArray() as Array<Pick<Repo, 'full_name' | 'starred_at' | 'updated_at' | 'starred_at_ts' | 'updated_at_ts'>>;
+      .toArray() as unknown as Repo[];
 
     if (rowsNeedingBackfill.length > 0) {
       process.stderr.write(`Migrating starepo schema v2 (${rowsNeedingBackfill.length} rows)...\n`);
-    }
-    for (const row of rowsNeedingBackfill) {
-      const starredAtTs = row.starred_at_ts && row.starred_at_ts > 0 ? row.starred_at_ts : toEpochMillis(row.starred_at);
-      const updatedAtTs = row.updated_at_ts && row.updated_at_ts > 0 ? row.updated_at_ts : toEpochMillis(row.updated_at);
-      const escaped = escapeSqlString(row.full_name);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (table.update as any)({
-        values: { starred_at_ts: starredAtTs, updated_at_ts: updatedAtTs },
-        where: `full_name = '${escaped}'`,
-      });
-    }
-    if (rowsNeedingBackfill.length > 0) {
+      const rows = rowsNeedingBackfill.map((row) => ({
+        ...row,
+        starred_at_ts: row.starred_at_ts && row.starred_at_ts > 0 ? row.starred_at_ts : toEpochMillis(row.starred_at),
+        updated_at_ts: row.updated_at_ts && row.updated_at_ts > 0 ? row.updated_at_ts : toEpochMillis(row.updated_at),
+      }));
+      await batchMergeInsert(table, rows);
       process.stderr.write('Schema v2 migration complete.\n');
     }
 
@@ -278,22 +284,15 @@ async function ensureSchema(table: lancedb.Table): Promise<void> {
 
     const rowsNeedingBackfill = await table.query()
       .where("topics_text = '' AND topics != '[]'")
-      .select(['full_name', 'topics', 'topics_text'])
-      .toArray() as Array<Pick<Repo, 'full_name' | 'topics' | 'topics_text'>>;
+      .toArray() as unknown as Repo[];
 
     if (rowsNeedingBackfill.length > 0) {
       process.stderr.write(`Migrating starepo schema v3 (${rowsNeedingBackfill.length} rows)...\n`);
-    }
-    for (const row of rowsNeedingBackfill) {
-      const topicsText = row.topics_text?.trim() ? row.topics_text : topicsTextFromSerialized(row.topics);
-      const escaped = escapeSqlString(row.full_name);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (table.update as any)({
-        values: { topics_text: topicsText },
-        where: `full_name = '${escaped}'`,
-      });
-    }
-    if (rowsNeedingBackfill.length > 0) {
+      const rows = rowsNeedingBackfill.map((row) => ({
+        ...row,
+        topics_text: row.topics_text?.trim() ? row.topics_text : topicsTextFromSerialized(row.topics),
+      }));
+      await batchMergeInsert(table, rows);
       process.stderr.write('Schema v3 migration complete.\n');
     }
 
@@ -315,22 +314,15 @@ async function ensureSchema(table: lancedb.Table): Promise<void> {
     // the rows whose stored vectors are non-zero.
     const rowsNeedingBackfill = await table.query()
       .where('has_embedding IS FALSE')
-      .select(['full_name', 'vector'])
-      .toArray() as Array<Pick<Repo, 'full_name' | 'vector'>>;
+      .toArray() as unknown as Repo[];
 
     if (rowsNeedingBackfill.length > 0) {
       process.stderr.write(`Migrating starepo schema v4 (${rowsNeedingBackfill.length} rows)...\n`);
-    }
-    for (const row of rowsNeedingBackfill) {
-      if (!hasNonZeroVector(row.vector)) continue;
-      const escaped = escapeSqlString(row.full_name);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (table.update as any)({
-        values: { has_embedding: true },
-        where: `full_name = '${escaped}'`,
-      });
-    }
-    if (rowsNeedingBackfill.length > 0) {
+      const rows = rowsNeedingBackfill.map((row) => ({
+        ...row,
+        has_embedding: hasNonZeroVector(row.vector),
+      }));
+      await batchMergeInsert(table, rows);
       process.stderr.write('Schema v4 migration complete.\n');
     }
 
