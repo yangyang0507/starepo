@@ -7,8 +7,7 @@ import { runList, runInfo } from './commands/list.js';
 import { runServe } from './commands/serve.js';
 import { runEmbed } from './commands/embed.js';
 import { getStats } from './lib/storage.js';
-import { resolveStarredTimeRange } from './lib/time.js';
-import { SortField, SortOrder } from './lib/sort.js';
+import { parseListOptions } from './lib/sort.js';
 import { VERSION } from './lib/version.js';
 
 const program = new Command();
@@ -63,32 +62,10 @@ program
         console.log('No local data found. Run `starepo sync` first.');
         process.exit(1);
       }
-      const validSortFields: SortField[] = ['stars', 'forks', 'starred', 'updated', 'relevance'];
-      const validOrders: SortOrder[] = ['asc', 'desc'];
-      if (opts.sort && !validSortFields.includes(opts.sort)) {
-        console.error(`Invalid --sort value "${opts.sort}". Must be one of: ${validSortFields.join(', ')}`);
-        process.exit(1);
-      }
-      if (opts.order && !validOrders.includes(opts.order)) {
-        console.error(`Invalid --order value "${opts.order}". Must be one of: ${validOrders.join(', ')}`);
-        process.exit(1);
-      }
-      const days = opts.days !== undefined ? parseFloat(opts.days) : undefined;
-      const range = resolveStarredTimeRange({
-        since: opts.since,
-        until: opts.until,
-        days,
-      });
+      const parsed = parseListOptions(opts);
       await runSearch(query, {
         query: opts.query,
-        language: opts.lang,
-        topic: opts.topic,
-        starredAfter: range.starredAfter,
-        starredBefore: range.starredBefore,
-        limit: parseInt(opts.limit, 10),
-        sort: opts.sort as SortField | undefined,
-        order: opts.order as SortOrder | undefined,
-        json: opts.json,
+        ...parsed,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -112,32 +89,10 @@ program
   .option('--json', 'Output as JSON')
   .action(async (opts) => {
     try {
-      const validSortFields: SortField[] = ['stars', 'forks', 'starred', 'updated', 'relevance'];
-      const validOrders: SortOrder[] = ['asc', 'desc'];
-      if (opts.sort && !validSortFields.includes(opts.sort)) {
-        console.error(`Invalid --sort value "${opts.sort}". Must be one of: ${validSortFields.join(', ')}`);
-        process.exit(1);
-      }
-      if (opts.order && !validOrders.includes(opts.order)) {
-        console.error(`Invalid --order value "${opts.order}". Must be one of: ${validOrders.join(', ')}`);
-        process.exit(1);
-      }
-      const days = opts.days !== undefined ? parseFloat(opts.days) : undefined;
-      const range = resolveStarredTimeRange({
-        since: opts.since,
-        until: opts.until,
-        days,
-      });
+      const parsed = parseListOptions(opts);
       await runList({
         query: opts.query,
-        language: opts.lang,
-        topic: opts.topic,
-        starredAfter: range.starredAfter,
-        starredBefore: range.starredBefore,
-        limit: parseInt(opts.limit, 10),
-        sort: opts.sort as SortField | undefined,
-        order: opts.order as SortOrder | undefined,
-        json: opts.json,
+        ...parsed,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

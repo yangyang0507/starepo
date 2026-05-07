@@ -47,7 +47,7 @@ export interface EmbeddingGenerationResult {
 async function getPipeline(): Promise<FeatureExtractionPipeline> {
   if (_pipeline) return _pipeline;
 
-  const { pipeline, env } = await import('@xenova/transformers');
+  const { pipeline, env } = await import('@huggingface/transformers');
 
   // Store model cache in XDG data dir (~/.local/share/starepo/models)
   // instead of node_modules, so it persists across installs and updates

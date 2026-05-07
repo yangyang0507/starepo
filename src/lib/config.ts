@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
+import { chmodSync, readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 
 const APP_NAME = 'starepo';
@@ -49,11 +49,15 @@ export function getToken(): string | null {
 
 export function saveToken(token: string): void {
   const data: AuthData = { token, createdAt: new Date().toISOString() };
-  writeFileSync(getAuthFilePath(), JSON.stringify(data, null, 2), 'utf-8');
+  const path = getAuthFilePath();
+  writeFileSync(path, JSON.stringify(data, null, 2), { encoding: 'utf-8', mode: 0o600 });
+  chmodSync(path, 0o600);
 }
 
 export function clearToken(): void {
-  writeFileSync(getAuthFilePath(), '{}', 'utf-8');
+  const path = getAuthFilePath();
+  writeFileSync(path, '{}', { encoding: 'utf-8', mode: 0o600 });
+  chmodSync(path, 0o600);
 }
 
 // ── Meta (last_sync, etc.) ────────────────────────────────────────────────────

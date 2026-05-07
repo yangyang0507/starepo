@@ -1,10 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const handlers = new Map<string, (request: any) => Promise<any>>();
+type MockRequest = { params: Record<string, unknown> };
+type MockResponse = {
+  tools?: Array<{ name: string; inputSchema: { properties: Record<string, unknown> } }>;
+  content?: Array<{ text: string }>;
+};
+type RequestHandler = (request: MockRequest) => Promise<MockResponse>;
+
+const handlers = new Map<string, RequestHandler>();
 
 vi.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
   Server: class MockServer {
-    setRequestHandler(schema: { method: string }, handler: (request: any) => Promise<any>) {
+    setRequestHandler(schema: { method: string }, handler: RequestHandler) {
       handlers.set(schema.method, handler);
     }
     async connect() {}
@@ -71,9 +78,9 @@ describe('runServe', () => {
     expect(callToolHandler).toBeDefined();
 
     const listed = await listToolsHandler!({ params: {} });
-    const syncTool = listed.tools.find((tool: { name: string }) => tool.name === 'sync_stars');
+    const syncTool = listed.tools?.find((tool) => tool.name === 'sync_stars');
     expect(syncTool).toBeDefined();
-    expect(syncTool.inputSchema.properties.force).toBeDefined();
+    expect(syncTool?.inputSchema.properties.force).toBeDefined();
 
     const result = await callToolHandler!({
       params: {
@@ -83,6 +90,6 @@ describe('runServe', () => {
     });
 
     expect(runSync).toHaveBeenCalledWith({ force: true });
-    expect(result.content[0].text).toContain('42');
+    expect(result.content?.[0].text).toContain('42');
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -330,23 +330,36 @@ describe('storage: FTS index initialization', () => {
       Field: class Field {},
       Utf8: class Utf8 {},
       Int32: class Int32 {},
+      Int64: class Int64 {},
       Float32: class Float32 {},
       FixedSizeList: class FixedSizeList {},
+      Bool: class Bool {},
+    }));
+
+    vi.doMock('../src/lib/config.js', () => ({
+      getDBPath: () => ':memory:',
+      getConfigDir: () => tmpDir,
+      getDataDir: () => tmpDir,
+      getMeta: (key: string) => key === 'schema_version' ? '4' : null,
+      setMeta: () => {},
+      getToken: () => null,
+      saveToken: () => {},
+      clearToken: () => {},
+      getAuthFilePath: () => '',
+      getMetaFilePath: () => '',
     }));
 
     const createIndex = vi.fn().mockResolvedValue(undefined);
-    const addColumns = vi.fn().mockResolvedValue(undefined);
     const searchToArray = vi.fn().mockResolvedValue([]);
-    const limit = vi.fn().mockReturnValue({ toArray: searchToArray });
-    const search = vi.fn().mockReturnValue({ limit });
-    const backfillToArray = vi.fn().mockResolvedValue([]);
-    const select = vi.fn().mockReturnValue({ toArray: backfillToArray });
-    const where = vi.fn().mockReturnValue({ select });
+    const searchChain = { select: vi.fn().mockReturnValue({ limit: vi.fn().mockReturnValue({ toArray: searchToArray }) }) };
+    const search = vi.fn().mockReturnValue(searchChain);
     const table = {
-      addColumns,
       createIndex,
       search,
-      query: vi.fn().mockReturnValue({ where, toArray: vi.fn().mockResolvedValue([]) }),
+      query: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) }),
+        toArray: vi.fn().mockResolvedValue([]),
+      }),
       countRows: vi.fn().mockResolvedValue(0),
     };
 

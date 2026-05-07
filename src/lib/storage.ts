@@ -1,6 +1,17 @@
 import * as lancedb from '@lancedb/lancedb';
 import { Schema, Field, Utf8, Int32, Int64, Float32, FixedSizeList, Bool } from 'apache-arrow';
 import { getDBPath, getMeta, setMeta } from './config.js';
+import {
+  mergeInsert,
+  updateRows,
+  deleteRows,
+  createFTSIndex,
+  vectorSearchQuery,
+  ftsSearchQuery,
+  queryToArray,
+  queryWhereToArray,
+  querySelectToArray,
+} from './lance-helpers.js';
 
 export interface Repo {
   id: number;
@@ -127,11 +138,7 @@ const MIGRATION_BATCH_SIZE = 500;
 async function batchMergeInsert(table: lancedb.Table, rows: Record<string, unknown>[]): Promise<void> {
   for (let i = 0; i < rows.length; i += MIGRATION_BATCH_SIZE) {
     const batch = rows.slice(i, i + MIGRATION_BATCH_SIZE);
-    await (table
-      .mergeInsert('full_name') as lancedb.MergeInsertBuilder)
-      .whenMatchedUpdateAll()
-      .whenNotMatchedInsertAll()
-      .execute(batch);
+    await mergeInsert(table, 'full_name', batch);
   }
 }
 
@@ -152,7 +159,7 @@ function repoRecordToRow(repo: Repo, schemaVersion = CURRENT_SCHEMA_VERSION): Re
     vector: Array.isArray(repo.vector)
       ? repo.vector
       : repo.vector
-        ? Array.from(repo.vector as unknown as ArrayLike<number>)
+        ? Array.from(repo.vector as ArrayLike<number>)
         : new Array(EMBEDDING_DIM).fill(0),
   };
   if (schemaVersion >= 2) {
@@ -170,8 +177,10 @@ function repoRecordToRow(repo: Repo, schemaVersion = CURRENT_SCHEMA_VERSION): Re
 
 function hasNonZeroVector(vector?: number[] | ArrayLike<number>): boolean {
   if (!vector) return false;
-  const values = Array.isArray(vector) ? vector : Array.from(vector);
-  return values.some((value) => value !== 0);
+  for (let i = 0; i < vector.length; i++) {
+    if (vector[i] !== 0) return true;
+  }
+  return false;
 }
 
 export interface RepoQueryFilters {
@@ -224,13 +233,7 @@ async function ensureFTSIndex(table: lancedb.Table): Promise<void> {
   if (_ftsIndexReady) return;
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (table as any).createIndex('fts_idx', {
-      config: {
-        type: 'INVERTED',
-        columns: ['name', 'full_name', 'description', 'topics', 'language'],
-      },
-    });
+    await createFTSIndex(table, 'fts_idx', ['name', 'full_name', 'description', 'topics', 'language']);
   } catch (err) {
     if (!(err instanceof Error && err.message.includes('already exists'))) {
       return;
@@ -265,9 +268,7 @@ async function ensureSchema(table: lancedb.Table): Promise<void> {
       }
     }
 
-    const rowsNeedingBackfill = await table.query()
-      .where('starred_at_ts = 0 OR updated_at_ts = 0')
-      .toArray() as unknown as Repo[];
+    const rowsNeedingBackfill = await queryWhereToArray<Repo>(table, 'starred_at_ts = 0 OR updated_at_ts = 0');
 
     if (rowsNeedingBackfill.length > 0) {
       process.stderr.write(`Migrating starepo schema v2 (${rowsNeedingBackfill.length} rows)...\n`);
@@ -293,9 +294,7 @@ async function ensureSchema(table: lancedb.Table): Promise<void> {
       }
     }
 
-    const rowsNeedingBackfill = await table.query()
-      .where("topics_text = '' AND topics != '[]'")
-      .toArray() as unknown as Repo[];
+    const rowsNeedingBackfill = await queryWhereToArray<Repo>(table, "topics_text = '' AND topics != '[]'");
 
     if (rowsNeedingBackfill.length > 0) {
       process.stderr.write(`Migrating starepo schema v3 (${rowsNeedingBackfill.length} rows)...\n`);
@@ -323,9 +322,7 @@ async function ensureSchema(table: lancedb.Table): Promise<void> {
     // v4 adds the boolean column with a default false value, so the initial
     // backfill query intentionally scans all existing rows once and flips only
     // the rows whose stored vectors are non-zero.
-    const rowsNeedingBackfill = await table.query()
-      .where('has_embedding IS FALSE')
-      .toArray() as unknown as Repo[];
+    const rowsNeedingBackfill = await queryWhereToArray<Repo>(table, 'has_embedding IS FALSE');
 
     if (rowsNeedingBackfill.length > 0) {
       process.stderr.write(`Migrating starepo schema v4 (${rowsNeedingBackfill.length} rows)...\n`);
@@ -425,16 +422,15 @@ async function getExistingVectors(fullNames: string[]): Promise<Map<string, numb
     const where = buildFullNameWhereClause(chunk);
     if (!where) continue;
 
-    const existing = await table.query()
-      .where(where)
-      .select(['full_name', 'vector'])
-      .toArray() as Array<Pick<Repo, 'full_name' | 'vector'>>;
+    const existing = await querySelectToArray<Pick<Repo, 'full_name' | 'vector'>>(
+      table, ['full_name', 'vector'], where,
+    );
 
     for (const repo of existing) {
       if (!repo.vector) continue;
       const vector = Array.isArray(repo.vector)
         ? repo.vector
-        : Array.from(repo.vector as unknown as ArrayLike<number>);
+        : Array.from(repo.vector as ArrayLike<number>);
       if (vector.every(v => v === 0)) continue;
       vectors.set(repo.full_name, vector);
     }
@@ -456,11 +452,7 @@ export async function upsertRepos(repos: RepoInput[]): Promise<void> {
     });
   });
 
-  await (table
-    .mergeInsert('full_name') as lancedb.MergeInsertBuilder)
-    .whenMatchedUpdateAll()
-    .whenNotMatchedInsertAll()
-    .execute(rows);
+  await mergeInsert(table, 'full_name', rows);
 
   if (rows.some((row) => row.has_embedding === true)) {
     setHasEmbeddings(true);
@@ -472,11 +464,7 @@ export async function upsertRepos(repos: RepoInput[]): Promise<void> {
 export async function updateEmbedding(fullName: string, vector: number[]): Promise<void> {
   const table = await getTable();
   const escaped = escapeSqlString(fullName);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (table.update as any)({
-    values: { vector, has_embedding: true },
-    where: `full_name = '${escaped}'`,
-  });
+  await updateRows(table, { vector, has_embedding: true }, `full_name = '${escaped}'`);
   setHasEmbeddings(true);
 }
 
@@ -492,7 +480,7 @@ export async function updateEmbeddingsBatch(entries: Array<{ fullName: string; v
     const where = buildFullNameWhereClause(chunkNames);
     if (!where) continue;
 
-    const existing = normalizeRepos(await table.query().where(where).toArray() as unknown as Repo[]);
+    const existing = normalizeRepos(await queryWhereToArray<Repo>(table, where));
     const rows = existing
       .filter((repo) => vectorMap.has(repo.full_name))
       .map((repo) => repoRecordToRow({
@@ -503,11 +491,7 @@ export async function updateEmbeddingsBatch(entries: Array<{ fullName: string; v
 
     if (rows.length === 0) continue;
 
-    await (table
-      .mergeInsert('full_name') as lancedb.MergeInsertBuilder)
-      .whenMatchedUpdateAll()
-      .whenNotMatchedInsertAll()
-      .execute(rows);
+    await mergeInsert(table, 'full_name', rows);
   }
 
   setHasEmbeddings(true);
@@ -515,36 +499,24 @@ export async function updateEmbeddingsBatch(entries: Array<{ fullName: string; v
 
 export async function searchVector(vector: number[], limit = 20, filters: RepoQueryFilters = {}): Promise<Repo[]> {
   const table = await getTable();
-  let query = table.vectorSearch(vector) as lancedb.VectorQuery;
   const where = buildRepoWhereClause(filters);
-  if (where) query = query.where(where) as lancedb.VectorQuery;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const results = await (query as any)
-    .select([...SEARCH_RESULT_COLUMNS_WITH_DISTANCE])
-    .limit(limit)
-    .toArray();
-  return normalizeRepos(results as unknown as Repo[]);
+  const results = await vectorSearchQuery(table, vector, SEARCH_RESULT_COLUMNS_WITH_DISTANCE, where, limit);
+  return normalizeRepos(results);
 }
 
 export async function searchFTS(query: string, limit = 20, filters: RepoQueryFilters = {}): Promise<Repo[]> {
   const table = await getTable();
   await ensureFTSIndex(table);
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let searchQuery = table.search(query) as any;
     const where = buildRepoWhereClause(filters);
-    if (where) searchQuery = searchQuery.where(where);
-    const results = await searchQuery
-      .select([...SEARCH_RESULT_COLUMNS_WITH_DISTANCE])
-      .limit(limit)
-      .toArray();
-    return normalizeRepos(results as unknown as Repo[]);
+    const results = await ftsSearchQuery(table, query, SEARCH_RESULT_COLUMNS_WITH_DISTANCE, where, limit);
+    return normalizeRepos(results);
   } catch {
     const pattern = query.toLowerCase();
-    let fallbackQuery = table.query();
     const where = buildRepoWhereClause(filters);
+    let fallbackQuery = table.query();
     if (where) fallbackQuery = fallbackQuery.where(where);
-    const results = normalizeRepos(await fallbackQuery.toArray() as unknown as Repo[]);
+    const results = normalizeRepos(await queryToArray<Repo>(fallbackQuery));
     return results
       .filter((repo) => matchesRepoFilters(repo, filters))
       .filter(r =>
@@ -572,7 +544,7 @@ export async function listRepos(options: {
   const where = buildRepoWhereClause({ language, topic, starredAfter, starredBefore });
   if (where) q = q.where(where);
   if (limit !== undefined) q = q.limit(limit);
-  return normalizeRepos((await q.toArray()) as unknown as Repo[]);
+  return normalizeRepos(await queryToArray<Repo>(q));
 }
 
 export async function countRepos(filters: RepoQueryFilters = {}): Promise<number> {
@@ -584,7 +556,7 @@ export async function countRepos(filters: RepoQueryFilters = {}): Promise<number
 export async function deleteReposMissingFromFullNames(fullNames: string[]): Promise<number> {
   const table = await getTable();
   const currentNames = new Set(fullNames);
-  const existing = await table.query().select(['full_name']).toArray() as Array<Pick<Repo, 'full_name'>>;
+  const existing = await querySelectToArray<Pick<Repo, 'full_name'>>(table, ['full_name']);
   const staleNames = existing
     .map((repo) => repo.full_name)
     .filter((fullName) => !currentNames.has(fullName));
@@ -596,8 +568,7 @@ export async function deleteReposMissingFromFullNames(fullNames: string[]): Prom
     const chunk = staleNames.slice(i, i + chunkSize);
     const where = buildFullNameWhereClause(chunk);
     if (!where) continue;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (table as any).delete(where);
+    await deleteRows(table, where);
   }
 
   _ftsIndexReady = false;
@@ -611,8 +582,8 @@ export async function deleteReposMissingFromFullNames(fullNames: string[]): Prom
 export async function getRepoByName(fullName: string): Promise<Repo | null> {
   const table = await getTable();
   const escaped = escapeSqlString(fullName);
-  const results = await table.query().where(`full_name = '${escaped}'`).limit(1).toArray();
-  return results[0] ? normalizeRepo(results[0] as unknown as Repo) : null;
+  const results = await queryToArray<Repo>(table.query().where(`full_name = '${escaped}'`).limit(1));
+  return results[0] ? normalizeRepo(results[0]) : null;
 }
 
 export async function getStats(): Promise<{ count: number; lastSync: string | null }> {
@@ -623,10 +594,9 @@ export async function getStats(): Promise<{ count: number; lastSync: string | nu
 
 export async function getReposWithoutEmbedding(): Promise<EmbeddingRepo[]> {
   const table = await getTable();
-  return await table.query()
-    .where('has_embedding IS FALSE')
-    .select(['full_name', 'name', 'description', 'topics', 'language'])
-    .toArray() as EmbeddingRepo[];
+  return await querySelectToArray<EmbeddingRepo>(
+    table, ['full_name', 'name', 'description', 'topics', 'language'], 'has_embedding IS FALSE',
+  );
 }
 
 export async function countReposWithoutEmbedding(): Promise<number> {
@@ -636,9 +606,9 @@ export async function countReposWithoutEmbedding(): Promise<number> {
 
 export async function getReposForEmbedding(): Promise<EmbeddingRepo[]> {
   const table = await getTable();
-  return await table.query()
-    .select(['full_name', 'name', 'description', 'topics', 'language'])
-    .toArray() as EmbeddingRepo[];
+  return await querySelectToArray<EmbeddingRepo>(
+    table, ['full_name', 'name', 'description', 'topics', 'language'],
+  );
 }
 
 export async function hasAnyEmbeddings(totalCount?: number): Promise<boolean> {

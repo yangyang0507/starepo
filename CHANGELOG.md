@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- FTS index initialization test mock chain mismatch causing test failure
+- Token file (`auth.json`) now created with `0o600` permissions instead of default `0o666`
+
+### Changed
+
+- Extract `parseListOptions()` to deduplicate sort/order validation and time range parsing across `search` and `list` commands
+- Extract `resolveTimeRange()` helper in MCP server to deduplicate time range resolution
+- `hasNonZeroVector()` now iterates directly instead of allocating via `Array.from()` for `Float32Array`
+- Migrate from unmaintained `@xenova/transformers` to `@huggingface/transformers`
+- Remove unused `SearchFilterOptions` type from `search.ts`
+
+### Added
+
+- `src/lib/lance-helpers.ts` — type-safe wrappers for LanceDB APIs, eliminating all `as any` / `as unknown as` casts from `storage.ts` (20+ → 0)
+- ESLint flat config (`eslint.config.js`) with `typescript-eslint`
+- `npm run lint` script
+- GitHub Actions CI workflow (`.github/workflows/ci.yml`) — lint, type check, and tests on Node 18/20/22
+
 ## [1.0.0] - 2026-03-16
 
 ### Changed

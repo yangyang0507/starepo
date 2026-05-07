@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync } from 'fs';
+import { chmodSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -42,6 +42,21 @@ describe('config: token management', () => {
     saveToken('test-token-123');
     clearToken();
     expect(getToken()).toBeNull();
+  });
+
+  it('tightens auth file permissions even when the file already exists', async () => {
+    const { clearToken, getAuthFilePath, saveToken } = await import('../src/lib/config.js');
+    const path = getAuthFilePath();
+
+    writeFileSync(path, '{}', 'utf-8');
+    chmodSync(path, 0o644);
+
+    saveToken('test-token-123');
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+
+    chmodSync(path, 0o644);
+    clearToken();
+    expect(statSync(path).mode & 0o777).toBe(0o600);
   });
 });
 

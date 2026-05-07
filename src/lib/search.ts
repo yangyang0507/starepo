@@ -10,8 +10,6 @@ export interface SearchOptions {
   order?: SortOrder;
 }
 
-type SearchFilterOptions = Pick<SearchOptions, 'language' | 'topic' | 'starredAfter' | 'starredBefore'>;
-
 function dedup(repos: Repo[]): Repo[] {
   const seen = new Set<string>();
   return repos.filter(r => {

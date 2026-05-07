@@ -30,6 +30,19 @@ function repoToObject(repo: Repo): Record<string, unknown> {
   };
 }
 
+function resolveTimeRange(args: Record<string, unknown> | undefined): { starredAfter?: string; starredBefore?: string } {
+  try {
+    return resolveStarredTimeRange({
+      since: args?.since as string | undefined,
+      until: args?.until as string | undefined,
+      days: args?.days as number | undefined,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new McpError(ErrorCode.InvalidParams, message);
+  }
+}
+
 export async function runServe(): Promise<void> {
   const server = new Server(
     { name: 'starepo', version: VERSION },
@@ -100,17 +113,7 @@ export async function runServe(): Promise<void> {
     switch (name) {
       case 'search_stars': {
         const query = (args?.query as string | undefined) ?? '';
-        let range;
-        try {
-          range = resolveStarredTimeRange({
-            since: args?.since as string | undefined,
-            until: args?.until as string | undefined,
-            days: args?.days as number | undefined,
-          });
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          throw new McpError(ErrorCode.InvalidParams, message);
-        }
+        const range = resolveTimeRange(args);
         const limit = (args?.limit as number) ?? 10;
         const hasFilter = Boolean(args?.language || args?.topic || range.starredAfter || range.starredBefore);
         if (!query && !hasFilter) {
@@ -132,17 +135,7 @@ export async function runServe(): Promise<void> {
 
       case 'list_stars': {
         const query = args?.query as string | undefined;
-        let range;
-        try {
-          range = resolveStarredTimeRange({
-            since: args?.since as string | undefined,
-            until: args?.until as string | undefined,
-            days: args?.days as number | undefined,
-          });
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          throw new McpError(ErrorCode.InvalidParams, message);
-        }
+        const range = resolveTimeRange(args);
         const repos = query
           ? await hybridSearch(query, (args?.limit as number) ?? 50, {
             language: args?.language as string | undefined,
