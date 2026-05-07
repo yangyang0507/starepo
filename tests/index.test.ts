@@ -1,5 +1,9 @@
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { pathToFileURL } from 'url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createProgram, type CliDeps } from '../src/index.js';
+import { createProgram, isDirectRun, type CliDeps } from '../src/index.js';
 import { parseListOptions } from '../src/lib/sort.js';
 
 function makeDeps(overrides: Partial<CliDeps> = {}): CliDeps {
@@ -103,5 +107,20 @@ describe('createProgram', () => {
       json: true,
     }));
     expect(deps.error).toHaveBeenCalledWith(expect.stringContaining('Invalid --sort value'));
+  });
+
+  it('recognizes npm global bin symlinks as direct CLI execution', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'starepo-cli-'));
+    const target = join(dir, 'index.js');
+    const symlink = join(dir, 'starepo');
+
+    try {
+      writeFileSync(target, '');
+      symlinkSync(target, symlink);
+
+      expect(isDirectRun(pathToFileURL(target).href, symlink)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

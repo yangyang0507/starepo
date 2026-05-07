@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-05-07
+
+### Fixed
+
+- Global npm `starepo` binary now resolves symlinked bin paths before checking direct CLI execution
+
 ## [1.1.0] - 2026-05-07
 
 ### Fixed
@@ -128,7 +134,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration management with XDG Base Directory support
 - Test suite covering config, embeddings, search, storage, and time utilities
 
-[Unreleased]: https://github.com/yangyang0507/starepo/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/yangyang0507/starepo/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/yangyang0507/starepo/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/yangyang0507/starepo/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/yangyang0507/starepo/compare/v0.4.0...v1.0.0
 [0.4.0]: https://github.com/yangyang0507/starepo/compare/v0.3.0...v0.4.0

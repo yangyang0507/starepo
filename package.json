@@ -1,6 +1,6 @@
 {
   "name": "starepo",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Search your GitHub stars with semantic search",
   "type": "module",
   "bin": {

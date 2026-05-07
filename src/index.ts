@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import { realpathSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { runAuth } from './commands/auth.js';
 import { runSync } from './commands/sync.js';
@@ -158,7 +159,20 @@ export async function runCli(argv = process.argv, deps: CliDeps = defaultDeps): 
   await createProgram(deps).parseAsync(argv);
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+function realpathOrOriginal(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
+
+export function isDirectRun(importMetaUrl: string, argvPath = process.argv[1]): boolean {
+  if (!argvPath) return false;
+  return realpathOrOriginal(fileURLToPath(importMetaUrl)) === realpathOrOriginal(argvPath);
+}
+
+if (isDirectRun(import.meta.url)) {
   runCli().catch((err: unknown) => {
     console.error(errorMessage(err));
     process.exit(1);
