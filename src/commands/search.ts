@@ -1,6 +1,6 @@
 import { hybridSearch } from '../lib/search.js';
 import { Repo } from '../lib/storage.js';
-import type { SortField, SortOrder } from '../lib/sort.js';
+import { parsePositiveIntOption, type SortField, type SortOrder } from '../lib/sort.js';
 
 export interface SearchCommandOptions {
   query?: string;
@@ -31,7 +31,7 @@ function formatRepo(repo: Repo, index: number): string {
 
 export async function runSearch(query: string | undefined, options: SearchCommandOptions = {}): Promise<void> {
   const finalQuery = (query ?? options.query ?? '').trim();
-  const limit = options.limit ?? 10;
+  const limit = parsePositiveIntOption(options.limit ?? 10, 'limit');
   const hasStructuredFilters = Boolean(
     options.language || options.topic || options.starredAfter || options.starredBefore
   );

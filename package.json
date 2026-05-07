@@ -22,17 +22,6 @@
     "test:coverage": "vitest run --coverage",
     "prepublishOnly": "npm run build"
   },
-  "vitest": {
-    "environment": "node",
-    "include": [
-      "tests/**/*.test.ts"
-    ],
-    "coverage": {
-      "include": [
-        "src/**"
-      ]
-    }
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/yangyang0507/starepo.git"

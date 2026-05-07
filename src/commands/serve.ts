@@ -10,6 +10,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { hybridSearch } from '../lib/search.js';
 import { listRepos, getRepoByName, getStats, Repo } from '../lib/storage.js';
+import { parsePositiveIntOption } from '../lib/sort.js';
 import { resolveStarredTimeRange } from '../lib/time.js';
 import { VERSION } from '../lib/version.js';
 import { runSync } from './sync.js';
@@ -37,6 +38,15 @@ function resolveTimeRange(args: Record<string, unknown> | undefined): { starredA
       until: args?.until as string | undefined,
       days: args?.days as number | undefined,
     });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new McpError(ErrorCode.InvalidParams, message);
+  }
+}
+
+function resolveLimit(args: Record<string, unknown> | undefined, defaultLimit: number): number {
+  try {
+    return parsePositiveIntOption(args?.limit ?? defaultLimit, 'limit');
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new McpError(ErrorCode.InvalidParams, message);
@@ -114,7 +124,7 @@ export async function runServe(): Promise<void> {
       case 'search_stars': {
         const query = (args?.query as string | undefined) ?? '';
         const range = resolveTimeRange(args);
-        const limit = (args?.limit as number) ?? 10;
+        const limit = resolveLimit(args, 10);
         const hasFilter = Boolean(args?.language || args?.topic || range.starredAfter || range.starredBefore);
         if (!query && !hasFilter) {
           throw new McpError(
@@ -136,8 +146,9 @@ export async function runServe(): Promise<void> {
       case 'list_stars': {
         const query = args?.query as string | undefined;
         const range = resolveTimeRange(args);
+        const limit = resolveLimit(args, 50);
         const repos = query
-          ? await hybridSearch(query, (args?.limit as number) ?? 50, {
+          ? await hybridSearch(query, limit, {
             language: args?.language as string | undefined,
             topic: args?.topic as string | undefined,
             starredAfter: range.starredAfter,
@@ -148,7 +159,7 @@ export async function runServe(): Promise<void> {
             topic: args?.topic as string | undefined,
             starredAfter: range.starredAfter,
             starredBefore: range.starredBefore,
-            limit: (args?.limit as number) ?? 50,
+            limit,
           });
         return {
           content: [{ type: 'text', text: JSON.stringify(repos.map(repoToObject), null, 2) }],

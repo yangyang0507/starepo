@@ -1,5 +1,6 @@
 import * as lancedb from '@lancedb/lancedb';
 import { Schema, Field, Utf8, Int32, Int64, Float32, FixedSizeList, Bool } from 'apache-arrow';
+import { Buffer } from 'buffer';
 import { getDBPath, getMeta, setMeta } from './config.js';
 import {
   mergeInsert,
@@ -23,6 +24,7 @@ export interface Repo {
   language: string;
   topics: string;       // JSON array string
   topics_text?: string;
+  topics_key?: string;
   stars_count: number;
   forks_count: number;
   starred_at: string;
@@ -53,9 +55,9 @@ export interface RepoInput {
 }
 
 const TABLE_NAME = 'repos';
-const EMBEDDING_DIM = 1024; // Xenova/bge-m3
+export const EMBEDDING_DIM = 1024; // Xenova/bge-m3
 const BASE_SCHEMA_VERSION = 1;
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 
 let _db: lancedb.Connection | null = null;
 let _table: lancedb.Table | null = null;
@@ -72,6 +74,7 @@ const SEARCH_RESULT_COLUMNS = [
   'language',
   'topics',
   'topics_text',
+  'topics_key',
   'stars_count',
   'forks_count',
   'starred_at',
@@ -93,11 +96,39 @@ function toTopicsText(topics: string[]): string {
     .join(' ');
 }
 
+function normalizeTopicFilter(topic: string): string {
+  return topic.trim().toLowerCase();
+}
+
+function topicKeyPart(topic: string): string {
+  return Buffer.from(normalizeTopicFilter(topic), 'utf8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+function toTopicsKey(topics: string[]): string {
+  const parts = topics
+    .map(normalizeTopicFilter)
+    .filter(Boolean)
+    .map(topicKeyPart);
+  return parts.length > 0 ? `|${parts.join('|')}|` : '';
+}
+
 function topicsTextFromSerialized(value: string): string {
   try {
     return toTopicsText(JSON.parse(value) as string[]);
   } catch {
     return value.trim().toLowerCase();
+  }
+}
+
+function topicsKeyFromSerialized(value: string): string {
+  try {
+    return toTopicsKey(JSON.parse(value) as string[]);
+  } catch {
+    return toTopicsKey(value.split(/\s+/));
   }
 }
 
@@ -116,6 +147,7 @@ function normalizeRepo(repo: Repo): Repo {
   return {
     ...repo,
     topics_text: repo.topics_text ?? topicsTextFromSerialized(repo.topics),
+    topics_key: repo.topics_key ?? topicsKeyFromSerialized(repo.topics),
     starred_at_ts: toOptionalNumber(repo.starred_at_ts),
     updated_at_ts: toOptionalNumber(repo.updated_at_ts),
     has_embedding: repo.has_embedding ?? false,
@@ -172,6 +204,9 @@ function repoRecordToRow(repo: Repo, schemaVersion = CURRENT_SCHEMA_VERSION): Re
   if (schemaVersion >= 4) {
     row.has_embedding = repo.has_embedding ?? false;
   }
+  if (schemaVersion >= 5) {
+    row.topics_key = repo.topics_key ?? topicsKeyFromSerialized(repo.topics);
+  }
   return row;
 }
 
@@ -181,6 +216,12 @@ function hasNonZeroVector(vector?: number[] | ArrayLike<number>): boolean {
     if (vector[i] !== 0) return true;
   }
   return false;
+}
+
+function validateEmbeddingVector(vector: number[], label: string): void {
+  if (vector.length !== EMBEDDING_DIM) {
+    throw new Error(`${label} must contain ${EMBEDDING_DIM} dimensions; received ${vector.length}.`);
+  }
 }
 
 export interface RepoQueryFilters {
@@ -193,7 +234,13 @@ export interface RepoQueryFilters {
 function buildRepoWhereClause(filters: RepoQueryFilters): string | undefined {
   const conditions: string[] = [];
   if (filters.language) conditions.push(`lower(language) = lower('${escapeSqlString(filters.language)}')`);
-  if (filters.topic) conditions.push(`topics_text LIKE '%${escapeSqlString(filters.topic.toLowerCase())}%'`);
+  if (filters.topic) {
+    const normalizedTopic = normalizeTopicFilter(filters.topic);
+    if (normalizedTopic) {
+      const topicKey = escapeSqlString(topicKeyPart(normalizedTopic));
+      conditions.push(`topics_key LIKE '%|${topicKey}|%'`);
+    }
+  }
   if (filters.starredAfter) {
     conditions.push(`starred_at_ts >= ${toEpochMillis(filters.starredAfter)}`);
   }
@@ -208,8 +255,10 @@ function matchesRepoFilters(repo: Repo, filters: RepoQueryFilters): boolean {
     return false;
   }
   if (filters.topic) {
-    const topicsText = (repo.topics_text ?? topicsTextFromSerialized(repo.topics)).toLowerCase();
-    if (!topicsText.includes(filters.topic.toLowerCase())) return false;
+    const topic = normalizeTopicFilter(filters.topic);
+    if (!topic) return true;
+    const topicsKey = repo.topics_key ?? topicsKeyFromSerialized(repo.topics);
+    if (!topicsKey.includes(`|${topicKeyPart(topic)}|`)) return false;
   }
   if (filters.starredAfter) {
     const after = toEpochMillis(filters.starredAfter);
@@ -329,13 +378,38 @@ async function ensureSchema(table: lancedb.Table): Promise<void> {
       const rows = normalizeRepos(rowsNeedingBackfill).map((row) => repoRecordToRow({
         ...row,
         has_embedding: hasNonZeroVector(row.vector),
-      }));
+      }, 4));
       await batchMergeInsert(table, rows);
       process.stderr.write('Schema v4 migration complete.\n');
     }
 
     version = 4;
     setMeta('schema_version', '4');
+  }
+
+  if (version < 5) {
+    try {
+      await table.addColumns([{ name: 'topics_key', valueSql: "''" }]);
+    } catch (err) {
+      if (!(err instanceof Error && err.message.includes('already exists'))) {
+        throw err;
+      }
+    }
+
+    const rowsNeedingBackfill = await queryWhereToArray<Repo>(table, "topics_key = '' AND topics != '[]'");
+
+    if (rowsNeedingBackfill.length > 0) {
+      process.stderr.write(`Migrating starepo schema v5 (${rowsNeedingBackfill.length} rows)...\n`);
+      const rows = normalizeRepos(rowsNeedingBackfill).map((row) => repoRecordToRow({
+        ...row,
+        topics_key: row.topics_key?.trim() ? row.topics_key : topicsKeyFromSerialized(row.topics),
+      }));
+      await batchMergeInsert(table, rows);
+      process.stderr.write('Schema v5 migration complete.\n');
+    }
+
+    version = 5;
+    setMeta('schema_version', '5');
   }
 
   if (version < CURRENT_SCHEMA_VERSION) {
@@ -370,6 +444,7 @@ export async function getTable(): Promise<lancedb.Table> {
       new Field('language', new Utf8()),
       new Field('topics', new Utf8()),
       new Field('topics_text', new Utf8()),
+      new Field('topics_key', new Utf8()),
       new Field('stars_count', new Int32()),
       new Field('forks_count', new Int32()),
       new Field('starred_at', new Utf8()),
@@ -390,6 +465,8 @@ export async function getTable(): Promise<lancedb.Table> {
 }
 
 function toRow(r: RepoInput): Record<string, unknown> {
+  if (r.vector) validateEmbeddingVector(r.vector, `Embedding vector for ${r.full_name}`);
+
   return {
     id: r.id,
     full_name: r.full_name,
@@ -400,6 +477,7 @@ function toRow(r: RepoInput): Record<string, unknown> {
     language: r.language,
     topics: JSON.stringify(r.topics),
     topics_text: toTopicsText(r.topics),
+    topics_key: toTopicsKey(r.topics),
     stars_count: r.stars_count,
     forks_count: r.forks_count,
     starred_at: r.starred_at,
@@ -462,6 +540,7 @@ export async function upsertRepos(repos: RepoInput[]): Promise<void> {
 }
 
 export async function updateEmbedding(fullName: string, vector: number[]): Promise<void> {
+  validateEmbeddingVector(vector, `Embedding vector for ${fullName}`);
   const table = await getTable();
   const escaped = escapeSqlString(fullName);
   await updateRows(table, { vector, has_embedding: true }, `full_name = '${escaped}'`);
@@ -470,6 +549,9 @@ export async function updateEmbedding(fullName: string, vector: number[]): Promi
 
 export async function updateEmbeddingsBatch(entries: Array<{ fullName: string; vector: number[] }>): Promise<void> {
   if (entries.length === 0) return;
+  for (const entry of entries) {
+    validateEmbeddingVector(entry.vector, `Embedding vector for ${entry.fullName}`);
+  }
 
   const table = await getTable();
   const vectorMap = new Map(entries.map((entry) => [entry.fullName, entry.vector]));

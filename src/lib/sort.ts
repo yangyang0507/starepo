@@ -6,6 +6,7 @@ export type SortOrder = 'asc' | 'desc';
 
 const VALID_SORT_FIELDS: SortField[] = ['stars', 'forks', 'starred', 'updated', 'relevance'];
 const VALID_ORDERS: SortOrder[] = ['asc', 'desc'];
+export const MAX_RESULT_LIMIT = 500;
 
 export function sortRepos(repos: Repo[], sort: SortField, order: SortOrder): Repo[] {
   if (sort === 'relevance') return repos;
@@ -46,6 +47,24 @@ export interface RawListOptions {
   json?: boolean;
 }
 
+export function parsePositiveIntOption(
+  value: unknown,
+  label: string,
+  max = MAX_RESULT_LIMIT,
+): number {
+  const parsed = (() => {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string' && /^\d+$/.test(value.trim())) return Number(value.trim());
+    return Number.NaN;
+  })();
+
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > max) {
+    throw new Error(`Invalid ${label} value "${String(value)}". It must be an integer from 1 to ${max}.`);
+  }
+
+  return parsed;
+}
+
 export function parseListOptions(opts: RawListOptions): ParsedListOptions {
   if (opts.sort && !VALID_SORT_FIELDS.includes(opts.sort as SortField)) {
     throw new Error(`Invalid --sort value "${opts.sort}". Must be one of: ${VALID_SORT_FIELDS.join(', ')}`);
@@ -62,7 +81,7 @@ export function parseListOptions(opts: RawListOptions): ParsedListOptions {
     topic: opts.topic,
     starredAfter: range.starredAfter,
     starredBefore: range.starredBefore,
-    limit: parseInt(opts.limit, 10),
+    limit: parsePositiveIntOption(opts.limit, '--limit'),
     sort: opts.sort as SortField | undefined,
     order: opts.order as SortOrder | undefined,
     json: opts.json,

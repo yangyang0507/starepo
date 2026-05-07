@@ -43,8 +43,8 @@ export async function runEmbed(options: { force?: boolean } = {}): Promise<void>
   const result = await generateAndStoreEmbeddings({
     force: options.force,
     onProgress: (done, total) => {
-    const percent = Math.round((done / total) * 100);
-    process.stdout.write(`\rProgress: ${done}/${total} (${percent}%)`);
+      const percent = Math.round((done / total) * 100);
+      process.stdout.write(`\rProgress: ${done}/${total} (${percent}%)`);
     },
   });
 

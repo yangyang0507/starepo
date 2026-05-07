@@ -9,5 +9,14 @@ export default defineConfig({
     alias: {
       '@lancedb/lancedb-darwin-x64': resolve('./node_modules/@lancedb/lancedb-darwin-x64'),
     },
+    coverage: {
+      include: ['src/**'],
+      thresholds: {
+        statements: 70,
+        branches: 60,
+        functions: 75,
+        lines: 75,
+      },
+    },
   },
 });

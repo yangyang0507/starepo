@@ -63,6 +63,7 @@ describe('generateAndStoreEmbeddings', () => {
     const setMeta = vi.fn();
 
     vi.doMock('../src/lib/storage.js', () => ({
+      EMBEDDING_DIM: 1024,
       getReposWithoutEmbedding: vi.fn().mockResolvedValue([]),
       getReposForEmbedding: vi.fn().mockResolvedValue([]),
       countReposWithoutEmbedding: vi.fn().mockResolvedValue(0),
@@ -99,6 +100,7 @@ describe('generateAndStoreEmbeddings', () => {
     const progress = vi.fn();
 
     vi.doMock('../src/lib/storage.js', () => ({
+      EMBEDDING_DIM: 1024,
       getReposWithoutEmbedding: vi.fn().mockResolvedValue(repos),
       getReposForEmbedding: vi.fn(),
       countReposWithoutEmbedding: vi.fn().mockResolvedValue(3),
@@ -133,6 +135,38 @@ describe('generateAndStoreEmbeddings', () => {
     expect(setMeta).toHaveBeenCalledWith('embedding_version', '1');
   });
 
+  it('rejects generated vectors with the wrong dimension before writing', async () => {
+    const repos = [
+      { ...baseRepo, full_name: 'user/bad', topics: '["bad"]' },
+    ];
+    const updateEmbeddingsBatch = vi.fn();
+
+    vi.doMock('../src/lib/storage.js', () => ({
+      EMBEDDING_DIM: 1024,
+      getReposWithoutEmbedding: vi.fn().mockResolvedValue(repos),
+      getReposForEmbedding: vi.fn(),
+      countReposWithoutEmbedding: vi.fn().mockResolvedValue(1),
+      updateEmbeddingsBatch,
+      setHasEmbeddings: vi.fn(),
+      getTable: vi.fn().mockResolvedValue({
+        countRows: vi.fn().mockResolvedValue(1),
+      }),
+      getStats: vi.fn().mockResolvedValue({ count: 1 }),
+    }));
+    vi.doMock('../src/lib/config.js', () => ({
+      getDataDir: vi.fn().mockReturnValue('/tmp/starepo-test'),
+      getMeta: vi.fn().mockReturnValue(null),
+      setMeta: vi.fn(),
+    }));
+
+    const { generateAndStoreEmbeddings } = await import('../src/lib/embeddings.js');
+    await expect(generateAndStoreEmbeddings({
+      generate: vi.fn().mockResolvedValue([0.1, 0.2]),
+    })).rejects.toThrow('Generated embedding for user/bad must contain 1024 dimensions');
+
+    expect(updateEmbeddingsBatch).not.toHaveBeenCalled();
+  });
+
   it('regenerates all repositories when force is enabled', async () => {
     const repos = [
       { ...baseRepo, full_name: 'user/a', topics: '["react"]' },
@@ -147,6 +181,7 @@ describe('generateAndStoreEmbeddings', () => {
     ]);
 
     vi.doMock('../src/lib/storage.js', () => ({
+      EMBEDDING_DIM: 1024,
       getReposWithoutEmbedding,
       getReposForEmbedding,
       countReposWithoutEmbedding: vi.fn().mockResolvedValue(1),
@@ -203,6 +238,7 @@ describe('generateAndStoreEmbeddings', () => {
 
   it('reports outdated metadata status', async () => {
     vi.doMock('../src/lib/storage.js', () => ({
+      EMBEDDING_DIM: 1024,
       getStats: vi.fn().mockResolvedValue({ count: 5 }),
       countReposWithoutEmbedding: vi.fn().mockResolvedValue(1),
     }));

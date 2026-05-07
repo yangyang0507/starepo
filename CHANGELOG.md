@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - FTS index initialization test mock chain mismatch causing test failure
 - Token file (`auth.json`) now created with `0o600` permissions instead of default `0o666`
+- Topic filters now match exact topic tokens, including topics with spaces or special characters, instead of relying on substring matches
+- Invalid embedding vector dimensions are rejected before storage writes
+- GitHub starred repository sync now fails clearly when the API response shape is invalid
 
 ### Changed
 
@@ -19,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `hasNonZeroVector()` now iterates directly instead of allocating via `Array.from()` for `Float32Array`
 - Migrate from unmaintained `@xenova/transformers` to `@huggingface/transformers`
 - Remove unused `SearchFilterOptions` type from `search.ts`
+- Topic filtering now uses a schema v5 `topics_key` column while keeping `topics_text` for FTS search
+- `search`, `list`, and MCP result limits now share positive integer validation with a maximum of 500
+- CLI entrypoint now exposes `createProgram()` and `runCli()` for direct parser coverage
+- Vitest coverage configuration moved from `package.json` into `vitest.config.ts`
 
 ### Added
 
@@ -26,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ESLint flat config (`eslint.config.js`) with `typescript-eslint`
 - `npm run lint` script
 - GitHub Actions CI workflow (`.github/workflows/ci.yml`) — lint, type check, and tests on Node 18/20/22
+- Runtime guards for GitHub starred repository API responses
+- Embedding dimension guards for generated and manually updated vectors
+- Coverage thresholds for the test suite
+- Expanded tests for auth, CLI parsing, GitHub response validation, MCP tools, schema migrations, sorting, syncing, and storage filters
 
 ## [1.0.0] - 2026-03-16
 

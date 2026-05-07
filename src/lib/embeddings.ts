@@ -78,6 +78,12 @@ function getEmbeddingMetadataStatus(metadata: EmbeddingMetadata): EmbeddingMetad
   return 'outdated';
 }
 
+function validateGeneratedEmbedding(vector: number[], fullName: string, expectedDim: number): void {
+  if (vector.length !== expectedDim) {
+    throw new Error(`Generated embedding for ${fullName} must contain ${expectedDim} dimensions; received ${vector.length}.`);
+  }
+}
+
 export async function getEmbeddingStatus(): Promise<EmbeddingStatus> {
   const { getStats, countReposWithoutEmbedding } = await import('./storage.js');
   const { count } = await getStats();
@@ -122,7 +128,14 @@ export async function generateAndStoreEmbeddings(
   options: EmbeddingGenerationOptions = {}
 ): Promise<EmbeddingGenerationResult> {
   const { force = false, onProgress, generate = generateEmbedding } = options;
-  const { getReposWithoutEmbedding, getReposForEmbedding, updateEmbeddingsBatch, setHasEmbeddings, getTable } = await import('./storage.js');
+  const {
+    EMBEDDING_DIM,
+    getReposWithoutEmbedding,
+    getReposForEmbedding,
+    updateEmbeddingsBatch,
+    setHasEmbeddings,
+    getTable,
+  } = await import('./storage.js');
   const status = await getEmbeddingStatus();
   const repos = force ? await getReposForEmbedding() : await getReposWithoutEmbedding();
 
@@ -157,6 +170,7 @@ export async function generateAndStoreEmbeddings(
 
       const repo = repos[index];
       const vector = await generate(repoToText(repo));
+      validateGeneratedEmbedding(vector, repo.full_name, EMBEDDING_DIM);
       generated[index] = { fullName: repo.full_name, vector };
       generatedDone++;
       onProgress?.(generatedDone, repos.length);

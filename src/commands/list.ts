@@ -1,6 +1,6 @@
 import { listRepos, getRepoByName, getStats, Repo } from '../lib/storage.js';
 import { hybridSearch } from '../lib/search.js';
-import { sortRepos, SortField, SortOrder } from '../lib/sort.js';
+import { parsePositiveIntOption, sortRepos, SortField, SortOrder } from '../lib/sort.js';
 
 export interface ListCommandOptions {
   query?: string;
@@ -32,7 +32,7 @@ export async function runList(options: ListCommandOptions = {}): Promise<void> {
   const { count, lastSync } = await getStats();
   const sort = options.sort ?? 'starred';
   const order = options.order ?? 'desc';
-  const limit = options.limit ?? 50;
+  const limit = parsePositiveIntOption(options.limit ?? 50, 'limit');
 
   let repos: Repo[];
   if (options.query) {

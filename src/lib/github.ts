@@ -25,6 +25,23 @@ export interface DeviceFlowResult {
   token: string;
 }
 
+interface StarredRepoItem {
+  repo: {
+    id: number;
+    full_name: string;
+    name: string;
+    description: string | null;
+    html_url: string;
+    homepage: string | null;
+    language: string | null;
+    topics?: string[];
+    stargazers_count: number;
+    forks_count: number;
+    updated_at: string | null;
+  };
+  starred_at?: string;
+}
+
 export async function runDeviceFlow(): Promise<DeviceFlowResult> {
   const auth = createOAuthDeviceAuth({
     clientType: 'oauth-app',
@@ -42,22 +59,7 @@ export async function runDeviceFlow(): Promise<DeviceFlowResult> {
   return { token: result.token };
 }
 
-function mapToRepoInput(item: {
-  repo: {
-    id: number;
-    full_name: string;
-    name: string;
-    description: string | null;
-    html_url: string;
-    homepage: string | null;
-    language: string | null;
-    topics?: string[];
-    stargazers_count: number;
-    forks_count: number;
-    updated_at: string | null;
-  };
-  starred_at?: string;
-}): RepoInput {
+function mapToRepoInput(item: StarredRepoItem): RepoInput {
   return {
     id: item.repo.id,
     full_name: item.repo.full_name,
@@ -74,6 +76,45 @@ function mapToRepoInput(item: {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return typeof value === 'string' || value === null;
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function isStarredRepoItem(value: unknown): value is StarredRepoItem {
+  if (!isRecord(value) || !isRecord(value.repo)) return false;
+  const { repo } = value;
+
+  return (
+    typeof repo.id === 'number' &&
+    typeof repo.full_name === 'string' &&
+    typeof repo.name === 'string' &&
+    isNullableString(repo.description) &&
+    typeof repo.html_url === 'string' &&
+    isNullableString(repo.homepage) &&
+    isNullableString(repo.language) &&
+    (repo.topics === undefined || isStringArray(repo.topics)) &&
+    typeof repo.stargazers_count === 'number' &&
+    typeof repo.forks_count === 'number' &&
+    isNullableString(repo.updated_at) &&
+    (value.starred_at === undefined || typeof value.starred_at === 'string')
+  );
+}
+
+function starredResponseItems(data: unknown): StarredRepoItem[] {
+  if (!Array.isArray(data) || !data.every(isStarredRepoItem)) {
+    throw new Error('Unexpected GitHub starred repository response. Expected application/vnd.github.star+json items.');
+  }
+  return data;
+}
+
 export async function fetchAllStars(
   octokit: Octokit,
   onPage?: (count: number, total: number) => void
@@ -84,8 +125,7 @@ export async function fetchAllStars(
     octokit.activity.listReposStarredByAuthenticatedUser,
     { per_page: 100, headers: { Accept: 'application/vnd.github.star+json' } }
   )) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const items = response.data as any as Array<Parameters<typeof mapToRepoInput>[0]>;
+    const items = starredResponseItems(response.data);
     results.push(...items.map(mapToRepoInput));
     onPage?.(results.length, -1);
   }
@@ -104,8 +144,7 @@ export async function fetchStarsSince(
     octokit.activity.listReposStarredByAuthenticatedUser,
     { per_page: 100, sort: 'created', direction: 'desc', headers: { Accept: 'application/vnd.github.star+json' } }
   )) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const items = response.data as any as Array<Parameters<typeof mapToRepoInput>[0]>;
+    const items = starredResponseItems(response.data);
     let done = false;
 
     for (const item of items) {

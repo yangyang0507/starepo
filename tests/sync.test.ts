@@ -165,4 +165,137 @@ describe('runSync: full sync cleanup', () => {
     expect(logs.join('\n')).toContain('Embeddings already up to date.');
     expect(generateAndStoreEmbeddings).not.toHaveBeenCalled();
   });
+
+  it('uses incremental sync when last_sync metadata exists', async () => {
+    const { setMeta, getMeta } = await import('../src/lib/config.js');
+    const { getRepoByName } = await import('../src/lib/storage.js');
+    setMeta('last_sync', '2026-01-01T00:00:00.000Z');
+
+    vi.doMock('../src/commands/auth.js', () => ({
+      ensureAuth: vi.fn().mockResolvedValue('token'),
+    }));
+    const fetchAllStars = vi.fn();
+    const fetchStarsSince = vi.fn().mockResolvedValue([
+      makeRepo({ id: 1, full_name: 'new/repo', name: 'repo' }),
+    ]);
+    vi.doMock('../src/lib/github.js', () => ({
+      createOctokit: vi.fn().mockReturnValue({}),
+      fetchAllStars,
+      fetchStarsSince,
+    }));
+    vi.doMock('../src/lib/embeddings.js', () => ({
+      generateAndStoreEmbeddings: vi.fn(),
+    }));
+
+    const { runSync } = await import('../src/commands/sync.js');
+    await runSync({ noEmbeddings: true });
+
+    expect(fetchStarsSince).toHaveBeenCalledWith({}, new Date('2026-01-01T00:00:00.000Z'), expect.any(Function));
+    expect(fetchAllStars).not.toHaveBeenCalled();
+    expect(await getRepoByName('new/repo')).not.toBeNull();
+    expect(getMeta('last_sync')).not.toBe('2026-01-01T00:00:00.000Z');
+  });
+
+  it('does not update last_sync when incremental sync finds no new stars', async () => {
+    const logs: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((message?: string) => {
+      logs.push(String(message ?? ''));
+    });
+    const { setMeta, getMeta } = await import('../src/lib/config.js');
+    setMeta('last_sync', '2026-01-01T00:00:00.000Z');
+
+    vi.doMock('../src/commands/auth.js', () => ({
+      ensureAuth: vi.fn().mockResolvedValue('token'),
+    }));
+    vi.doMock('../src/lib/github.js', () => ({
+      createOctokit: vi.fn().mockReturnValue({}),
+      fetchAllStars: vi.fn(),
+      fetchStarsSince: vi.fn().mockResolvedValue([]),
+    }));
+    vi.doMock('../src/lib/embeddings.js', () => ({
+      generateAndStoreEmbeddings: vi.fn(),
+    }));
+
+    const { runSync } = await import('../src/commands/sync.js');
+    await runSync({ noEmbeddings: true });
+
+    expect(logs.join('\n')).toContain('No new stars found.');
+    expect(getMeta('last_sync')).toBe('2026-01-01T00:00:00.000Z');
+  });
+
+  it('force sync ignores last_sync and fetches all stars', async () => {
+    const { setMeta } = await import('../src/lib/config.js');
+    setMeta('last_sync', '2026-01-01T00:00:00.000Z');
+
+    vi.doMock('../src/commands/auth.js', () => ({
+      ensureAuth: vi.fn().mockResolvedValue('token'),
+    }));
+    const fetchAllStars = vi.fn().mockResolvedValue([
+      makeRepo({ id: 1, full_name: 'forced/repo', name: 'repo' }),
+    ]);
+    const fetchStarsSince = vi.fn();
+    vi.doMock('../src/lib/github.js', () => ({
+      createOctokit: vi.fn().mockReturnValue({}),
+      fetchAllStars,
+      fetchStarsSince,
+    }));
+    vi.doMock('../src/lib/embeddings.js', () => ({
+      generateAndStoreEmbeddings: vi.fn(),
+    }));
+
+    const { runSync } = await import('../src/commands/sync.js');
+    await runSync({ force: true, noEmbeddings: true });
+
+    expect(fetchAllStars).toHaveBeenCalledTimes(1);
+    expect(fetchStarsSince).not.toHaveBeenCalled();
+  });
+
+  it('generates embeddings when synced repos have missing vectors', async () => {
+    const logs: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((message?: string) => {
+      logs.push(String(message ?? ''));
+    });
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+    vi.doMock('../src/commands/auth.js', () => ({
+      ensureAuth: vi.fn().mockResolvedValue('token'),
+    }));
+    vi.doMock('../src/lib/github.js', () => ({
+      createOctokit: vi.fn().mockReturnValue({}),
+      fetchAllStars: vi.fn().mockResolvedValue([
+        makeRepo({ id: 1, full_name: 'missing/repo', name: 'repo' }),
+      ]),
+      fetchStarsSince: vi.fn(),
+    }));
+
+    const generateAndStoreEmbeddings = vi.fn().mockResolvedValue({
+      totalRepos: 1,
+      processedRepos: 1,
+      skippedRepos: 0,
+      forced: false,
+      metadataUpdated: true,
+      metadataStatusBefore: 'missing',
+    });
+    vi.doMock('../src/lib/embeddings.js', () => ({
+      EMBEDDING_MODEL: 'Xenova/bge-m3',
+      EMBEDDING_VERSION: '1',
+      getEmbeddingStatus: vi.fn().mockResolvedValue({
+        totalRepos: 1,
+        embeddedRepos: 0,
+        missingRepos: 1,
+        metadataStatus: 'missing',
+        metadata: { model: null, version: null },
+      }),
+      generateAndStoreEmbeddings,
+    }));
+
+    const { runSync } = await import('../src/commands/sync.js');
+    await runSync();
+
+    expect(generateAndStoreEmbeddings).toHaveBeenCalledWith({
+      onProgress: expect.any(Function),
+    });
+    expect(logs.join('\n')).toContain('Generating embeddings for semantic search...');
+    expect(logs.join('\n')).toContain('Semantic search is now available.');
+  });
 });
