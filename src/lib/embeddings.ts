@@ -9,10 +9,15 @@ type FeatureExtractionPipeline = (
 ) => Promise<{ data: Float32Array }>;
 
 let _pipeline: FeatureExtractionPipeline | null = null;
+let _pipelinePromise: Promise<FeatureExtractionPipeline> | null = null;
 const EMBEDDING_CONCURRENCY = 3;
 const EMBEDDING_WRITE_BATCH_SIZE = 25;
 export const EMBEDDING_MODEL = 'Xenova/bge-m3';
-export const EMBEDDING_VERSION = '1';
+export const EMBEDDING_MODEL_DTYPE = 'q8';
+export const EMBEDDING_MODEL_DOWNLOAD_NOTE =
+  `First run downloads the ${EMBEDDING_MODEL} ${EMBEDDING_MODEL_DTYPE} embedding model ` +
+  '(about 550 MB) and caches it under the starepo data directory.';
+export const EMBEDDING_VERSION = '2';
 
 export interface EmbeddingMetadata {
   model: string | null;
@@ -46,18 +51,30 @@ export interface EmbeddingGenerationResult {
 
 async function getPipeline(): Promise<FeatureExtractionPipeline> {
   if (_pipeline) return _pipeline;
+  if (_pipelinePromise) return _pipelinePromise;
 
-  const { pipeline, env } = await import('@huggingface/transformers');
+  _pipelinePromise = (async () => {
+    const { pipeline, env } = await import('@huggingface/transformers');
 
-  // Store model cache in XDG data dir (~/.local/share/starepo/models)
-  // instead of node_modules, so it persists across installs and updates
-  const modelCacheDir = join(getDataDir(), 'models');
-  env.cacheDir = modelCacheDir;
+    // Store model cache in XDG data dir (~/.local/share/starepo/models)
+    // instead of node_modules, so it persists across installs and updates.
+    const modelCacheDir = join(getDataDir(), 'models');
+    env.cacheDir = modelCacheDir;
 
-  process.stderr.write('Loading embedding model (first-time download may take a while)...\n');
-  _pipeline = (await pipeline('feature-extraction', EMBEDDING_MODEL)) as unknown as FeatureExtractionPipeline;
-  process.stderr.write('Embedding model ready.\n');
-  return _pipeline;
+    process.stderr.write(`Loading embedding model ${EMBEDDING_MODEL} (${EMBEDDING_MODEL_DTYPE})...\n`);
+    _pipeline = (await pipeline('feature-extraction', EMBEDDING_MODEL, {
+      dtype: EMBEDDING_MODEL_DTYPE,
+    })) as unknown as FeatureExtractionPipeline;
+    process.stderr.write('Embedding model ready.\n');
+    return _pipeline;
+  })();
+
+  try {
+    return await _pipelinePromise;
+  } catch (err) {
+    _pipelinePromise = null;
+    throw err;
+  }
 }
 
 export function getEmbeddingMetadata(): EmbeddingMetadata {

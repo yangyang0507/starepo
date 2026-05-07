@@ -85,7 +85,7 @@ describe('generateAndStoreEmbeddings', () => {
 
     expect(setHasEmbeddings).toHaveBeenCalledWith(true);
     expect(setMeta).toHaveBeenCalledWith('embedding_model', 'Xenova/bge-m3');
-    expect(setMeta).toHaveBeenCalledWith('embedding_version', '1');
+    expect(setMeta).toHaveBeenCalledWith('embedding_version', '2');
   });
 
   it('processes repos, reports progress to completion, and stores metadata', async () => {
@@ -132,7 +132,7 @@ describe('generateAndStoreEmbeddings', () => {
     expect(progress).toHaveBeenLastCalledWith(3, 3);
     expect(setHasEmbeddings).toHaveBeenCalledWith(true);
     expect(setMeta).toHaveBeenCalledWith('embedding_model', 'Xenova/bge-m3');
-    expect(setMeta).toHaveBeenCalledWith('embedding_version', '1');
+    expect(setMeta).toHaveBeenCalledWith('embedding_version', '2');
   });
 
   it('rejects generated vectors with the wrong dimension before writing', async () => {
@@ -223,7 +223,7 @@ describe('generateAndStoreEmbeddings', () => {
       getDataDir: vi.fn().mockReturnValue('/tmp/starepo-test'),
       getMeta: vi.fn((key: string) => {
         if (key === 'embedding_model') return 'Xenova/bge-m3';
-        if (key === 'embedding_version') return '1';
+        if (key === 'embedding_version') return '2';
         return null;
       }),
       setMeta: vi.fn(),
@@ -232,8 +232,40 @@ describe('generateAndStoreEmbeddings', () => {
     const { getEmbeddingMetadata } = await import('../src/lib/embeddings.js');
     expect(getEmbeddingMetadata()).toEqual({
       model: 'Xenova/bge-m3',
-      version: '1',
+      version: '2',
     });
+  });
+
+  it('loads the q8 pipeline once for concurrent embedding requests', async () => {
+    const pipe = vi.fn().mockResolvedValue({
+      data: new Float32Array(1024).fill(0.1),
+    });
+    const pipeline = vi.fn().mockResolvedValue(pipe);
+    const env = {} as { cacheDir?: string };
+
+    vi.doMock('../src/lib/config.js', () => ({
+      getDataDir: vi.fn().mockReturnValue('/tmp/starepo-test'),
+      getMeta: vi.fn().mockReturnValue(null),
+      setMeta: vi.fn(),
+    }));
+    vi.doMock('@huggingface/transformers', () => ({
+      env,
+      pipeline,
+    }));
+
+    const { generateEmbedding } = await import('../src/lib/embeddings.js');
+    await Promise.all([
+      generateEmbedding('repo one'),
+      generateEmbedding('repo two'),
+      generateEmbedding('repo three'),
+    ]);
+
+    expect(env.cacheDir).toBe('/tmp/starepo-test/models');
+    expect(pipeline).toHaveBeenCalledTimes(1);
+    expect(pipeline).toHaveBeenCalledWith('feature-extraction', 'Xenova/bge-m3', {
+      dtype: 'q8',
+    });
+    expect(pipe).toHaveBeenCalledTimes(3);
   });
 
   it('reports outdated metadata status', async () => {

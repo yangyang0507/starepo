@@ -248,7 +248,7 @@ starepo serve
 | GitHub API | `@octokit/rest` | 官方 SDK，支持分页 |
 | 认证 | `@octokit/auth-oauth-device` | CLI 友好的 Device Flow |
 | 存储 | `@lancedb/lancedb` | 无需编译的向量数据库 |
-| 向量嵌入 | `@xenova/transformers` | 本地运行，支持离线 |
+| 向量嵌入 | `@huggingface/transformers` | 本地运行，支持离线 |
 | CLI | `commander` | 轻量、类型安全 |
 | MCP | `@modelcontextprotocol/sdk` | 官方 SDK |
 
@@ -260,7 +260,7 @@ starepo serve
 - 即时返回，零依赖
 
 **L2：向量搜索**
-- 本地向量嵌入，基于 `Xenova/bge-m3`（1024 维）
+- 本地向量嵌入，基于量化版 `Xenova/bge-m3` q8（1024 维，首次使用约缓存 550 MB）
 - 余弦相似度排序
 - 支持自然语言和多语言查询
 

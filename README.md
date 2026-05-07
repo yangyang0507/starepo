@@ -248,7 +248,7 @@ All data is stored in XDG-compliant directories:
 | GitHub API | `@octokit/rest` | Official SDK with pagination |
 | Auth | `@octokit/auth-oauth-device` | CLI-friendly Device Flow |
 | Storage | `@lancedb/lancedb` | Zero-compilation vector DB |
-| Embeddings | `@xenova/transformers` | Local, offline-capable |
+| Embeddings | `@huggingface/transformers` | Local, offline-capable |
 | CLI | `commander` | Lightweight, type-safe |
 | MCP | `@modelcontextprotocol/sdk` | Official SDK |
 
@@ -260,7 +260,7 @@ All data is stored in XDG-compliant directories:
 - Instant results, zero dependencies
 
 **L2: Vector Search**
-- Local embeddings via `Xenova/bge-m3` (1024-dim)
+- Local embeddings via quantized `Xenova/bge-m3` q8 (1024-dim, about 550 MB cached on first use)
 - Cosine similarity ranking
 - Supports natural language and multilingual queries
 

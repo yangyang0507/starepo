@@ -15,7 +15,8 @@ describe('runEmbed', () => {
 
     vi.doMock('../src/lib/embeddings.js', () => ({
       EMBEDDING_MODEL: 'Xenova/bge-m3',
-      EMBEDDING_VERSION: '1',
+      EMBEDDING_MODEL_DOWNLOAD_NOTE: 'First run downloads the embedding model.',
+      EMBEDDING_VERSION: '2',
       getEmbeddingStatus: vi.fn().mockResolvedValue({
         totalRepos: 0,
         embeddedRepos: 0,
@@ -42,13 +43,14 @@ describe('runEmbed', () => {
 
     vi.doMock('../src/lib/embeddings.js', () => ({
       EMBEDDING_MODEL: 'Xenova/bge-m3',
-      EMBEDDING_VERSION: '1',
+      EMBEDDING_MODEL_DOWNLOAD_NOTE: 'First run downloads the embedding model.',
+      EMBEDDING_VERSION: '2',
       getEmbeddingStatus: vi.fn().mockResolvedValue({
         totalRepos: 3,
         embeddedRepos: 3,
         missingRepos: 0,
         metadataStatus: 'current',
-        metadata: { model: 'Xenova/bge-m3', version: '1' },
+        metadata: { model: 'Xenova/bge-m3', version: '2' },
       }),
       generateAndStoreEmbeddings,
     }));
@@ -70,7 +72,8 @@ describe('runEmbed', () => {
 
     vi.doMock('../src/lib/embeddings.js', () => ({
       EMBEDDING_MODEL: 'Xenova/bge-m3',
-      EMBEDDING_VERSION: '1',
+      EMBEDDING_MODEL_DOWNLOAD_NOTE: 'First run downloads the embedding model.',
+      EMBEDDING_VERSION: '2',
       getEmbeddingStatus: vi.fn().mockResolvedValue({
         totalRepos: 5,
         embeddedRepos: 5,
@@ -105,7 +108,8 @@ describe('runEmbed', () => {
 
     vi.doMock('../src/lib/embeddings.js', () => ({
       EMBEDDING_MODEL: 'Xenova/bge-m3',
-      EMBEDDING_VERSION: '1',
+      EMBEDDING_MODEL_DOWNLOAD_NOTE: 'First run downloads the embedding model.',
+      EMBEDDING_VERSION: '2',
       getEmbeddingStatus: vi.fn().mockResolvedValue({
         totalRepos: 5,
         embeddedRepos: 4,
@@ -147,7 +151,8 @@ describe('runEmbed', () => {
 
     vi.doMock('../src/lib/embeddings.js', () => ({
       EMBEDDING_MODEL: 'Xenova/bge-m3',
-      EMBEDDING_VERSION: '1',
+      EMBEDDING_MODEL_DOWNLOAD_NOTE: 'First run downloads the embedding model.',
+      EMBEDDING_VERSION: '2',
       getEmbeddingStatus: vi.fn().mockResolvedValue({
         totalRepos: 5,
         embeddedRepos: 3,

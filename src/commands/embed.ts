@@ -1,5 +1,6 @@
 import {
   EMBEDDING_MODEL,
+  EMBEDDING_MODEL_DOWNLOAD_NOTE,
   EMBEDDING_VERSION,
   generateAndStoreEmbeddings,
   getEmbeddingStatus,
@@ -38,7 +39,7 @@ export async function runEmbed(options: { force?: boolean } = {}): Promise<void>
 
   const total = options.force ? status.totalRepos : status.missingRepos;
   console.log(`${options.force ? 'Regenerating' : 'Generating'} embeddings for ${total} repositories...`);
-  console.log('(First run downloads ~23MB model)\n');
+  console.log(`(${EMBEDDING_MODEL_DOWNLOAD_NOTE})\n`);
 
   const result = await generateAndStoreEmbeddings({
     force: options.force,

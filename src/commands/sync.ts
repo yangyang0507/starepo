@@ -4,6 +4,7 @@ import { upsertRepos, getStats, deleteReposMissingFromFullNames } from '../lib/s
 import { getMeta, setMeta } from '../lib/config.js';
 import {
   EMBEDDING_MODEL,
+  EMBEDDING_MODEL_DOWNLOAD_NOTE,
   EMBEDDING_VERSION,
   generateAndStoreEmbeddings,
   getEmbeddingStatus,
@@ -92,7 +93,7 @@ export async function runSync(options: { force?: boolean; noEmbeddings?: boolean
     }
 
     console.log('Generating embeddings for semantic search...');
-    console.log('(First run downloads ~23MB model)');
+    console.log(`(${EMBEDDING_MODEL_DOWNLOAD_NOTE})`);
     const result = await generateAndStoreEmbeddings({
       onProgress: (done, total) => {
         process.stdout.write(`\r  Embedding: ${done}/${total}`);

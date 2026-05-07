@@ -55,7 +55,7 @@ export interface RepoInput {
 }
 
 const TABLE_NAME = 'repos';
-export const EMBEDDING_DIM = 1024; // Xenova/bge-m3
+export const EMBEDDING_DIM = 1024; // Xenova/bge-m3 q8
 const BASE_SCHEMA_VERSION = 1;
 const CURRENT_SCHEMA_VERSION = 5;
 

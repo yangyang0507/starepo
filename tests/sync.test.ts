@@ -147,7 +147,8 @@ describe('runSync: full sync cleanup', () => {
     const generateAndStoreEmbeddings = vi.fn();
     vi.doMock('../src/lib/embeddings.js', () => ({
       EMBEDDING_MODEL: 'Xenova/bge-m3',
-      EMBEDDING_VERSION: '1',
+      EMBEDDING_MODEL_DOWNLOAD_NOTE: 'First run downloads the embedding model.',
+      EMBEDDING_VERSION: '2',
       getEmbeddingStatus: vi.fn().mockResolvedValue({
         totalRepos: 1,
         embeddedRepos: 1,
@@ -278,7 +279,8 @@ describe('runSync: full sync cleanup', () => {
     });
     vi.doMock('../src/lib/embeddings.js', () => ({
       EMBEDDING_MODEL: 'Xenova/bge-m3',
-      EMBEDDING_VERSION: '1',
+      EMBEDDING_MODEL_DOWNLOAD_NOTE: 'First run downloads the embedding model.',
+      EMBEDDING_VERSION: '2',
       getEmbeddingStatus: vi.fn().mockResolvedValue({
         totalRepos: 1,
         embeddedRepos: 0,

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Topic filters now match exact topic tokens, including topics with spaces or special characters, instead of relying on substring matches
 - Invalid embedding vector dimensions are rejected before storage writes
 - GitHub starred repository sync now fails clearly when the API response shape is invalid
+- Concurrent embedding generation now shares a single model initialization instead of loading the pipeline once per worker
 
 ### Changed
 
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `search`, `list`, and MCP result limits now share positive integer validation with a maximum of 500
 - CLI entrypoint now exposes `createProgram()` and `runCli()` for direct parser coverage
 - Vitest coverage configuration moved from `package.json` into `vitest.config.ts`
+- Embedding generation now loads the quantized `Xenova/bge-m3` q8 model by default and bumps embedding metadata to version 2
 
 ### Added
 
@@ -35,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI workflow (`.github/workflows/ci.yml`) — lint, type check, and tests on Node 18/20/22
 - Runtime guards for GitHub starred repository API responses
 - Embedding dimension guards for generated and manually updated vectors
+- Accurate first-run embedding model download messaging
 - Coverage thresholds for the test suite
 - Expanded tests for auth, CLI parsing, GitHub response validation, MCP tools, schema migrations, sorting, syncing, and storage filters
 
