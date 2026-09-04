@@ -1,6 +1,8 @@
-import { listRepos, getRepoByName, getStats, Repo } from '../lib/storage.js';
+import { formatRepo, formatRepoInfo } from '../lib/format.js';
+import { listRepos, getRepoByName, getStats, type Repo } from '../lib/storage.js';
 import { hybridSearch } from '../lib/search.js';
 import { parsePositiveIntOption, sortRepos, SortField, SortOrder } from '../lib/sort.js';
+import { formatRelativeTime, writeBanner } from '../lib/term.js';
 
 export interface ListCommandOptions {
   query?: string;
@@ -12,20 +14,7 @@ export interface ListCommandOptions {
   sort?: SortField;
   order?: SortOrder;
   json?: boolean;
-}
-
-function formatRepo(repo: Repo): string {
-  const topics = (() => {
-    try { return (JSON.parse(repo.topics) as string[]).join(', '); }
-    catch { return repo.topics; }
-  })();
-  return [
-    `${repo.full_name}${repo.language ? ` [${repo.language}]` : ''}`,
-    `  ${repo.description || '(no description)'}`,
-    `  ${repo.html_url}`,
-    topics ? `  Topics: ${topics}` : '',
-    `  Stars: ${repo.stars_count}  |  Starred at: ${repo.starred_at || 'unknown'}`,
-  ].filter(Boolean).join('\n');
+  oneline?: boolean;
 }
 
 export async function runList(options: ListCommandOptions = {}): Promise<void> {
@@ -60,7 +49,7 @@ export async function runList(options: ListCommandOptions = {}): Promise<void> {
     return;
   }
 
-  console.log(`Total stars: ${count}  |  Last sync: ${lastSync ? new Date(lastSync).toLocaleString() : 'never'}\n`);
+  writeBanner(`Total stars: ${count}  |  Last sync: ${lastSync ? formatRelativeTime(lastSync) : 'never'}`);
 
   if (repos.length === 0) {
     console.log('No repositories found. Run `starepo sync` to fetch your stars.');
@@ -68,7 +57,8 @@ export async function runList(options: ListCommandOptions = {}): Promise<void> {
   }
 
   repos.forEach((repo, i) => {
-    console.log(`${i + 1}. ${formatRepo(repo)}\n`);
+    console.log(formatRepo(repo, { index: i, oneline: options.oneline }));
+    if (!options.oneline) console.log();
   });
 }
 
@@ -79,21 +69,5 @@ export async function runInfo(fullName: string): Promise<void> {
     process.exit(1);
   }
 
-  const topics = (() => {
-    try { return (JSON.parse(repo.topics) as string[]).join(', '); }
-    catch { return repo.topics; }
-  })();
-
-  console.log([
-    `Name:        ${repo.full_name}`,
-    `URL:         ${repo.html_url}`,
-    `Description: ${repo.description || '(none)'}`,
-    `Language:    ${repo.language || '(none)'}`,
-    `Topics:      ${topics || '(none)'}`,
-    `Stars:       ${repo.stars_count}`,
-    `Forks:       ${repo.forks_count}`,
-    `Homepage:    ${repo.homepage || '(none)'}`,
-    `Starred at:  ${repo.starred_at || 'unknown'}`,
-    `Updated at:  ${repo.updated_at || 'unknown'}`,
-  ].join('\n'));
+  console.log(formatRepoInfo(repo));
 }

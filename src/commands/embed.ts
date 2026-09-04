@@ -5,6 +5,7 @@ import {
   generateAndStoreEmbeddings,
   getEmbeddingStatus,
 } from '../lib/embeddings.js';
+import { Progress } from '../lib/term.js';
 
 export async function runEmbed(options: { force?: boolean } = {}): Promise<void> {
   const status = await getEmbeddingStatus();
@@ -41,15 +42,17 @@ export async function runEmbed(options: { force?: boolean } = {}): Promise<void>
   console.log(`${options.force ? 'Regenerating' : 'Generating'} embeddings for ${total} repositories...`);
   console.log(`(${EMBEDDING_MODEL_DOWNLOAD_NOTE})\n`);
 
+  let progress: Progress | undefined;
   const result = await generateAndStoreEmbeddings({
     force: options.force,
     onProgress: (done, total) => {
-      const percent = Math.round((done / total) * 100);
-      process.stdout.write(`\rProgress: ${done}/${total} (${percent}%)`);
+      progress ??= new Progress({ label: 'Embedding', total });
+      progress.update(done);
     },
   });
+  progress?.finish();
 
-  console.log(`\n\nDone! Processed ${result.processedRepos} repositories.`);
+  console.log(`Done! Processed ${result.processedRepos} repositories.`);
   if (result.skippedRepos > 0) {
     console.log(`Skipped ${result.skippedRepos} repositories that already had embeddings.`);
   }

@@ -6,8 +6,8 @@ import { runAuth } from './commands/auth.js';
 import { runSync } from './commands/sync.js';
 import { runSearch } from './commands/search.js';
 import { runList, runInfo } from './commands/list.js';
-import { runServe } from './commands/serve.js';
 import { runEmbed } from './commands/embed.js';
+import { runStatus } from './commands/status.js';
 import { getStats } from './lib/storage.js';
 import { parseListOptions } from './lib/sort.js';
 import { VERSION } from './lib/version.js';
@@ -18,8 +18,8 @@ export interface CliDeps {
   runSearch: typeof runSearch;
   runList: typeof runList;
   runInfo: typeof runInfo;
-  runServe: typeof runServe;
   runEmbed: typeof runEmbed;
+  runStatus: typeof runStatus;
   getStats: typeof getStats;
   parseListOptions: typeof parseListOptions;
   version: string;
@@ -34,8 +34,8 @@ const defaultDeps: CliDeps = {
   runSearch,
   runList,
   runInfo,
-  runServe,
   runEmbed,
+  runStatus,
   getStats,
   parseListOptions,
   version: VERSION,
@@ -53,7 +53,7 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
 
   program
     .name('starepo')
-    .description('Search your GitHub stars with semantic search and MCP server support')
+    .description('Search your GitHub stars with semantic search')
     .version(deps.version);
 
   program
@@ -67,10 +67,15 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
   program
     .command('sync')
     .description('Sync your GitHub starred repositories')
-    .option('-f, --force', 'Force full sync (default: incremental if last_sync exists)')
+    .option('-f, --force', 'Force a full reconcile (default)')
+    .option('--incremental', 'Only fetch stars since last sync; skip metadata and unstar cleanup')
     .option('--no-embeddings', 'Skip generating embeddings after sync')
     .action(async (opts) => {
-      await deps.runSync({ force: opts.force, noEmbeddings: !opts.embeddings });
+      await deps.runSync({
+        force: opts.force,
+        incremental: opts.incremental,
+        noEmbeddings: !opts.embeddings,
+      });
     });
 
   program
@@ -94,6 +99,7 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
     .option('--sort <field>', 'Sort by: stars, forks, starred, updated, relevance (default: relevance)')
     .option('--order <direction>', 'Sort direction: asc or desc (default: desc)')
     .option('--json', 'Output as JSON')
+    .option('--oneline', 'Print each result on one line')
     .action(async (query: string | undefined, opts) => {
       try {
         const { count } = await deps.getStats();
@@ -105,6 +111,7 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
         await deps.runSearch(query, {
           query: opts.query,
           ...parsed,
+          oneline: opts.oneline,
         });
       } catch (err) {
         deps.error(errorMessage(err));
@@ -125,12 +132,14 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
     .option('--sort <field>', 'Sort by: stars, forks, starred, updated (default: starred)')
     .option('--order <direction>', 'Sort direction: asc or desc (default: desc)')
     .option('--json', 'Output as JSON')
+    .option('--oneline', 'Print each result on one line')
     .action(async (opts) => {
       try {
         const parsed = deps.parseListOptions(opts);
         await deps.runList({
           query: opts.query,
           ...parsed,
+          oneline: opts.oneline,
         });
       } catch (err) {
         deps.error(errorMessage(err));
@@ -146,10 +155,16 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
     });
 
   program
-    .command('serve')
-    .description('Start the MCP server (stdio mode for Claude Desktop / Cursor)')
-    .action(async () => {
-      await deps.runServe();
+    .command('status')
+    .description('Show local sync, embedding, and database status')
+    .option('--json', 'Output as JSON')
+    .action(async (opts) => {
+      try {
+        await deps.runStatus({ json: opts.json });
+      } catch (err) {
+        deps.error(errorMessage(err));
+        deps.exit(1);
+      }
     });
 
   return program;

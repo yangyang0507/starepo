@@ -9,33 +9,42 @@ import {
   generateAndStoreEmbeddings,
   getEmbeddingStatus,
 } from '../lib/embeddings.js';
+import { Progress } from '../lib/term.js';
 
-export async function runSync(options: { force?: boolean; noEmbeddings?: boolean } = {}): Promise<void> {
+export async function runSync(
+  options: { force?: boolean; incremental?: boolean; noEmbeddings?: boolean } = {},
+): Promise<void> {
   const token = await ensureAuth();
   const octokit = createOctokit(token);
 
   let repos;
   const lastSync = getMeta('last_sync');
-  const isIncremental = !options.force && !!lastSync;
+  const isIncremental = Boolean(options.incremental) && !options.force && Boolean(lastSync);
+
+  if (options.incremental && !options.force && !lastSync) {
+    console.log('No previous sync found; running a full sync...');
+  }
 
   if (isIncremental) {
     const since = new Date(lastSync!);
     console.log(`Incremental sync: fetching stars since ${since.toLocaleString()}...`);
+    const progress = new Progress({ label: 'Fetched' });
     repos = await fetchStarsSince(octokit, since, (count) => {
-      process.stdout.write(`\r  Fetched ${count} new stars...`);
+      progress.update(count);
     });
+    progress.finish();
   } else {
     if (options.force) {
       console.log('Full sync (forced): fetching all starred repositories...');
     } else {
       console.log('Full sync: fetching all starred repositories...');
     }
+    const progress = new Progress({ label: 'Fetched' });
     repos = await fetchAllStars(octokit, (count) => {
-      process.stdout.write(`\r  Fetched ${count} repos...`);
+      progress.update(count);
     });
+    progress.finish();
   }
-
-  console.log();
 
   if (repos.length === 0) {
     if (!isIncremental) {
@@ -72,6 +81,12 @@ export async function runSync(options: { force?: boolean; noEmbeddings?: boolean
 
   const { count } = await getStats();
   console.log(`\nSync complete: ${count} total stars.`);
+  if (isIncremental) {
+    console.log(
+      'Incremental sync only adds new stars. Unstarred repos and changed metadata ' +
+      'are refreshed by a full sync (`starepo sync`).'
+    );
+  }
 
   if (!options.noEmbeddings) {
     const embeddingStatus = await getEmbeddingStatus();
@@ -94,11 +109,14 @@ export async function runSync(options: { force?: boolean; noEmbeddings?: boolean
 
     console.log('Generating embeddings for semantic search...');
     console.log(`(${EMBEDDING_MODEL_DOWNLOAD_NOTE})`);
+    let embedProgress: Progress | undefined;
     const result = await generateAndStoreEmbeddings({
       onProgress: (done, total) => {
-        process.stdout.write(`\r  Embedding: ${done}/${total}`);
+        embedProgress ??= new Progress({ label: 'Embedding', total });
+        embedProgress.update(done);
       },
     });
+    embedProgress?.finish();
     console.log(`\nEmbeddings ready. Processed ${result.processedRepos} repositories.`);
     if (result.metadataStatusBefore === 'outdated') {
       console.log(

@@ -305,6 +305,42 @@ describe('storage: hasAnyEmbeddings', () => {
   });
 });
 
+describe('storage: searchVector', () => {
+  it('excludes repos without a generated embedding from vector search', async () => {
+    const { upsertRepos, updateEmbedding, searchVector } = await import('../src/lib/storage.js');
+    const vector = new Array(1024).fill(0).map((_, i) => (i === 0 ? 0.5 : 0.1));
+    await upsertRepos([
+      makeRepo({ id: 1, full_name: 'a/embedded' }),
+      makeRepo({ id: 2, full_name: 'b/plain' }),
+    ]);
+    await updateEmbedding('a/embedded', vector);
+
+    const results = await searchVector(vector, 10);
+
+    expect(results.map((repo) => repo.full_name)).toEqual(['a/embedded']);
+    expect(results[0]).not.toHaveProperty('_distance');
+    expect(results[0]).not.toHaveProperty('_score');
+  });
+
+  it('stores Float32Array vectors written through batch updates', async () => {
+    const { upsertRepos, updateEmbeddingsBatch, getRepoByName } = await import('../src/lib/storage.js');
+    await upsertRepos([makeRepo({ id: 1, full_name: 'a/embedded' })]);
+    const vector = new Float32Array(1024);
+    vector[0] = 0.5;
+    vector[5] = 0.25;
+
+    await updateEmbeddingsBatch([{ fullName: 'a/embedded', vector }]);
+
+    const found = await getRepoByName('a/embedded');
+    const stored = Array.isArray(found!.vector)
+      ? found!.vector
+      : Array.from(found!.vector as unknown as ArrayLike<number>);
+    expect(found!.has_embedding).toBe(true);
+    expect(stored[0]).toBeCloseTo(0.5);
+    expect(stored[5]).toBeCloseTo(0.25);
+  });
+});
+
 describe('storage: schema migrations', () => {
   it('persists the current schema version after initialization', async () => {
     const { getTable } = await import('../src/lib/storage.js');
@@ -421,6 +457,7 @@ describe('storage: FTS index initialization', () => {
     };
 
     vi.doMock('@lancedb/lancedb', () => ({
+      Index: { fts: () => ({ indexType: 'FTS' }) },
       connect: vi.fn().mockResolvedValue({
         tableNames: vi.fn().mockResolvedValue(['repos']),
         openTable: vi.fn().mockResolvedValue(table),
@@ -432,7 +469,10 @@ describe('storage: FTS index initialization', () => {
     await searchFTS('react', 10);
     await searchFTS('vue', 10);
 
-    expect(createIndex).toHaveBeenCalledTimes(1);
+    expect(createIndex).toHaveBeenCalledTimes(5);
+    expect(createIndex.mock.calls.map((call) => call[0])).toEqual([
+      'name', 'full_name', 'description', 'topics_text', 'language',
+    ]);
     expect(search).toHaveBeenCalledTimes(2);
   });
 
@@ -520,6 +560,7 @@ describe('storage: FTS index initialization', () => {
     };
 
     vi.doMock('@lancedb/lancedb', () => ({
+      Index: { fts: () => ({ indexType: 'FTS' }) },
       connect: vi.fn().mockResolvedValue({
         tableNames: vi.fn().mockResolvedValue(['repos']),
         openTable: vi.fn().mockResolvedValue(table),

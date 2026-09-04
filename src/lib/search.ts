@@ -19,6 +19,26 @@ function dedup(repos: Repo[]): Repo[] {
   });
 }
 
+/** Standard RRF constant from Cormack et al. */
+export const RRF_K = 60;
+
+export function reciprocalRankFusion(lists: Repo[][], k = RRF_K): Repo[] {
+  const scores = new Map<string, number>();
+  const repos = new Map<string, Repo>();
+
+  for (const list of lists) {
+    list.forEach((repo, index) => {
+      repos.set(repo.full_name, repo);
+      const rank = index + 1;
+      scores.set(repo.full_name, (scores.get(repo.full_name) ?? 0) + 1 / (k + rank));
+    });
+  }
+
+  return [...scores.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([fullName]) => repos.get(fullName)!);
+}
+
 export async function hybridSearch(query: string, limit = 20, options: SearchOptions = {}): Promise<Repo[]> {
   const trimmed = query.trim();
   const sort = options.sort ?? 'relevance';
@@ -68,6 +88,7 @@ export async function hybridSearch(query: string, limit = 20, options: SearchOpt
         searchVector(vector, candidateLimit, options),
         searchFTS(trimmed, candidateLimit, options),
       ]);
+      if (sort === 'relevance') return reciprocalRankFusion([vectorResults, ftsResults]);
       return dedup([...vectorResults, ...ftsResults]);
     };
   } else {

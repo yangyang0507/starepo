@@ -28,7 +28,7 @@ npx starepo sync
 
 Check sync status anytime:
 ```bash
-npx starepo list --limit 5
+npx starepo status
 ```
 
 ## Semantic Search
@@ -47,6 +47,9 @@ npx starepo search "ui components" --topic react
 
 # JSON output (for further processing)
 npx starepo search "cli tools" --json
+
+# Compact one-line results
+npx starepo search "cli tools" --oneline
 
 # Control number of results (default: 10)
 npx starepo search "databases" --limit 20
@@ -89,34 +92,27 @@ npx starepo info vercel/next.js
 ## Sync & Embed
 
 ```bash
-# Smart sync (incremental if synced before, full otherwise)
+# Full reconcile (new stars, metadata, unstars)
 npx starepo sync
 
-# Force full sync
-npx starepo sync --force
+# Add-only (stars since last sync)
+npx starepo sync --incremental
 
 # Fix incomplete embeddings (optional, only if semantic search feels off)
 npx starepo embed --force
 ```
 
-## MCP Server (for Claude Desktop / Cursor)
+## Status
 
-Add to `claude_desktop_config.json`:
-```json
-{
-  "mcpServers": {
-    "starepo": {
-      "command": "npx",
-      "args": ["starepo", "serve"]
-    }
-  }
-}
+```bash
+npx starepo status
+npx starepo status --json
 ```
 
 ## Workflow Tips
 
 1. **First search fails or returns nothing** → Run `npx starepo sync`
-2. **Stale results** → Run `npx starepo sync` to fetch new stars (smart incremental)
+2. **Stale results** → Run `npx starepo sync` (full reconcile of metadata and unstars)
 3. **Poor semantic relevance** → Run `npx starepo embed --force` to fix incomplete embeddings
 4. **Filter + search** → Combine `--query` with `--lang`/`--topic`/`--days` for precise results
-5. **Automation** → Use `--json` flag to pipe results to `jq` or other tools
+5. **Automation** → Use `--json` flag to pipe results to `jq` or other tools. Empty search results are `[]`.

@@ -9,12 +9,13 @@
 - 🔍 **语义搜索** - 基于本地向量嵌入的自然语言查询
 - ⚡ **快速关键词搜索** - 全文搜索兜底，结果即时返回
 - 🔃 **灵活排序** - 按 star 数、fork 数、star 时间、更新时间排序
-- 🤖 **MCP 服务器** - 集成 Claude Desktop、Cursor 等 AI 工具
 - 🔐 **零配置认证** - GitHub Device Flow 授权，无需手动填写 Token
 - 💾 **本地存储** - 所有数据通过 LanceDB 存储在本地（无需编译）
 - 🌍 **多语言支持** - 支持中文、英文等多种语言查询
 
 ## 安装
+
+需要 Node.js 22.12 或更高版本。
 
 ```bash
 npm install -g starepo
@@ -39,50 +40,6 @@ npx skills add yangyang0507/starepo
 > "帮我找和语义搜索相关的 star"
 > "列出这个月 star 的 TypeScript 项目"
 
-## MCP 服务器集成
-
-Starepo 可作为 MCP 服务器接入 AI 助手。
-
-### Claude Desktop
-
-添加到 `~/Library/Application Support/Claude/claude_desktop_config.json`（macOS）或 `%APPDATA%\Claude\claude_desktop_config.json`（Windows）：
-
-```json
-{
-  "mcpServers": {
-    "starepo": {
-      "command": "starepo",
-      "args": ["serve"]
-    }
-  }
-}
-```
-
-或使用 npx：
-
-```json
-{
-  "mcpServers": {
-    "starepo": {
-      "command": "npx",
-      "args": ["starepo", "serve"]
-    }
-  }
-}
-```
-
-### 可用 MCP 工具
-
-- `search_stars(query?, language?, topic?, since?, until?, days?, limit?)` - 带过滤的语义搜索
-- `list_stars(query?, language?, topic?, since?, until?, days?, limit?)` - 带过滤的列表
-- `get_star_info(full_name)` - 获取仓库详情
-- `sync_stars(force?)` - 触发智能同步或强制全量同步
-
-### MCP 资源
-
-- `starepo://stars` - 所有 Star 仓库概览
-- `starepo://stars/{owner}/{repo}` - 指定仓库详情
-
 ## 快速开始
 
 ### 1. GitHub 授权
@@ -96,11 +53,11 @@ starepo auth
 ### 2. 同步 Star
 
 ```bash
-# 智能同步（有同步记录则增量，否则全量）
+# 全量对齐（新 star、metadata、取消 star）
 starepo sync
 
-# 强制全量同步
-starepo sync --force
+# 仅拉取上次同步之后的新 star
+starepo sync --incremental
 
 # 跳过向量生成（速度更快）
 starepo sync --no-embeddings
@@ -127,6 +84,9 @@ starepo search "react" --sort forks --order asc
 
 # JSON 输出
 starepo search "rust cli" --json
+
+# 单行紧凑结果
+starepo search "rust cli" --oneline
 ```
 
 ## 命令说明
@@ -145,8 +105,9 @@ starepo auth --force  # 重新授权
 同步 GitHub Star 仓库。
 
 ```bash
-starepo sync                  # 智能同步（有记录则增量，否则全量）
-starepo sync --force          # 强制全量同步
+starepo sync                  # 全量对齐（新 star、metadata、取消 star）
+starepo sync --incremental    # 只拉取上次同步之后的新 star
+starepo sync --force          # 与默认全量对齐相同
 starepo sync --no-embeddings  # 跳过向量生成
 ```
 
@@ -180,10 +141,11 @@ starepo search --lang TypeScript --days 7
 starepo search "query" --sort stars              # 按 star 数降序
 starepo search "query" --sort forks --order asc  # 按 fork 数升序
 starepo search "query" --json
+starepo search "query" --oneline
 ```
 
 **搜索模式：**
-- 有向量数据时：**混合搜索**（向量 + 关键词）
+- 有向量数据时：**混合搜索**（向量 + 关键词，Reciprocal Rank Fusion 排序）
 - 无向量数据时：**关键词搜索**（全文检索兜底）
 
 **排序字段（`--sort`）：** `relevance`（默认）、`stars`、`forks`、`starred`、`updated`
@@ -206,6 +168,7 @@ starepo list --sort stars                 # 按 star 数降序
 starepo list --sort starred --order asc   # 最早 star 的在前
 starepo list --sort updated               # 最近更新的在前
 starepo list --json
+starepo list --oneline
 ```
 
 **排序字段（`--sort`）：** `starred`（默认）、`stars`、`forks`、`updated`
@@ -220,12 +183,13 @@ starepo list --json
 starepo info facebook/react
 ```
 
-### `serve`
+### `status`
 
-启动 MCP 服务器（stdio 模式）。
+查看本地授权、数据库、同步和向量覆盖状态。
 
 ```bash
-starepo serve
+starepo status
+starepo status --json
 ```
 
 ## 配置存储
@@ -244,13 +208,12 @@ starepo serve
 
 | 组件 | 技术 | 说明 |
 |------|------|------|
-| 语言 | TypeScript (Node.js) | MCP SDK 原生支持 |
+| 语言 | TypeScript (Node.js) | 类型安全的 CLI 开发 |
 | GitHub API | `@octokit/rest` | 官方 SDK，支持分页 |
 | 认证 | `@octokit/auth-oauth-device` | CLI 友好的 Device Flow |
 | 存储 | `@lancedb/lancedb` | 无需编译的向量数据库 |
 | 向量嵌入 | `@huggingface/transformers` | 本地运行，支持离线 |
 | CLI | `commander` | 轻量、类型安全 |
-| MCP | `@modelcontextprotocol/sdk` | 官方 SDK |
 
 ### 搜索策略
 
@@ -265,8 +228,8 @@ starepo serve
 - 支持自然语言和多语言查询
 
 **L3：混合搜索**
-- 合并向量 + 关键词结果
-- 去重并按相关性重排
+- 用 Reciprocal Rank Fusion 合并向量 + 关键词结果
+- 去重并按融合后的相关性重排
 - 兼顾精准与语义
 
 ## 开发
@@ -295,17 +258,30 @@ starepo --help
 
 ## 常见问题
 
+### 从 1.x 升级
+
+Starepo 2.0 需要 Node.js 22.12+，并已移除 `starepo serve`。Agent 请改用 CLI 或 starepo skill。
+
+LanceDB 已升级到 0.38。如果 `starepo search` 或 `starepo sync` 打不开本地数据库，删除后重新同步：
+
+```bash
+rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/starepo/lancedb"
+starepo sync --force
+```
+
+已有的 FTS 索引会在下次搜索时自动重建。
+
 ### 搜索无结果
 
 运行 `starepo sync` 确保：
 1. 数据已从 GitHub 同步
-2. 向量已生成（首次同步自动完成）
+2. 向量已生成（首次同步自动完成，或之后运行 `starepo embed`）
 
 ### 首次同步较慢
 
 向量生成约 0.5s/个，1000+ star 时：
 - 使用 `--no-embeddings` 加速首次同步
-- 之后再运行 `starepo sync` 补充向量
+- 之后运行 `starepo embed` 补充向量
 
 ### 全局安装后命令找不到
 
@@ -323,6 +299,5 @@ MIT
 
 基于以下开源项目构建：
 - [LanceDB](https://github.com/lancedb/lancedb) - 现代向量数据库
-- [Transformers.js](https://github.com/xenova/transformers.js) - 本地 ML 推理
+- [Transformers.js](https://github.com/huggingface/transformers.js) - 本地 ML 推理
 - [Octokit](https://github.com/octokit/octokit.js) - GitHub API 客户端
-- [MCP SDK](https://github.com/modelcontextprotocol/sdk) - Model Context Protocol

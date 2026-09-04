@@ -13,8 +13,8 @@ function makeDeps(overrides: Partial<CliDeps> = {}): CliDeps {
     runSearch: vi.fn(async () => {}) as unknown as CliDeps['runSearch'],
     runList: vi.fn(async () => {}) as unknown as CliDeps['runList'],
     runInfo: vi.fn(async () => {}) as unknown as CliDeps['runInfo'],
-    runServe: vi.fn(async () => {}) as unknown as CliDeps['runServe'],
     runEmbed: vi.fn(async () => {}) as unknown as CliDeps['runEmbed'],
+    runStatus: vi.fn(async () => {}) as unknown as CliDeps['runStatus'],
     getStats: vi.fn(async () => ({ count: 1, lastSync: null })) as unknown as CliDeps['getStats'],
     parseListOptions,
     version: '9.9.9-test',
@@ -36,20 +36,22 @@ beforeEach(() => {
 });
 
 describe('createProgram', () => {
-  it('dispatches auth, sync, embed, info, and serve commands', async () => {
+  it('dispatches auth, sync, embed, and info commands', async () => {
     const deps = makeDeps();
 
     await parseUserArgs(deps, ['auth', '--force']);
     await parseUserArgs(deps, ['sync', '--force', '--no-embeddings']);
+    await parseUserArgs(deps, ['sync', '--incremental', '--no-embeddings']);
     await parseUserArgs(deps, ['embed', '--force']);
     await parseUserArgs(deps, ['info', 'user/repo']);
-    await parseUserArgs(deps, ['serve']);
+    await parseUserArgs(deps, ['status', '--json']);
 
     expect(deps.runAuth).toHaveBeenCalledWith({ force: true });
-    expect(deps.runSync).toHaveBeenCalledWith({ force: true, noEmbeddings: true });
+    expect(deps.runSync).toHaveBeenCalledWith({ force: true, incremental: undefined, noEmbeddings: true });
+    expect(deps.runSync).toHaveBeenCalledWith({ force: undefined, incremental: true, noEmbeddings: true });
     expect(deps.runEmbed).toHaveBeenCalledWith({ force: true });
     expect(deps.runInfo).toHaveBeenCalledWith('user/repo');
-    expect(deps.runServe).toHaveBeenCalledTimes(1);
+    expect(deps.runStatus).toHaveBeenCalledWith({ json: true });
   });
 
   it('parses search options and checks local data before dispatching', async () => {
@@ -71,6 +73,7 @@ describe('createProgram', () => {
       '--order',
       'asc',
       '--json',
+      '--oneline',
     ]);
 
     expect(deps.getStats).toHaveBeenCalledTimes(1);
@@ -81,6 +84,7 @@ describe('createProgram', () => {
       sort: 'stars',
       order: 'asc',
       json: true,
+      oneline: true,
     }));
   });
 

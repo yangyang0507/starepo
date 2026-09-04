@@ -49,6 +49,21 @@ describe('runSearch', () => {
     expect(JSON.parse(jsonLine!)[0]).not.toHaveProperty('vector');
   });
 
+  it('prints an empty JSON array for --json when there are no results', async () => {
+    const logs: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((message?: string) => {
+      logs.push(String(message ?? ''));
+    });
+    vi.doMock('../src/lib/search.js', () => ({
+      hybridSearch: vi.fn().mockResolvedValue([]),
+    }));
+
+    const { runSearch } = await import('../src/commands/search.js');
+    await runSearch('cli', { json: true });
+
+    expect(logs).toEqual(['[]']);
+  });
+
   it('allows structured-filter-only searches', async () => {
     const hybridSearch = vi.fn().mockResolvedValue([]);
     vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -66,8 +81,13 @@ describe('runSearch', () => {
 
   it('prints formatted text results by default', async () => {
     const logs: string[] = [];
+    const banners: string[] = [];
     vi.spyOn(console, 'log').mockImplementation((message?: string) => {
       logs.push(String(message ?? ''));
+    });
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      banners.push(String(chunk));
+      return true;
     });
     vi.doMock('../src/lib/search.js', () => ({
       hybridSearch: vi.fn().mockResolvedValue([repo]),
@@ -76,9 +96,27 @@ describe('runSearch', () => {
     const { runSearch } = await import('../src/commands/search.js');
     await runSearch('cli');
 
-    expect(logs.join('\n')).toContain('Found 1 result(s)');
+    expect(banners.join('')).toContain('Found 1 result(s)');
     expect(logs.join('\n')).toContain('1. user/repo [TypeScript]');
     expect(logs.join('\n')).toContain('Topics: cli, typescript');
+  });
+
+  it('prints one result per line with --oneline', async () => {
+    const logs: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((message?: string) => {
+      logs.push(String(message ?? ''));
+    });
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    vi.doMock('../src/lib/search.js', () => ({
+      hybridSearch: vi.fn().mockResolvedValue([repo]),
+    }));
+
+    const { runSearch } = await import('../src/commands/search.js');
+    await runSearch('cli', { oneline: true });
+
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toContain('1. user/repo [TypeScript]');
+    expect(logs[0]).not.toContain('\n');
   });
 
   it('exits when no query or structured filters are provided', async () => {

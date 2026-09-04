@@ -1,6 +1,7 @@
 import { Octokit } from '@octokit/rest';
 import { createOAuthDeviceAuth } from '@octokit/auth-oauth-device';
 import { RepoInput } from './storage.js';
+import { style } from './term.js';
 
 // GitHub OAuth App client ID for device flow (public, non-secret)
 const GITHUB_CLIENT_ID = 'Ov23liAWejDY5000tT9s';
@@ -50,7 +51,7 @@ export async function runDeviceFlow(): Promise<DeviceFlowResult> {
     onVerification(verification) {
       console.log('\nTo authenticate with GitHub:');
       console.log(`  1. Open: ${verification.verification_uri}`);
-      console.log(`  2. Enter code: ${verification.user_code}`);
+      console.log(`  2. Enter code: ${style.bold(verification.user_code)}`);
       console.log(`\nWaiting for authorization (expires in ${Math.round(verification.expires_in / 60)} minutes)...`);
     },
   });

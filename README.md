@@ -9,12 +9,13 @@ English | [简体中文](./README.zh.md)
 - 🔍 **Semantic Search** - Natural language queries powered by local embeddings
 - ⚡ **Fast Keyword Search** - Full-text search fallback for instant results
 - 🔃 **Flexible Sorting** - Sort results by stars, forks, starred date, or updated date
-- 🤖 **MCP Server** - Integrate with Claude Desktop, Cursor, and other AI tools
 - 🔐 **Zero Config** - GitHub Device Flow authentication, no tokens needed
 - 💾 **Local Storage** - All data stored locally with LanceDB (no compilation required)
 - 🌍 **Multilingual** - Supports English, Chinese, and other languages
 
 ## Installation
+
+Requires Node.js 22.12 or later.
 
 ```bash
 npm install -g starepo
@@ -39,50 +40,6 @@ Once installed, your AI agent can search your GitHub stars directly. Just ask na
 > "Find my starred repos about semantic search"
 > "Show me TypeScript repos I starred this month"
 
-## MCP Server Integration
-
-Starepo can run as an MCP server to integrate with AI assistants.
-
-### Claude Desktop
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
-
-```json
-{
-  "mcpServers": {
-    "starepo": {
-      "command": "starepo",
-      "args": ["serve"]
-    }
-  }
-}
-```
-
-Or if installed locally:
-
-```json
-{
-  "mcpServers": {
-    "starepo": {
-      "command": "npx",
-      "args": ["starepo", "serve"]
-    }
-  }
-}
-```
-
-### Available MCP Tools
-
-- `search_stars(query?, language?, topic?, since?, until?, days?, limit?)` - Search repositories with combined filters
-- `list_stars(query?, language?, topic?, since?, until?, days?, limit?)` - List with combined filters
-- `get_star_info(full_name)` - Get repository details
-- `sync_stars(force?)` - Trigger smart or full sync from GitHub
-
-### MCP Resources
-
-- `starepo://stars` - All starred repositories overview
-- `starepo://stars/{owner}/{repo}` - Specific repository details (direct URI access; not enumerated in `resources/list`)
-
 ## Quick Start
 
 ### 1. Authenticate with GitHub
@@ -96,11 +53,11 @@ Follow the prompts to authorize via GitHub Device Flow.
 ### 2. Sync Your Stars
 
 ```bash
-# Smart sync (incremental if last_sync exists, full otherwise)
+# Full reconcile (new stars, metadata, and unstars)
 starepo sync
 
-# Force full sync
-starepo sync --force
+# Add-only (stars since last sync)
+starepo sync --incremental
 
 # Skip embedding generation (faster)
 starepo sync --no-embeddings
@@ -127,6 +84,9 @@ starepo search "react" --sort forks --order asc
 
 # JSON output
 starepo search "rust cli" --json
+
+# Compact one-line results
+starepo search "rust cli" --oneline
 ```
 
 ## Commands
@@ -145,8 +105,9 @@ starepo auth --force  # Re-authenticate
 Sync your GitHub starred repositories.
 
 ```bash
-starepo sync                # Smart sync (incremental if synced before, full otherwise)
-starepo sync --force        # Force full sync
+starepo sync                 # Full reconcile (new stars, metadata, unstars)
+starepo sync --incremental   # Only fetch stars since last sync
+starepo sync --force         # Same as a full reconcile
 starepo sync --no-embeddings # Skip embeddings
 ```
 
@@ -180,10 +141,11 @@ starepo search --lang TypeScript --days 7
 starepo search "query" --sort stars           # Sort by star count (desc)
 starepo search "query" --sort forks --order asc  # Sort by forks ascending
 starepo search "query" --json
+starepo search "query" --oneline
 ```
 
 **Search modes:**
-- If embeddings exist: **Hybrid search** (vector + keyword)
+- If embeddings exist: **Hybrid search** (vector + keyword, ranked with reciprocal rank fusion)
 - Otherwise: **Keyword search** (full-text fallback)
 
 **Sort options (`--sort`):** `relevance` (default), `stars`, `forks`, `starred`, `updated`
@@ -206,6 +168,7 @@ starepo list --sort stars              # Sort by star count (desc)
 starepo list --sort starred --order asc  # Oldest starred first
 starepo list --sort updated            # Recently updated first
 starepo list --json
+starepo list --oneline
 ```
 
 **Sort options (`--sort`):** `starred` (default), `stars`, `forks`, `updated`
@@ -220,12 +183,13 @@ Show detailed information about a repository.
 starepo info facebook/react
 ```
 
-### `serve`
+### `status`
 
-Start the MCP server (stdio mode).
+Show local auth, database, sync, and embedding status.
 
 ```bash
-starepo serve
+starepo status
+starepo status --json
 ```
 
 ## Configuration
@@ -244,13 +208,12 @@ All data is stored in XDG-compliant directories:
 
 | Component | Technology | Why |
 |-----------|-----------|-----|
-| Language | TypeScript (Node.js) | MCP SDK native support |
+| Language | TypeScript (Node.js) | Type-safe CLI development |
 | GitHub API | `@octokit/rest` | Official SDK with pagination |
 | Auth | `@octokit/auth-oauth-device` | CLI-friendly Device Flow |
 | Storage | `@lancedb/lancedb` | Zero-compilation vector DB |
 | Embeddings | `@huggingface/transformers` | Local, offline-capable |
 | CLI | `commander` | Lightweight, type-safe |
-| MCP | `@modelcontextprotocol/sdk` | Official SDK |
 
 ### Search Strategy
 
@@ -265,15 +228,15 @@ All data is stored in XDG-compliant directories:
 - Supports natural language and multilingual queries
 
 **L3: Hybrid Search**
-- Combines vector + keyword results
-- Deduplicates and re-ranks by relevance
+- Combines vector + keyword results with reciprocal rank fusion
+- Deduplicates and re-ranks by fused relevance
 - Best of both worlds
 
 ## Development
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/starepo.git
+git clone https://github.com/yangyang0507/starepo.git
 cd starepo
 
 # Install dependencies
@@ -295,17 +258,30 @@ starepo --help
 
 ## Troubleshooting
 
+### Upgrading from 1.x
+
+Starepo 2.0 requires Node.js 22.12+ and no longer includes `starepo serve`. Search from agents with the CLI or the starepo skill.
+
+LanceDB was upgraded to 0.38. If `starepo search` or `starepo sync` fails to open the local database, delete it and resync:
+
+```bash
+rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/starepo/lancedb"
+starepo sync --force
+```
+
+Existing FTS indexes are rebuilt automatically on the next search.
+
 ### No search results
 
 Run `starepo sync` to ensure:
 1. Data is synced from GitHub
-2. Embeddings are generated (first sync only)
+2. Embeddings are generated (first sync, or later with `starepo embed`)
 
 ### Slow first sync
 
 Embedding generation takes ~0.5s per repo. For 1000+ stars:
 - Use `--no-embeddings` for faster initial sync
-- Generate embeddings later by running `starepo sync` again
+- Generate embeddings later with `starepo embed`
 
 ### Command not found after global install
 
@@ -323,6 +299,5 @@ MIT
 
 Built with:
 - [LanceDB](https://github.com/lancedb/lancedb) - Modern vector database
-- [Transformers.js](https://github.com/xenova/transformers.js) - Local ML inference
+- [Transformers.js](https://github.com/huggingface/transformers.js) - Local ML inference
 - [Octokit](https://github.com/octokit/octokit.js) - GitHub API client
-- [MCP SDK](https://github.com/modelcontextprotocol/sdk) - Model Context Protocol

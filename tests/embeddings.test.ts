@@ -118,16 +118,22 @@ describe('generateAndStoreEmbeddings', () => {
     }));
 
     const { generateAndStoreEmbeddings } = await import('../src/lib/embeddings.js');
-    const generate = vi.fn().mockResolvedValue(new Array(1024).fill(0.1));
-    await generateAndStoreEmbeddings({ onProgress: progress, generate });
+    const generateBatch = vi.fn().mockResolvedValue([
+      new Array(1024).fill(0.1),
+      new Array(1024).fill(0.1),
+      new Array(1024).fill(0.1),
+    ]);
+    await generateAndStoreEmbeddings({ onProgress: progress, generateBatch });
 
     expect(updateEmbeddingsBatch).toHaveBeenCalledTimes(1);
     expect(updateEmbeddingsBatch).toHaveBeenCalledWith([
-      { fullName: 'user/a', vector: new Array(1024).fill(0.1) },
-      { fullName: 'user/b', vector: new Array(1024).fill(0.1) },
-      { fullName: 'user/c', vector: new Array(1024).fill(0.1) },
+      { fullName: 'user/a', vector: expect.any(Float32Array) },
+      { fullName: 'user/b', vector: expect.any(Float32Array) },
+      { fullName: 'user/c', vector: expect.any(Float32Array) },
     ]);
-    expect(generate).toHaveBeenCalledTimes(3);
+    const written = updateEmbeddingsBatch.mock.calls[0][0] as Array<{ fullName: string; vector: Float32Array }>;
+    expect(written[0].vector[0]).toBeCloseTo(0.1);
+    expect(generateBatch).toHaveBeenCalledTimes(1);
     expect(progress).toHaveBeenCalledTimes(3);
     expect(progress).toHaveBeenLastCalledWith(3, 3);
     expect(setHasEmbeddings).toHaveBeenCalledWith(true);
@@ -161,10 +167,82 @@ describe('generateAndStoreEmbeddings', () => {
 
     const { generateAndStoreEmbeddings } = await import('../src/lib/embeddings.js');
     await expect(generateAndStoreEmbeddings({
-      generate: vi.fn().mockResolvedValue([0.1, 0.2]),
+      generateBatch: vi.fn().mockResolvedValue([[0.1, 0.2]]),
     })).rejects.toThrow('Generated embedding for user/bad must contain 1024 dimensions');
 
     expect(updateEmbeddingsBatch).not.toHaveBeenCalled();
+  });
+
+  it('propagates embedding write failures instead of swallowing them', async () => {
+    const repos = [
+      { ...baseRepo, full_name: 'user/a', topics: '["react"]' },
+    ];
+    const updateEmbeddingsBatch = vi.fn().mockRejectedValue(new Error('disk full'));
+    const setHasEmbeddings = vi.fn();
+    const setMeta = vi.fn();
+
+    vi.doMock('../src/lib/storage.js', () => ({
+      EMBEDDING_DIM: 1024,
+      getReposWithoutEmbedding: vi.fn().mockResolvedValue(repos),
+      getReposForEmbedding: vi.fn(),
+      countReposWithoutEmbedding: vi.fn().mockResolvedValue(1),
+      updateEmbeddingsBatch,
+      setHasEmbeddings,
+      getTable: vi.fn().mockResolvedValue({
+        countRows: vi.fn().mockResolvedValue(1),
+      }),
+      getStats: vi.fn().mockResolvedValue({ count: 1 }),
+    }));
+    vi.doMock('../src/lib/config.js', () => ({
+      getDataDir: vi.fn().mockReturnValue('/tmp/starepo-test'),
+      getMeta: vi.fn().mockReturnValue(null),
+      setMeta,
+    }));
+
+    const { generateAndStoreEmbeddings } = await import('../src/lib/embeddings.js');
+    await expect(generateAndStoreEmbeddings({
+      generateBatch: vi.fn().mockResolvedValue([new Array(1024).fill(0.1)]),
+    })).rejects.toThrow('disk full');
+
+    expect(setHasEmbeddings).not.toHaveBeenCalled();
+    expect(setMeta).not.toHaveBeenCalled();
+  });
+
+  it('writes copies of generated vectors so later buffer reuse cannot mutate pending writes', async () => {
+    const repos = [
+      { ...baseRepo, full_name: 'user/a', topics: '["react"]' },
+    ];
+    const vector = new Float32Array(1024);
+    vector[0] = 0.5;
+    const updateEmbeddingsBatch = vi.fn().mockImplementation(async (entries: Array<{ vector: Float32Array }>) => {
+      vector.fill(0);
+      expect(entries[0].vector[0]).toBeCloseTo(0.5);
+    });
+
+    vi.doMock('../src/lib/storage.js', () => ({
+      EMBEDDING_DIM: 1024,
+      getReposWithoutEmbedding: vi.fn().mockResolvedValue(repos),
+      getReposForEmbedding: vi.fn(),
+      countReposWithoutEmbedding: vi.fn().mockResolvedValue(1),
+      updateEmbeddingsBatch,
+      setHasEmbeddings: vi.fn(),
+      getTable: vi.fn().mockResolvedValue({
+        countRows: vi.fn().mockResolvedValue(1),
+      }),
+      getStats: vi.fn().mockResolvedValue({ count: 1 }),
+    }));
+    vi.doMock('../src/lib/config.js', () => ({
+      getDataDir: vi.fn().mockReturnValue('/tmp/starepo-test'),
+      getMeta: vi.fn().mockReturnValue(null),
+      setMeta: vi.fn(),
+    }));
+
+    const { generateAndStoreEmbeddings } = await import('../src/lib/embeddings.js');
+    await generateAndStoreEmbeddings({
+      generateBatch: vi.fn().mockResolvedValue([vector]),
+    });
+
+    expect(updateEmbeddingsBatch).toHaveBeenCalledTimes(1);
   });
 
   it('regenerates all repositories when force is enabled', async () => {
@@ -199,15 +277,18 @@ describe('generateAndStoreEmbeddings', () => {
     }));
 
     const { generateAndStoreEmbeddings } = await import('../src/lib/embeddings.js');
-    const generate = vi.fn().mockResolvedValue(new Array(1024).fill(0.2));
-    const result = await generateAndStoreEmbeddings({ force: true, generate });
+    const generateBatch = vi.fn().mockResolvedValue([
+      new Array(1024).fill(0.2),
+      new Array(1024).fill(0.2),
+    ]);
+    const result = await generateAndStoreEmbeddings({ force: true, generateBatch });
 
     expect(getReposForEmbedding).toHaveBeenCalledTimes(1);
     expect(getReposWithoutEmbedding).not.toHaveBeenCalled();
-    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generateBatch).toHaveBeenCalledTimes(1);
     expect(updateEmbeddingsBatch).toHaveBeenCalledWith([
-      { fullName: 'user/a', vector: new Array(1024).fill(0.2) },
-      { fullName: 'user/b', vector: new Array(1024).fill(0.2) },
+      { fullName: 'user/a', vector: expect.any(Float32Array) },
+      { fullName: 'user/b', vector: expect.any(Float32Array) },
     ]);
     expect(result).toMatchObject({
       totalRepos: 2,
@@ -239,6 +320,7 @@ describe('generateAndStoreEmbeddings', () => {
   it('loads the q8 pipeline once for concurrent embedding requests', async () => {
     const pipe = vi.fn().mockResolvedValue({
       data: new Float32Array(1024).fill(0.1),
+      dims: [1, 1024],
     });
     const pipeline = vi.fn().mockResolvedValue(pipe);
     const env = {} as { cacheDir?: string };
@@ -264,8 +346,63 @@ describe('generateAndStoreEmbeddings', () => {
     expect(pipeline).toHaveBeenCalledTimes(1);
     expect(pipeline).toHaveBeenCalledWith('feature-extraction', 'Xenova/bge-m3', {
       dtype: 'q8',
+      progress_callback: expect.any(Function),
     });
     expect(pipe).toHaveBeenCalledTimes(3);
+  });
+
+  it('forwards model download progress_total events to a Progress bar', async () => {
+    const updates: number[] = [];
+    const progress = {
+      update: (done: number) => {
+        updates.push(done);
+      },
+      finish: vi.fn(),
+    };
+
+    const { applyModelDownloadProgress } = await import('../src/lib/embeddings.js');
+    const slot: { current?: { update: (done: number) => void; finish: () => void } } = {};
+    applyModelDownloadProgress(
+      { status: 'progress_total', loaded: 100, total: 400 },
+      slot,
+      () => progress as never,
+    );
+    applyModelDownloadProgress(
+      { status: 'progress_total', loaded: 400, total: 400 },
+      slot,
+      () => progress as never,
+    );
+    applyModelDownloadProgress({ status: 'ready' }, slot, () => progress as never);
+
+    expect(updates).toEqual([100, 400]);
+    expect(progress.finish).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns owned copies so later pipeline buffer reuse cannot mutate vectors', async () => {
+    const data = new Float32Array(1024);
+    data[0] = 0.5;
+    const pipe = vi.fn().mockResolvedValue({
+      data,
+      dims: [1, 1024],
+    });
+    const pipeline = vi.fn().mockResolvedValue(pipe);
+    const env = {} as { cacheDir?: string };
+
+    vi.doMock('../src/lib/config.js', () => ({
+      getDataDir: vi.fn().mockReturnValue('/tmp/starepo-test'),
+      getMeta: vi.fn().mockReturnValue(null),
+      setMeta: vi.fn(),
+    }));
+    vi.doMock('@huggingface/transformers', () => ({
+      env,
+      pipeline,
+    }));
+
+    const { generateEmbeddings } = await import('../src/lib/embeddings.js');
+    const [vector] = await generateEmbeddings(['repo one']);
+    data[0] = 0;
+
+    expect(vector[0]).toBeCloseTo(0.5);
   });
 
   it('reports outdated metadata status', async () => {

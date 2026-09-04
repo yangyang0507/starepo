@@ -1,6 +1,6 @@
 {
   "name": "starepo",
-  "version": "1.1.1",
+  "version": "2.2.0",
   "description": "Search your GitHub stars with semantic search",
   "type": "module",
   "bin": {
@@ -33,13 +33,11 @@
   "author": "D.Yang <koyangslash@gmail.com>",
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
-    "@lancedb/lancedb": "^0.22.3",
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "@octokit/auth-oauth-device": "^7.0.0",
-    "@octokit/rest": "^21.0.0",
+    "@lancedb/lancedb": "^0.38.0",
+    "@octokit/auth-oauth-device": "^8.0.0",
+    "@octokit/rest": "^22.0.0",
     "apache-arrow": "^18.1.0",
-    "commander": "^12.0.0",
-    "xdg-basedir": "^5.1.0"
+    "commander": "^15.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
@@ -52,13 +50,12 @@
     "vitest": "^4.0.18"
   },
   "engines": {
-    "node": ">=18.18.0"
+    "node": ">=22.12.0"
   },
   "keywords": [
     "github",
     "stars",
     "search",
-    "mcp",
     "cli"
   ],
   "license": "MIT"

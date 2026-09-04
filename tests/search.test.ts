@@ -291,3 +291,89 @@ describe('hybridSearch: embedding availability lookup', () => {
     expect(hasAnyEmbeddings).toHaveBeenCalledWith(count);
   });
 });
+
+describe('reciprocalRankFusion', () => {
+  function rrfRepo(fullName: string) {
+    return {
+      id: 1,
+      full_name: fullName,
+      name: fullName,
+      description: '',
+      html_url: '',
+      homepage: '',
+      language: '',
+      topics: '[]',
+      stars_count: 0,
+      forks_count: 0,
+      starred_at: '',
+      updated_at: '',
+    };
+  }
+
+  it('ranks repos that appear in both lists above single-list hits', async () => {
+    const { reciprocalRankFusion } = await import('../src/lib/search.js');
+    const vectorFirst = rrfRepo('a/vector-first');
+    const both = rrfRepo('b/both');
+    const ftsFirst = rrfRepo('c/fts-first');
+
+    const fused = reciprocalRankFusion([
+      [vectorFirst, both],
+      [both, ftsFirst],
+    ]);
+
+    expect(fused.map((repo) => repo.full_name)).toEqual([
+      'b/both',
+      'a/vector-first',
+      'c/fts-first',
+    ]);
+  });
+
+  it('returns an empty list when both inputs are empty', async () => {
+    const { reciprocalRankFusion } = await import('../src/lib/search.js');
+    expect(reciprocalRankFusion([[], []])).toEqual([]);
+  });
+});
+
+describe('hybridSearch: reciprocal rank fusion', () => {
+  it('uses fused ranking when embeddings exist and sort is relevance', async () => {
+    const vectorFirst = {
+      id: 1,
+      full_name: 'a/vector-first',
+      name: 'vector-first',
+      description: 'tooling',
+      html_url: 'https://github.com/a/vector-first',
+      homepage: '',
+      language: 'TypeScript',
+      topics: '[]',
+      stars_count: 1,
+      forks_count: 1,
+      starred_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    };
+    const both = { ...vectorFirst, id: 2, full_name: 'b/both', name: 'both' };
+    const ftsFirst = { ...vectorFirst, id: 3, full_name: 'c/fts-first', name: 'fts-first' };
+
+    vi.doMock('../src/lib/embeddings.js', () => ({
+      generateEmbedding: vi.fn().mockResolvedValue(new Array(1024).fill(0.1)),
+    }));
+    vi.doMock('../src/lib/storage.js', () => ({
+      listRepos: vi.fn(),
+      searchVector: vi.fn().mockResolvedValue([vectorFirst, both]),
+      searchFTS: vi.fn().mockResolvedValue([both, ftsFirst]),
+      countRepos: vi.fn().mockResolvedValue(3),
+      hasAnyEmbeddings: vi.fn().mockResolvedValue(true),
+      getTable: vi.fn().mockResolvedValue({
+        countRows: vi.fn().mockResolvedValue(3),
+      }),
+    }));
+
+    const { hybridSearch } = await import('../src/lib/search.js');
+    const results = await hybridSearch('tooling', 3);
+
+    expect(results.map((repo) => repo.full_name)).toEqual([
+      'b/both',
+      'a/vector-first',
+      'c/fts-first',
+    ]);
+  });
+});

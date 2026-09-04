@@ -32,7 +32,7 @@ export interface Repo {
   starred_at_ts?: number;
   updated_at_ts?: number;
   has_embedding?: boolean;
-  vector?: number[];    // embedding, zeros if not yet generated
+  vector?: number[] | Float32Array;    // embedding, zeros if not yet generated
 }
 
 export type EmbeddingRepo = Pick<Repo, 'full_name' | 'name' | 'description' | 'topics' | 'language'>;
@@ -51,7 +51,7 @@ export interface RepoInput {
   forks_count: number;
   starred_at: string;
   updated_at: string;
-  vector?: number[];
+  vector?: number[] | Float32Array;
 }
 
 const TABLE_NAME = 'repos';
@@ -63,6 +63,7 @@ let _db: lancedb.Connection | null = null;
 let _table: lancedb.Table | null = null;
 let _hasEmbeddings: boolean | null = null;
 let _ftsIndexReady = false;
+let _ftsFallbackWarned = false;
 let _schemaReady = false;
 const SEARCH_RESULT_COLUMNS = [
   'id',
@@ -83,7 +84,6 @@ const SEARCH_RESULT_COLUMNS = [
   'updated_at_ts',
   'has_embedding',
 ] as const;
-const SEARCH_RESULT_COLUMNS_WITH_DISTANCE = [...SEARCH_RESULT_COLUMNS, '_distance'] as const;
 
 function escapeSqlString(value: string): string {
   return value.replace(/'/g, "''");
@@ -144,13 +144,16 @@ function toOptionalNumber(value: unknown): number | undefined {
 }
 
 function normalizeRepo(repo: Repo): Repo {
+  const row = { ...repo } as Repo & { _distance?: unknown; _score?: unknown };
+  delete row._distance;
+  delete row._score;
   return {
-    ...repo,
-    topics_text: repo.topics_text ?? topicsTextFromSerialized(repo.topics),
-    topics_key: repo.topics_key ?? topicsKeyFromSerialized(repo.topics),
-    starred_at_ts: toOptionalNumber(repo.starred_at_ts),
-    updated_at_ts: toOptionalNumber(repo.updated_at_ts),
-    has_embedding: repo.has_embedding ?? false,
+    ...row,
+    topics_text: row.topics_text ?? topicsTextFromSerialized(row.topics),
+    topics_key: row.topics_key ?? topicsKeyFromSerialized(row.topics),
+    starred_at_ts: toOptionalNumber(row.starred_at_ts),
+    updated_at_ts: toOptionalNumber(row.updated_at_ts),
+    has_embedding: row.has_embedding ?? false,
   };
 }
 
@@ -188,11 +191,9 @@ function repoRecordToRow(repo: Repo, schemaVersion = CURRENT_SCHEMA_VERSION): Re
     updated_at: repo.updated_at,
     stars_count: repo.stars_count,
     forks_count: repo.forks_count,
-    vector: Array.isArray(repo.vector)
-      ? repo.vector
-      : repo.vector
-        ? Array.from(repo.vector as ArrayLike<number>)
-        : new Array(EMBEDDING_DIM).fill(0),
+    vector: repo.vector === undefined
+      ? new Float32Array(EMBEDDING_DIM)
+      : Float32Array.from(repo.vector),
   };
   if (schemaVersion >= 2) {
     row.starred_at_ts = repo.starred_at_ts ?? toEpochMillis(repo.starred_at);
@@ -210,7 +211,7 @@ function repoRecordToRow(repo: Repo, schemaVersion = CURRENT_SCHEMA_VERSION): Re
   return row;
 }
 
-function hasNonZeroVector(vector?: number[] | ArrayLike<number>): boolean {
+function hasNonZeroVector(vector?: ArrayLike<number>): boolean {
   if (!vector) return false;
   for (let i = 0; i < vector.length; i++) {
     if (vector[i] !== 0) return true;
@@ -218,7 +219,7 @@ function hasNonZeroVector(vector?: number[] | ArrayLike<number>): boolean {
   return false;
 }
 
-function validateEmbeddingVector(vector: number[], label: string): void {
+function validateEmbeddingVector(vector: number[] | Float32Array, label: string): void {
   if (vector.length !== EMBEDDING_DIM) {
     throw new Error(`${label} must contain ${EMBEDDING_DIM} dimensions; received ${vector.length}.`);
   }
@@ -282,14 +283,14 @@ async function ensureFTSIndex(table: lancedb.Table): Promise<void> {
   if (_ftsIndexReady) return;
 
   try {
-    await createFTSIndex(table, 'fts_idx', ['name', 'full_name', 'description', 'topics', 'language']);
-  } catch (err) {
-    if (!(err instanceof Error && err.message.includes('already exists'))) {
-      return;
-    }
+    // LanceDB 0.38+ creates one FTS index per column and treats duplicate
+    // creation as a no-op, so no "already exists" detection is needed.
+    await createFTSIndex(table);
+    _ftsIndexReady = true;
+  } catch {
+    // Transient failures leave the flag unset so the next search retries;
+    // FTS search falls back to filter-based search until the index is ready.
   }
-
-  _ftsIndexReady = true;
 }
 
 async function getDB(): Promise<lancedb.Connection> {
@@ -485,14 +486,14 @@ function toRow(r: RepoInput): Record<string, unknown> {
     starred_at_ts: toEpochMillis(r.starred_at),
     updated_at_ts: toEpochMillis(r.updated_at),
     has_embedding: hasNonZeroVector(r.vector),
-    vector: r.vector ?? new Array(EMBEDDING_DIM).fill(0),
+    vector: r.vector ?? new Float32Array(EMBEDDING_DIM),
   };
 }
 
-async function getExistingVectors(fullNames: string[]): Promise<Map<string, number[]>> {
+async function getExistingVectors(fullNames: string[]): Promise<Map<string, Float32Array>> {
   if (fullNames.length === 0) return new Map();
   const table = await getTable();
-  const vectors = new Map<string, number[]>();
+  const vectors = new Map<string, Float32Array>();
 
   const chunkSize = 200;
   for (let i = 0; i < fullNames.length; i += chunkSize) {
@@ -506,9 +507,7 @@ async function getExistingVectors(fullNames: string[]): Promise<Map<string, numb
 
     for (const repo of existing) {
       if (!repo.vector) continue;
-      const vector = Array.isArray(repo.vector)
-        ? repo.vector
-        : Array.from(repo.vector as ArrayLike<number>);
+      const vector = Float32Array.from(repo.vector as ArrayLike<number>);
       if (vector.every(v => v === 0)) continue;
       vectors.set(repo.full_name, vector);
     }
@@ -517,12 +516,75 @@ async function getExistingVectors(fullNames: string[]): Promise<Map<string, numb
   return vectors;
 }
 
+// Metadata columns compared to decide whether a synced repo needs a rewrite;
+// vector state is intentionally excluded (it changes only via embed commands).
+const UPSERT_COMPARE_COLUMNS = [
+  'full_name', 'name', 'description', 'html_url', 'homepage', 'language',
+  'topics', 'stars_count', 'forks_count', 'starred_at', 'updated_at',
+] as const;
+
+interface RepoMetadataSnapshot {
+  full_name: string;
+  name: string;
+  description: string;
+  html_url: string;
+  homepage: string;
+  language: string;
+  topics: string;
+  stars_count: number;
+  forks_count: number;
+  starred_at: string;
+  updated_at: string;
+}
+
+function repoMetadataDiffers(incoming: RepoInput, existing: RepoMetadataSnapshot): boolean {
+  return (
+    incoming.name !== existing.name ||
+    incoming.description !== existing.description ||
+    incoming.html_url !== existing.html_url ||
+    incoming.homepage !== existing.homepage ||
+    incoming.language !== existing.language ||
+    incoming.stars_count !== existing.stars_count ||
+    incoming.forks_count !== existing.forks_count ||
+    incoming.starred_at !== existing.starred_at ||
+    incoming.updated_at !== existing.updated_at ||
+    JSON.stringify(incoming.topics) !== existing.topics
+  );
+}
+
+async function getMetadataSnapshots(fullNames: string[]): Promise<Map<string, RepoMetadataSnapshot>> {
+  const snapshots = new Map<string, RepoMetadataSnapshot>();
+  if (fullNames.length === 0) return snapshots;
+
+  const table = await getTable();
+  const chunkSize = 200;
+  for (let i = 0; i < fullNames.length; i += chunkSize) {
+    const chunk = fullNames.slice(i, i + chunkSize);
+    const where = buildFullNameWhereClause(chunk);
+    if (!where) continue;
+    const rows = await querySelectToArray<RepoMetadataSnapshot>(table, [...UPSERT_COMPARE_COLUMNS], where);
+    for (const row of rows) snapshots.set(row.full_name, row);
+  }
+  return snapshots;
+}
+
 export async function upsertRepos(repos: RepoInput[]): Promise<void> {
+  if (repos.length === 0) return;
   const table = await getTable();
   const wasEmpty = await table.countRows() === 0;
-  const reposWithoutVector = repos.filter((repo) => repo.vector === undefined).map((repo) => repo.full_name);
+
+  // Only rewrite rows whose GitHub metadata actually changed. Unchanged rows
+  // keep their stored vectors untouched and skip a whole-table merge rewrite,
+  // so a full sync over identical data writes nothing.
+  const snapshots = await getMetadataSnapshots(repos.map((repo) => repo.full_name));
+  const changed = repos.filter((repo) => {
+    const existing = snapshots.get(repo.full_name);
+    return !existing || repoMetadataDiffers(repo, existing);
+  });
+
+  const reposWithoutVector = changed.filter((repo) => repo.vector === undefined).map((repo) => repo.full_name);
   const existingVectors = wasEmpty ? new Map<string, number[]>() : await getExistingVectors(reposWithoutVector);
-  const rows = repos.map((repo) => {
+  const rows = changed.map((repo) => {
     const vector = repo.vector ?? existingVectors.get(repo.full_name);
     return toRow({
       ...repo,
@@ -530,7 +592,9 @@ export async function upsertRepos(repos: RepoInput[]): Promise<void> {
     });
   });
 
-  await mergeInsert(table, 'full_name', rows);
+  if (rows.length > 0) {
+    await mergeInsert(table, 'full_name', rows);
+  }
 
   if (rows.some((row) => row.has_embedding === true)) {
     setHasEmbeddings(true);
@@ -539,15 +603,19 @@ export async function upsertRepos(repos: RepoInput[]): Promise<void> {
   }
 }
 
-export async function updateEmbedding(fullName: string, vector: number[]): Promise<void> {
+export async function updateEmbedding(fullName: string, vector: number[] | Float32Array): Promise<void> {
   validateEmbeddingVector(vector, `Embedding vector for ${fullName}`);
   const table = await getTable();
   const escaped = escapeSqlString(fullName);
-  await updateRows(table, { vector, has_embedding: true }, `full_name = '${escaped}'`);
+  // `updateRows` builds SQL values, which accept plain arrays only.
+  const values = Array.isArray(vector) ? vector : Array.from(vector);
+  await updateRows(table, { vector: values, has_embedding: true }, `full_name = '${escaped}'`);
   setHasEmbeddings(true);
 }
 
-export async function updateEmbeddingsBatch(entries: Array<{ fullName: string; vector: number[] }>): Promise<void> {
+export async function updateEmbeddingsBatch(
+  entries: Array<{ fullName: string; vector: number[] | Float32Array }>,
+): Promise<void> {
   if (entries.length === 0) return;
   for (const entry of entries) {
     validateEmbeddingVector(entry.vector, `Embedding vector for ${entry.fullName}`);
@@ -581,8 +649,14 @@ export async function updateEmbeddingsBatch(entries: Array<{ fullName: string; v
 
 export async function searchVector(vector: number[], limit = 20, filters: RepoQueryFilters = {}): Promise<Repo[]> {
   const table = await getTable();
-  const where = buildRepoWhereClause(filters);
-  const results = await vectorSearchQuery(table, vector, SEARCH_RESULT_COLUMNS_WITH_DISTANCE, where, limit);
+  // Rows without a generated embedding hold an all-zero placeholder vector;
+  // exclude them so partial-coverage databases never return placeholder hits.
+  const conditions = ['has_embedding IS TRUE'];
+  const filterWhere = buildRepoWhereClause(filters);
+  if (filterWhere) conditions.push(filterWhere);
+  const results = await vectorSearchQuery(
+    table, vector, [...SEARCH_RESULT_COLUMNS, '_distance'], conditions.join(' AND '), limit,
+  );
   return normalizeRepos(results);
 }
 
@@ -591,9 +665,14 @@ export async function searchFTS(query: string, limit = 20, filters: RepoQueryFil
   await ensureFTSIndex(table);
   try {
     const where = buildRepoWhereClause(filters);
-    const results = await ftsSearchQuery(table, query, SEARCH_RESULT_COLUMNS_WITH_DISTANCE, where, limit);
+    const results = await ftsSearchQuery(table, query, [...SEARCH_RESULT_COLUMNS, '_score'], where, limit);
     return normalizeRepos(results);
-  } catch {
+  } catch (err) {
+    if (!_ftsFallbackWarned) {
+      const reason = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`FTS search unavailable (${reason}); falling back to filter scan.\n`);
+      _ftsFallbackWarned = true;
+    }
     const pattern = query.toLowerCase();
     const where = buildRepoWhereClause(filters);
     let fallbackQuery = table.query();

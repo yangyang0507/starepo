@@ -189,7 +189,7 @@ describe('runSync: full sync cleanup', () => {
     }));
 
     const { runSync } = await import('../src/commands/sync.js');
-    await runSync({ noEmbeddings: true });
+    await runSync({ incremental: true, noEmbeddings: true });
 
     expect(fetchStarsSince).toHaveBeenCalledWith({}, new Date('2026-01-01T00:00:00.000Z'), expect.any(Function));
     expect(fetchAllStars).not.toHaveBeenCalled();
@@ -218,10 +218,44 @@ describe('runSync: full sync cleanup', () => {
     }));
 
     const { runSync } = await import('../src/commands/sync.js');
-    await runSync({ noEmbeddings: true });
+    await runSync({ incremental: true, noEmbeddings: true });
 
     expect(logs.join('\n')).toContain('No new stars found.');
     expect(getMeta('last_sync')).toBe('2026-01-01T00:00:00.000Z');
+  });
+
+  it('default sync reconciles the full starred list even when last_sync exists', async () => {
+    const { setMeta } = await import('../src/lib/config.js');
+    const { upsertRepos, getRepoByName } = await import('../src/lib/storage.js');
+    setMeta('last_sync', '2026-01-01T00:00:00.000Z');
+    await upsertRepos([
+      makeRepo({ id: 1, full_name: 'keep/repo', name: 'repo', stars_count: 1 }),
+      makeRepo({ id: 2, full_name: 'stale/repo', name: 'repo' }),
+    ]);
+
+    vi.doMock('../src/commands/auth.js', () => ({
+      ensureAuth: vi.fn().mockResolvedValue('token'),
+    }));
+    const fetchAllStars = vi.fn().mockResolvedValue([
+      makeRepo({ id: 1, full_name: 'keep/repo', name: 'repo', stars_count: 99 }),
+    ]);
+    const fetchStarsSince = vi.fn();
+    vi.doMock('../src/lib/github.js', () => ({
+      createOctokit: vi.fn().mockReturnValue({}),
+      fetchAllStars,
+      fetchStarsSince,
+    }));
+    vi.doMock('../src/lib/embeddings.js', () => ({
+      generateAndStoreEmbeddings: vi.fn(),
+    }));
+
+    const { runSync } = await import('../src/commands/sync.js');
+    await runSync({ noEmbeddings: true });
+
+    expect(fetchAllStars).toHaveBeenCalledTimes(1);
+    expect(fetchStarsSince).not.toHaveBeenCalled();
+    expect((await getRepoByName('keep/repo'))!.stars_count).toBe(99);
+    expect(await getRepoByName('stale/repo')).toBeNull();
   });
 
   it('force sync ignores last_sync and fetches all stars', async () => {

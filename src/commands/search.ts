@@ -1,6 +1,7 @@
+import { formatRepo } from '../lib/format.js';
 import { hybridSearch } from '../lib/search.js';
-import { Repo } from '../lib/storage.js';
 import { parsePositiveIntOption, type SortField, type SortOrder } from '../lib/sort.js';
+import { writeBanner } from '../lib/term.js';
 
 export interface SearchCommandOptions {
   query?: string;
@@ -12,21 +13,7 @@ export interface SearchCommandOptions {
   sort?: SortField;
   order?: SortOrder;
   json?: boolean;
-}
-
-function formatRepo(repo: Repo, index: number): string {
-  const topics = (() => {
-    try { return (JSON.parse(repo.topics) as string[]).slice(0, 5).join(', '); }
-    catch { return repo.topics; }
-  })();
-  const lines = [
-    `${index + 1}. ${repo.full_name}${repo.language ? ` [${repo.language}]` : ''}`,
-    `   ${repo.description ?? '(no description)'}`,
-    `   ${repo.html_url}`,
-  ];
-  if (topics) lines.push(`   Topics: ${topics}`);
-  lines.push(`   Stars: ${repo.stars_count}  Forks: ${repo.forks_count}`);
-  return lines.join('\n');
+  oneline?: boolean;
 }
 
 export async function runSearch(query: string | undefined, options: SearchCommandOptions = {}): Promise<void> {
@@ -42,9 +29,9 @@ export async function runSearch(query: string | undefined, options: SearchComman
   }
 
   if (finalQuery) {
-    console.log(`Searching for: "${finalQuery}"...`);
+    writeBanner(`Searching for: "${finalQuery}"...`);
   } else {
-    console.log('Searching with structured filters only...');
+    writeBanner('Searching with structured filters only...');
   }
 
   const results = await hybridSearch(finalQuery, limit, {
@@ -56,19 +43,19 @@ export async function runSearch(query: string | undefined, options: SearchComman
     order: options.order,
   });
 
-  if (results.length === 0) {
-    console.log('No results found.');
-    return;
-  }
-
   if (options.json) {
     console.log(JSON.stringify(results.map(({ vector: _, ...r }) => r), null, 2));
     return;
   }
 
-  console.log(`\nFound ${results.length} result(s):\n`);
+  if (results.length === 0) {
+    console.log('No results found.');
+    return;
+  }
+
+  writeBanner(`Found ${results.length} result(s):`);
   results.forEach((repo, i) => {
-    console.log(formatRepo(repo, i));
-    console.log();
+    console.log(formatRepo(repo, { index: i, oneline: options.oneline }));
+    if (!options.oneline) console.log();
   });
 }
