@@ -101,6 +101,7 @@ GitHub 授权（首次使用时自动触发）。
 ```bash
 starepo auth
 starepo auth --force  # 重新授权
+starepo auth --logout # 删除本地保存的 token
 ```
 
 ### `sync`

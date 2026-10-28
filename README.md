@@ -100,7 +100,8 @@ Authenticate with GitHub (runs automatically on first use).
 
 ```bash
 starepo auth
-starepo auth --force  # Re-authenticate
+starepo auth --force  # Re-authenticate (e.g. to switch accounts)
+starepo auth --logout # Remove the stored token
 ```
 
 ### `sync`

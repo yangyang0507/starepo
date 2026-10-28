@@ -9,6 +9,7 @@ import { parseListOptions } from '../src/lib/sort.js';
 function makeDeps(overrides: Partial<CliDeps> = {}): CliDeps {
   return {
     runAuth: vi.fn(async () => 'token') as unknown as CliDeps['runAuth'],
+    runLogout: vi.fn() as unknown as CliDeps['runLogout'],
     runSync: vi.fn(async () => {}) as unknown as CliDeps['runSync'],
     runSearch: vi.fn(async () => {}) as unknown as CliDeps['runSearch'],
     runList: vi.fn(async () => {}) as unknown as CliDeps['runList'],
@@ -53,6 +54,17 @@ describe('createProgram', () => {
     expect(deps.runEmbed).toHaveBeenCalledWith({ force: true });
     expect(deps.runInfo).toHaveBeenCalledWith('user/repo');
     expect(deps.runStatus).toHaveBeenCalledWith({ json: true });
+  });
+
+  it('logs out with auth --logout and rejects combining it with --force', async () => {
+    const deps = makeDeps();
+    await parseUserArgs(deps, ['auth', '--logout']);
+    expect(deps.runLogout).toHaveBeenCalledTimes(1);
+    expect(deps.runAuth).not.toHaveBeenCalled();
+
+    const program = createProgram(deps).exitOverride();
+    program.commands.forEach((command) => command.exitOverride().configureOutput({ writeErr: () => {} }));
+    await expect(program.parseAsync(['auth', '--logout', '--force'], { from: 'user' })).rejects.toThrow(/cannot be used with/);
   });
 
   it('opens the browser UI for a bare invocation only in a terminal', async () => {

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { realpathSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { runAuth } from './commands/auth.js';
+import { runAuth, runLogout } from './commands/auth.js';
 import { runSync } from './commands/sync.js';
 import { runSearch } from './commands/search.js';
 import { runList, runInfo } from './commands/list.js';
@@ -16,6 +16,7 @@ import { VERSION } from './lib/version.js';
 
 export interface CliDeps {
   runAuth: typeof runAuth;
+  runLogout: typeof runLogout;
   runSync: typeof runSync;
   runSearch: typeof runSearch;
   runList: typeof runList;
@@ -34,6 +35,7 @@ export interface CliDeps {
 
 const defaultDeps: CliDeps = {
   runAuth,
+  runLogout,
   runSync,
   runSearch,
   runList,
@@ -80,7 +82,12 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
     .command('auth')
     .description('Authenticate with GitHub (runs automatically on first use)')
     .option('-f, --force', 'Force re-authentication even if already logged in')
+    .addOption(new Option('--logout', 'Remove the stored GitHub token').conflicts('force'))
     .action(action(async (opts) => {
+      if (opts.logout) {
+        deps.runLogout();
+        return;
+      }
       await deps.runAuth({ force: opts.force });
     }));
 

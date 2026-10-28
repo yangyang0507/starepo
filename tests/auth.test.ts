@@ -111,4 +111,47 @@ describe('ensureAuth', () => {
     const { ensureAuth } = await import('../src/commands/auth.js');
     await expect(ensureAuth()).resolves.toBe('new-token');
   });
+
+  it('logout clears a stored token and points to GitHub for revocation', async () => {
+    const clearToken = vi.fn();
+    const output: string[] = [];
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      output.push(String(chunk));
+      return true;
+    });
+    vi.doMock('../src/lib/config.js', () => ({
+      getToken: vi.fn().mockReturnValue('stored-token'),
+      getAuthFilePath: vi.fn().mockReturnValue('/tmp/starepo/auth.json'),
+      clearToken,
+      saveToken: vi.fn(),
+    }));
+
+    const { runLogout } = await import('../src/commands/auth.js');
+    runLogout();
+
+    expect(clearToken).toHaveBeenCalledTimes(1);
+    expect(output.join('')).toContain('Logged out; removed the GitHub token from /tmp/starepo/auth.json');
+    expect(output.join('')).toContain('https://github.com/settings/applications');
+  });
+
+  it('logout is a no-op when not logged in', async () => {
+    const clearToken = vi.fn();
+    const output: string[] = [];
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      output.push(String(chunk));
+      return true;
+    });
+    vi.doMock('../src/lib/config.js', () => ({
+      getToken: vi.fn().mockReturnValue(null),
+      getAuthFilePath: vi.fn(),
+      clearToken,
+      saveToken: vi.fn(),
+    }));
+
+    const { runLogout } = await import('../src/commands/auth.js');
+    runLogout();
+
+    expect(clearToken).not.toHaveBeenCalled();
+    expect(output.join('')).toContain('Not logged in.');
+  });
 });

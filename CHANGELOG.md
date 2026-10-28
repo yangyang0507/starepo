@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `starepo browse [query]`, also opened by a bare `starepo` in a terminal: a full-screen UI that filters by keyword as you type, swaps in semantic results after a pause, and shows a preview pane on wide terminals. `Enter` opens the repo, `Ctrl-Y` copies its URL, `Tab` cycles sort, `Esc` clears / quits
 - `auth` copies the one-time code to the clipboard, opens the GitHub device page when you press Enter, and shows a spinner while waiting for approval
+- `auth --logout` removes the stored token and points to GitHub's settings page for revoking access there
 - In a terminal, `starepo search` with no query or filters opens the interactive browser instead of failing
 - `info` accepts pasted GitHub URLs, resolves names case-insensitively, and suggests similarly named stars when nothing matches
 - `sync` shows a real progress bar with ETA while fetching, sized from GitHub's `rel="last"` page link
