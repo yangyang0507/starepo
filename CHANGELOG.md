@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `npm run build` marks `dist/index.js` executable, so `npx starepo` inside a checkout and `npm link` keep working after a rebuild instead of failing with `Permission denied`
+
 ## [2.3.0] - 2026-10-28
 
 ### Added
