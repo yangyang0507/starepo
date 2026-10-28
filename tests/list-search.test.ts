@@ -96,9 +96,9 @@ describe('runSearch', () => {
     const { runSearch } = await import('../src/commands/search.js');
     await runSearch('cli');
 
-    expect(banners.join('')).toContain('Found 1 result(s)');
-    expect(logs.join('\n')).toContain('1. user/repo [TypeScript]');
-    expect(logs.join('\n')).toContain('Topics: cli, typescript');
+    expect(banners.join('')).toContain('1 result for "cli"');
+    expect(logs.join('\n')).toMatch(/^1 {2}user\/repo\s+● TypeScript/);
+    expect(logs.join('\n')).toContain('   A useful repo');
   });
 
   it('prints one result per line with --oneline', async () => {
@@ -115,7 +115,7 @@ describe('runSearch', () => {
     await runSearch('cli', { oneline: true });
 
     expect(logs).toHaveLength(1);
-    expect(logs[0]).toContain('1. user/repo [TypeScript]');
+    expect(logs[0]).toMatch(/^1 {2}user\/repo/);
     expect(logs[0]).not.toContain('\n');
   });
 
@@ -200,7 +200,7 @@ describe('runList', () => {
     await runInfo('user/repo');
 
     expect(logs.join('\n')).toContain('Name:        user/repo');
-    expect(logs.join('\n')).toContain('Topics:      cli, typescript');
+    expect(logs.join('\n')).toContain('Topics:      #cli #typescript');
   });
 
   it('accepts GitHub URLs and resolves case-insensitive names', async () => {

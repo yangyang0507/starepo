@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   displayWidth,
   formatBar,
@@ -9,9 +9,13 @@ import {
   formatRelativeTime,
   hyperlink,
   Progress,
+  screenRows,
   shouldUseColor,
   Spinner,
+  stripAnsi,
   truncate,
+  wrapText,
+  writePaged,
   writeProgressLine,
 } from '../src/lib/term.js';
 
@@ -260,5 +264,56 @@ describe('Spinner', () => {
 
     expect(chunks.join('')).toContain('Saving…');
     expect(chunks.at(-1)).toBe('\x1b[?25h');
+  });
+});
+
+describe('paging', () => {
+  it('strips colors and OSC-8 links before measuring', () => {
+    const line = '\x1b[1m\x1b]8;;https://github.com/a/b\x1b\\a/b\x1b]8;;\x1b\\\x1b[0m [\x1b[36mRust\x1b[0m]';
+    expect(stripAnsi(line)).toBe('a/b [Rust]');
+  });
+
+  it('counts soft-wrapped rows', () => {
+    expect(screenRows('short\n' + 'x'.repeat(25), 10)).toBe(4);
+  });
+
+  it('prints directly when output is not a terminal', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const stream = { isTTY: false, rows: 2, columns: 80 } as unknown as NodeJS.WriteStream;
+
+    await writePaged('a\nb\nc\nd', { stream });
+
+    expect(log).toHaveBeenCalledWith('a\nb\nc\nd');
+    log.mockRestore();
+  });
+
+  it('prints directly when paging is disabled, even on a short terminal', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const stream = { isTTY: true, rows: 2, columns: 80 } as unknown as NodeJS.WriteStream;
+
+    await writePaged('a\nb\nc\nd', { stream, enabled: false });
+
+    expect(log).toHaveBeenCalledWith('a\nb\nc\nd');
+    log.mockRestore();
+  });
+});
+
+describe('wrapText', () => {
+  it('breaks Latin text at spaces', () => {
+    expect(wrapText('the quick brown fox jumps', 10)).toEqual(['the quick', 'brown fox', 'jumps']);
+  });
+
+  it('breaks CJK anywhere and keeps mixed runs within the width', () => {
+    const lines = wrapText('使用ai生成多章节的长篇小说', 10);
+    expect(lines).toEqual(['使用ai生成', '多章节的长', '篇小说']);
+    expect(lines.every((line) => displayWidth(line) <= 10)).toBe(true);
+  });
+
+  it('hard-breaks words longer than the line', () => {
+    expect(wrapText('see https://example.com/very/long', 10)).toEqual(['see', 'https://ex', 'ample.com/', 'very/long']);
+  });
+
+  it('ellipsizes the last kept line', () => {
+    expect(wrapText('one two three four five six', 9, 2)).toEqual(['one two', 'three fo…']);
   });
 });

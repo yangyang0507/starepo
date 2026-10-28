@@ -1,7 +1,7 @@
-import { formatRepo } from '../lib/format.js';
+import { formatRepoList, queryTerms, staleSyncHint } from '../lib/format.js';
 import { hybridSearch } from '../lib/search.js';
 import { parsePositiveIntOption, type SortField, type SortOrder } from '../lib/sort.js';
-import { note } from '../lib/term.js';
+import { note, style, warn, writePaged } from '../lib/term.js';
 
 export interface SearchCommandOptions {
   query?: string;
@@ -14,6 +14,8 @@ export interface SearchCommandOptions {
   order?: SortOrder;
   json?: boolean;
   oneline?: boolean;
+  pager?: boolean;
+  lastSync?: string | null;
 }
 
 export async function runSearch(query: string | undefined, options: SearchCommandOptions = {}): Promise<void> {
@@ -47,9 +49,20 @@ export async function runSearch(query: string | undefined, options: SearchComman
     return;
   }
 
-  note(`Found ${results.length} result(s)${subject}:`);
-  results.forEach((repo, i) => {
-    console.log(formatRepo(repo, { index: i, oneline: options.oneline }));
-    if (!options.oneline) console.log();
-  });
+  const count = `${results.length} ${results.length === 1 ? 'result' : 'results'}`;
+  note(`${style.bold(count, process.stderr)}${style.gray(subject, process.stderr)}\n`);
+  await writePaged(
+    formatRepoList(results, {
+      oneline: options.oneline,
+      highlight: queryTerms(finalQuery),
+      time: options.sort === 'updated' ? 'updated' : 'starred',
+    }),
+    { enabled: options.pager },
+  );
+
+  const hint = staleSyncHint(options.lastSync);
+  if (hint) {
+    note();
+    warn(hint);
+  }
 }

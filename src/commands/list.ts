@@ -1,8 +1,8 @@
-import { formatRepo, formatRepoInfo } from '../lib/format.js';
+import { formatRepoInfo, formatRepoList, queryTerms, staleSyncHint } from '../lib/format.js';
 import { listRepos, getRepoByName, getStats, type Repo } from '../lib/storage.js';
 import { hybridSearch } from '../lib/search.js';
 import { parsePositiveIntOption, sortRepos, SortField, SortOrder } from '../lib/sort.js';
-import { formatRelativeTime, note } from '../lib/term.js';
+import { formatRelativeTime, note, style, warn, writePaged } from '../lib/term.js';
 
 export interface ListCommandOptions {
   query?: string;
@@ -15,6 +15,7 @@ export interface ListCommandOptions {
   order?: SortOrder;
   json?: boolean;
   oneline?: boolean;
+  pager?: boolean;
 }
 
 export async function runList(options: ListCommandOptions = {}): Promise<void> {
@@ -49,17 +50,30 @@ export async function runList(options: ListCommandOptions = {}): Promise<void> {
     return;
   }
 
-  note(`Total stars: ${count}  |  Last sync: ${lastSync ? formatRelativeTime(lastSync) : 'never'}`);
-
   if (repos.length === 0) {
     note(count === 0 ? 'No local data. Run `starepo sync` to fetch your stars.' : 'No repositories match these filters.');
     return;
   }
 
-  repos.forEach((repo, i) => {
-    console.log(formatRepo(repo, { index: i, oneline: options.oneline }));
-    if (!options.oneline) console.log();
-  });
+  const synced = `synced ${lastSync ? formatRelativeTime(lastSync) : 'never'}`;
+  note(
+    `${style.bold(`${repos.length} of ${count} stars`, process.stderr)}` +
+    `${style.gray(` · ${synced}`, process.stderr)}\n`,
+  );
+  await writePaged(
+    formatRepoList(repos, {
+      oneline: options.oneline,
+      highlight: queryTerms(options.query ?? ''),
+      time: sort === 'updated' ? 'updated' : 'starred',
+    }),
+    { enabled: options.pager },
+  );
+
+  const hint = staleSyncHint(lastSync);
+  if (hint) {
+    note();
+    warn(hint);
+  }
 }
 
 /** Accepts `owner/repo` as well as pasted GitHub URLs like `https://github.com/owner/repo.git`. */

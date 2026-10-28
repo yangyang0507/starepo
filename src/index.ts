@@ -116,8 +116,9 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
     .option('--order <direction>', 'Sort direction: asc or desc (default: desc)')
     .option('--json', 'Output as JSON')
     .option('--oneline', 'Print each result on one line')
+    .option('--no-pager', 'Do not page long output through $PAGER')
     .action(action(async (query: string | undefined, opts) => {
-      const { count } = await deps.getStats();
+      const { count, lastSync } = await deps.getStats();
       if (count === 0) {
         throw new Error('No local data found. Run `starepo sync` first.');
       }
@@ -126,6 +127,8 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
         query: opts.query,
         ...parsed,
         oneline: opts.oneline,
+        pager: opts.pager,
+        lastSync,
       });
     }));
 
@@ -143,12 +146,14 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
     .option('--order <direction>', 'Sort direction: asc or desc (default: desc)')
     .option('--json', 'Output as JSON')
     .option('--oneline', 'Print each result on one line')
+    .option('--no-pager', 'Do not page long output through $PAGER')
     .action(action(async (opts) => {
       const parsed = deps.parseListOptions(opts);
       await deps.runList({
         query: opts.query,
         ...parsed,
         oneline: opts.oneline,
+        pager: opts.pager,
       });
     }));
 

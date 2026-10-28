@@ -1,9 +1,13 @@
+import { spawn } from 'child_process';
+
 const ESC = '\x1b';
 
 const ANSI = {
   reset: `${ESC}[0m`,
   bold: `${ESC}[1m`,
-  dim: `${ESC}[2m`,
+  // Bright black rather than SGR 2 "dim": many themes render dim identically to normal text.
+  gray: `${ESC}[90m`,
+  highlight: `${ESC}[1;4m`,
   red: `${ESC}[31m`,
   green: `${ESC}[32m`,
   yellow: `${ESC}[33m`,
@@ -28,12 +32,37 @@ function paint(code: string, text: string, stream: NodeJS.WriteStream = process.
 
 export const style = {
   bold: (text: string, stream?: NodeJS.WriteStream) => paint(ANSI.bold, text, stream),
-  dim: (text: string, stream?: NodeJS.WriteStream) => paint(ANSI.dim, text, stream),
+  gray: (text: string, stream?: NodeJS.WriteStream) => paint(ANSI.gray, text, stream),
+  highlight: (text: string, stream?: NodeJS.WriteStream) => paint(ANSI.highlight, text, stream),
   red: (text: string, stream?: NodeJS.WriteStream) => paint(ANSI.red, text, stream),
   green: (text: string, stream?: NodeJS.WriteStream) => paint(ANSI.green, text, stream),
   yellow: (text: string, stream?: NodeJS.WriteStream) => paint(ANSI.yellow, text, stream),
   cyan: (text: string, stream?: NodeJS.WriteStream) => paint(ANSI.cyan, text, stream),
 };
+
+function supportsTrueColor(): boolean {
+  return /^(truecolor|24bit)$/i.test(process.env.COLORTERM ?? '');
+}
+
+/** Nearest xterm-256 palette index, for terminals without 24-bit color. */
+function ansi256(r: number, g: number, b: number): number {
+  if (r === g && g === b) {
+    if (r < 8) return 16;
+    if (r > 248) return 231;
+    return Math.round(((r - 8) / 247) * 24) + 232;
+  }
+  const level = (v: number) => Math.round((v / 255) * 5);
+  return 16 + 36 * level(r) + 6 * level(g) + level(b);
+}
+
+/** Colors `text` with a `#rrggbb` foreground. */
+export function hex(color: string, text: string, stream: NodeJS.WriteStream = process.stdout): string {
+  const match = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(color);
+  if (!match) return text;
+  const [r, g, b] = match.slice(1).map((part) => parseInt(part, 16));
+  const code = supportsTrueColor() ? `${ESC}[38;2;${r};${g};${b}m` : `${ESC}[38;5;${ansi256(r, g, b)}m`;
+  return paint(code, text, stream);
+}
 
 export function terminalWidth(stream: NodeJS.WriteStream = process.stdout): number {
   return stream.columns && stream.columns > 0 ? stream.columns : 80;
@@ -210,6 +239,84 @@ export function formatBytes(bytes: number): string {
 }
 
 export type ProgressUnit = 'items' | 'bytes';
+
+export function padEnd(text: string, width: number, visibleWidth = displayWidth(text)): string {
+  return text + ' '.repeat(Math.max(0, width - visibleWidth));
+}
+
+export function padStart(text: string, width: number, visibleWidth = displayWidth(text)): string {
+  return ' '.repeat(Math.max(0, width - visibleWidth)) + text;
+}
+
+/**
+ * Word-wraps `text` to `width` display columns. Latin text breaks at spaces;
+ * CJK and other wide characters may break between any two characters. Text
+ * beyond `maxLines` is cut with an ellipsis on the last line.
+ */
+export function wrapText(text: string, width: number, maxLines = Number.POSITIVE_INFINITY): string[] {
+  if (width <= 0) return [];
+  const tokens = text.trim().split(/(\s+)/).flatMap((part) => {
+    if (/^\s+$/.test(part)) return [' '];
+    // Each wide grapheme is its own token so CJK runs can break anywhere.
+    const out: string[] = [];
+    let run = '';
+    for (const grapheme of graphemes(part)) {
+      if (graphemeWidth(grapheme) > 1) {
+        if (run) out.push(run);
+        out.push(grapheme);
+        run = '';
+      } else {
+        run += grapheme;
+      }
+    }
+    if (run) out.push(run);
+    return out;
+  });
+
+  const lines: string[] = [];
+  let line = '';
+  let used = 0;
+  let space = false;
+  const push = () => {
+    if (line) lines.push(line);
+    line = '';
+    used = 0;
+  };
+
+  for (const token of tokens) {
+    if (token === ' ') {
+      space = used > 0;
+      continue;
+    }
+    const gap = space ? 1 : 0;
+    const tokenWidth = displayWidth(token);
+    space = false;
+    if (used + gap + tokenWidth <= width) {
+      line += (gap ? ' ' : '') + token;
+      used += gap + tokenWidth;
+      continue;
+    }
+    push();
+    if (tokenWidth <= width) {
+      line = token;
+      used = tokenWidth;
+      continue;
+    }
+    // A single word longer than the line (e.g. a URL): hard-break it.
+    for (const grapheme of graphemes(token)) {
+      const w = graphemeWidth(grapheme);
+      if (used + w > width) push();
+      line += grapheme;
+      used += w;
+    }
+  }
+  push();
+
+  if (lines.length <= maxLines) return lines;
+  const kept = lines.slice(0, maxLines);
+  kept[maxLines - 1] = truncate(`${kept[maxLines - 1]} ${lines[maxLines]}`, width);
+  return kept;
+}
 
 export interface ProgressLineInput {
   label: string;
@@ -396,4 +503,57 @@ export class Spinner {
     const text = truncate(this.text, terminalWidth(this.stream) - 2);
     this.stream.write(`\r${frame} ${text}${ESC}[K`);
   }
+}
+
+// SGR colors plus OSC-8 hyperlink open/close sequences.
+const ANSI_PATTERN = new RegExp(`${ESC}\\[[0-9;?]*[A-Za-z]|${ESC}\\]8;;[^${ESC}]*${ESC}\\\\`, 'g');
+
+export function stripAnsi(text: string): string {
+  return text.replace(ANSI_PATTERN, '');
+}
+
+/** Rows `text` occupies on a terminal `columns` wide, counting soft wraps. */
+export function screenRows(text: string, columns: number): number {
+  return text.split('\n').reduce(
+    (rows, line) => rows + Math.max(1, Math.ceil(displayWidth(stripAnsi(line)) / Math.max(1, columns))),
+    0,
+  );
+}
+
+export interface PageOptions {
+  enabled?: boolean;
+  stream?: NodeJS.WriteStream;
+}
+
+/**
+ * Prints `text` to stdout, piping it through `$STAREPO_PAGER` / `$PAGER`
+ * (default `less`) when it would scroll past one screen of an interactive
+ * terminal. Mirrors git: `LESS=FRX` unless the user set their own.
+ */
+export async function writePaged(text: string, options: PageOptions = {}): Promise<void> {
+  const stream = options.stream ?? process.stdout;
+  const pager = process.env.STAREPO_PAGER ?? process.env.PAGER ?? 'less';
+  const fits = screenRows(text, terminalWidth(stream)) < (stream.rows || 24) - 1;
+  if (options.enabled === false || !isTTY(stream) || fits || pager === '' || pager === 'cat') {
+    console.log(text);
+    return;
+  }
+
+  // Ctrl+C belongs to the pager while it runs (less uses it to stop searches).
+  const ignoreInterrupt = () => {};
+  process.on('SIGINT', ignoreInterrupt);
+  const shown = await new Promise<boolean>((resolve) => {
+    const child = spawn(pager, {
+      shell: true,
+      stdio: ['pipe', 'inherit', 'inherit'],
+      env: { ...process.env, LESS: process.env.LESS ?? 'FRX' },
+    });
+    child.on('error', () => resolve(false));
+    // 127: the shell could not find the pager command.
+    child.on('close', (code) => resolve(code !== 127));
+    // Quitting the pager early closes its stdin; that is not an error.
+    child.stdin.on('error', () => {});
+    child.stdin.end(`${text}\n`);
+  }).finally(() => process.off('SIGINT', ignoreInterrupt));
+  if (!shown) console.log(text);
 }

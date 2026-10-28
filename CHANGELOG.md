@@ -11,12 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `info` accepts pasted GitHub URLs, resolves names case-insensitively, and suggests similarly named stars when nothing matches
 - `sync` shows a real progress bar with ETA while fetching, sized from GitHub's `rel="last"` page link
+- `search` / `list` page output longer than one screen through `$STAREPO_PAGER` / `$PAGER` (default `less`, with `LESS=FRX` unless set); `--no-pager` opts out
+- Search terms are highlighted in result descriptions
+- `search` / `list` warn when the last sync is more than a week old
 
 ### Changed
 
 - All status output from `sync`, `embed`, and `auth` goes to stderr; stdout carries only command results
 - `sync` and `embed` end with a one-line summary (e.g. `✓ Synced 1618 stars (+12 new, −3 removed)`) instead of several paragraphs
 - Every command reports failures the same way: one `error: …` line on stderr and exit code 1
+- `search` / `list` render an aligned table (index, owner/name, language, stars, age) modeled on `gh` list output: column headers on TTYs, GitHub language-color dots, right-aligned star counts, compact ages (`7w`, `11mo`, `2y`), and descriptions wrapped under each name with a hanging indent (max 2 lines, 90-column block); `--oneline` keeps the table and appends a truncated description
+- Query highlighting matches whole ASCII words only, so `ai` no longer lights up inside `OpenAI`
+- Secondary text uses bright-black gray instead of SGR dim, which many themes render as normal text; `info` wraps long descriptions under its value column
 
 ### Fixed
 

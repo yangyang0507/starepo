@@ -97,7 +97,7 @@ export async function runSync(
   const { count } = await getStats();
   success(`Synced ${count} stars${formatChanges(count - before + removed, removed)}`);
   if (isIncremental) {
-    note(style.dim(
+    note(style.gray(
       'Incremental sync only adds new stars; run `starepo sync` to refresh metadata and drop unstarred repos.',
       process.stderr,
     ));
