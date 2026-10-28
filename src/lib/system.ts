@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 
-type Command = [string, ...string[]];
+export type Command = [string, ...string[]];
 
 /** Runs `command`, feeding it `input` on stdin; resolves false if it is missing or fails. */
 function run([cmd, ...args]: Command, input?: string): Promise<boolean> {
@@ -24,7 +24,7 @@ function run([cmd, ...args]: Command, input?: string): Promise<boolean> {
   });
 }
 
-function openCommand(url: string, platform: NodeJS.Platform): Command {
+export function openCommand(url: string, platform: NodeJS.Platform): Command {
   if (platform === 'darwin') return ['open', url];
   if (platform === 'win32') return ['cmd', '/c', 'start', '', url];
   return ['xdg-open', url];
@@ -46,9 +46,9 @@ function clipboardCommands(platform: NodeJS.Platform): Command[] {
  */
 export async function copyToClipboard(
   text: string,
-  options: { platform?: NodeJS.Platform; stream?: NodeJS.WriteStream } = {},
+  options: { platform?: NodeJS.Platform; stream?: NodeJS.WriteStream; commands?: Command[] } = {},
 ): Promise<boolean> {
-  for (const command of clipboardCommands(options.platform ?? process.platform)) {
+  for (const command of options.commands ?? clipboardCommands(options.platform ?? process.platform)) {
     if (await run(command, text)) return true;
   }
   const stream = options.stream ?? process.stdout;

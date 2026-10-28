@@ -151,20 +151,25 @@ function previewLines(repo: Repo | undefined, width: number, height: number, now
     '',
   ];
 
+  const description = (repo.description || '').replace(/\s+/g, ' ').trim();
+  const descriptionLines = description ? wrapText(description, width) : [style.gray('No description')];
   const topics = parseTopics(repo.topics).map((topic) => `#${topic}`).join(' ');
   const label = (name: string, value: string) => `${style.gray(name.padEnd(9))}${truncate(value, width - 9)}`;
-  const tail = [
-    ...(topics ? ['', ...wrapText(topics, width, 2).map((line) => style.gray(line))] : []),
+  const details = [
     '',
     label('Starred', formatRelativeTime(repo.starred_at, now)),
     label('Updated', formatRelativeTime(repo.updated_at, now)),
     ...(repo.homepage ? [label('Homepage', repo.homepage)] : []),
     style.gray(truncate(repo.html_url, width)),
   ];
+  const topicLines = topics ? ['', ...wrapText(topics, width, 2).map((line) => style.gray(line))] : [];
 
-  const description = (repo.description || '').replace(/\s+/g, ' ').trim();
-  const room = Math.max(1, height - head.length - tail.length);
-  const body = description ? wrapText(description, width, room) : [style.gray('No description')];
+  // On short terminals the description wins: topics go first, then the dates.
+  const wanted = Math.min(descriptionLines.length, 3);
+  const room = (tail: string[]) => height - head.length - tail.length;
+  let tail = [...topicLines, ...details];
+  if (room(tail) < wanted) tail = details;
+  const body = description ? wrapText(description, width, Math.max(1, room(tail))) : descriptionLines;
   return [...head, ...body, ...tail].slice(0, height);
 }
 

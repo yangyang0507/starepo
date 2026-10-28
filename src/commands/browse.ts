@@ -27,7 +27,9 @@ export async function runBrowse(initialQuery = ''): Promise<void> {
   }
 
   const all = await listRepos();
-  if (all.length === 0) throw new Error('No local data found. Run `starepo sync` first.');
+  if (all.length === 0) {
+    throw new Error('No stars synced yet. Run `starepo sync` to fetch them, or `starepo --help` for all commands.');
+  }
   const semanticAvailable = isEmbeddingModelCached() && await hasAnyEmbeddings(all.length);
 
   let state: BrowseState = setQuery(initialState(all), initialQuery);

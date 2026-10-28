@@ -21,7 +21,6 @@ export async function runAuth(options: { force?: boolean } = {}): Promise<string
 
   const octokit = createOctokit(token);
   const user = await getAuthenticatedUser(octokit);
-  note();
   success(`Authenticated as ${user}`);
 
   return token;

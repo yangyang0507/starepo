@@ -49,7 +49,7 @@ npx skills add yangyang0507/starepo
 starepo auth
 ```
 
-按提示完成 GitHub Device Flow 授权。
+starepo 会显示一次性授权码并复制到剪贴板；按回车打开 GitHub 设备授权页，粘贴授权码并确认即可。
 
 ### 2. 同步 Star
 
@@ -167,6 +167,8 @@ starepo search "query" --sort forks --order asc  # 按 fork 数升序
 starepo search "query" --json
 starepo search "query" --oneline
 ```
+
+在终端里不带查询和过滤条件运行 `starepo search` 会打开交互式浏览界面（见 `browse`）。
 
 **搜索模式：**
 - 有向量数据时：**混合搜索**（向量 + 关键词，Reciprocal Rank Fusion 排序）

@@ -1,7 +1,9 @@
 import { Octokit } from '@octokit/rest';
 import { createOAuthDeviceAuth } from '@octokit/auth-oauth-device';
 import { RepoInput } from './storage.js';
-import { note, style } from './term.js';
+import { createInterface } from 'readline';
+import { copyToClipboard, openUrl } from './system.js';
+import { note, Spinner, style } from './term.js';
 
 // GitHub OAuth App client ID for device flow (public, non-secret)
 const GITHUB_CLIENT_ID = 'Ov23liAWejDY5000tT9s';
@@ -43,21 +45,78 @@ interface StarredRepoItem {
   starred_at?: string;
 }
 
+export interface Verification {
+  verification_uri: string;
+  user_code: string;
+  expires_in: number;
+}
+
+export interface VerificationIO {
+  /** Whether a person is at the keyboard to press Enter. */
+  interactive: boolean;
+  copy: (text: string) => Promise<boolean>;
+  open: (url: string) => Promise<boolean>;
+  waitForEnter: () => Promise<void>;
+}
+
+function waitForEnter(): Promise<void> {
+  // Cooked mode: Ctrl-C still raises SIGINT and ends the process as usual.
+  const rl = createInterface({ input: process.stdin, terminal: false });
+  return new Promise((resolve) => rl.once('line', () => {
+    rl.close();
+    resolve();
+  }));
+}
+
+const defaultVerificationIO = (): VerificationIO => ({
+  interactive: Boolean(process.stdin.isTTY && process.stderr.isTTY),
+  copy: (text) => copyToClipboard(text, { stream: process.stderr }),
+  open: openUrl,
+  waitForEnter,
+});
+
+/**
+ * Shows the device-flow code the way `gh auth login` does: code first (also
+ * copied to the clipboard), then Enter opens the verification page.
+ */
+export async function presentVerification(
+  verification: Verification,
+  io: VerificationIO = defaultVerificationIO(),
+): Promise<void> {
+  const { verification_uri: url, user_code: code } = verification;
+  const copied = io.interactive && await io.copy(code);
+  const hint = copied ? style.gray(' (copied to clipboard)', process.stderr) : '';
+  note();
+  note(`${style.yellow('!', process.stderr)} One-time code: ${style.bold(code, process.stderr)}${hint}`);
+
+  if (!io.interactive) {
+    note(`  Open ${url} and enter the code (expires in ${Math.round(verification.expires_in / 60)} minutes).`);
+    return;
+  }
+  note(`  Press Enter to open ${url} in your browser…`);
+  await io.waitForEnter();
+  if (!await io.open(url)) note(`  Could not launch a browser; open ${url} manually.`);
+}
+
 export async function runDeviceFlow(): Promise<DeviceFlowResult> {
+  let waiting: Spinner | undefined;
   const auth = createOAuthDeviceAuth({
     clientType: 'oauth-app',
     clientId: GITHUB_CLIENT_ID,
     scopes: ['read:user'],
-    onVerification(verification) {
-      note('\nTo authenticate with GitHub:');
-      note(`  1. Open: ${verification.verification_uri}`);
-      note(`  2. Enter code: ${style.bold(verification.user_code, process.stderr)}`);
-      note(`\nWaiting for authorization (expires in ${Math.round(verification.expires_in / 60)} minutes)...`);
+    // Awaited by the library: polling for the token starts once this returns.
+    async onVerification(verification) {
+      await presentVerification(verification);
+      waiting = new Spinner('Waiting for you to authorize starepo in the browser…').start();
     },
   });
 
-  const result = await auth({ type: 'oauth' });
-  return { token: result.token };
+  try {
+    const result = await auth({ type: 'oauth' });
+    return { token: result.token };
+  } finally {
+    waiting?.stop();
+  }
 }
 
 function mapToRepoInput(item: StarredRepoItem): RepoInput {

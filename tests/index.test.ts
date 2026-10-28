@@ -19,7 +19,7 @@ function makeDeps(overrides: Partial<CliDeps> = {}): CliDeps {
     getStats: vi.fn(async () => ({ count: 1, lastSync: null })) as unknown as CliDeps['getStats'],
     parseListOptions,
     version: '9.9.9-test',
-    log: vi.fn(),
+    interactive: false,
     error: vi.fn(),
     exit: vi.fn((code: number) => {
       throw new Error(`exit:${code}`);
@@ -59,10 +59,25 @@ describe('createProgram', () => {
     const deps = makeDeps();
 
     await parseUserArgs(deps, ['browse', 'vector db']);
-    await runCli(['node', 'starepo'], deps, true);
+    await runCli(['node', 'starepo'], { ...deps, interactive: true });
 
     expect(deps.runBrowse).toHaveBeenNthCalledWith(1, 'vector db');
     expect(deps.runBrowse).toHaveBeenNthCalledWith(2, '');
+  });
+
+  it('opens the browser UI for a search with nothing to search for, only in a terminal', async () => {
+    const terminal = makeDeps({ interactive: true });
+    await parseUserArgs(terminal, ['search']);
+    await parseUserArgs(terminal, ['search', '--json']);
+    await parseUserArgs(terminal, ['search', '--lang', 'Rust']);
+
+    expect(terminal.runBrowse).toHaveBeenCalledTimes(1);
+    expect(terminal.runSearch).toHaveBeenCalledTimes(2);
+
+    const script = makeDeps();
+    await parseUserArgs(script, ['search']);
+    expect(script.runBrowse).not.toHaveBeenCalled();
+    expect(script.runSearch).toHaveBeenCalledWith(undefined, expect.anything());
   });
 
   it('reports failures from any command as a single error line and exit 1', async () => {

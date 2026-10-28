@@ -7,7 +7,8 @@ import {
   type EmbeddingMetadataStatus,
 } from '../lib/embeddings.js';
 import { getStats } from '../lib/storage.js';
-import { formatBar, style } from '../lib/term.js';
+import { staleSyncHint } from '../lib/format.js';
+import { formatBar, formatRelativeTime, style } from '../lib/term.js';
 import { VERSION } from '../lib/version.js';
 
 export interface StatusDatabase {
@@ -107,42 +108,50 @@ export async function collectStatus(): Promise<StatusReport> {
   return report;
 }
 
-function formatTimestamp(value: string | null): string {
+function formatTimestamp(value: string | null, now: number): string {
   if (!value) return 'never';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  if (Number.isNaN(date.getTime())) return value;
+  const relative = style.gray(`(${formatRelativeTime(value, now)})`);
+  const absolute = date.toLocaleString();
+  return `${staleSyncHint(value, now) ? style.yellow(absolute) : absolute} ${relative}`;
 }
 
-export function formatStatus(report: StatusReport): string {
-  const auth = report.authenticated ? style.green('yes') : style.yellow('no (run `starepo auth`)');
+const LABEL_WIDTH = 14;
+
+export function formatStatus(report: StatusReport, now = Date.now()): string {
+  const field = (label: string, value: string) => `${style.gray(label.padEnd(LABEL_WIDTH))}${value}`;
+  const detail = (text: string) => `${' '.repeat(LABEL_WIDTH)}${text}`;
+
   const lines = [
-    `starepo ${report.version} (Node ${report.node})`,
+    `${style.bold(`starepo ${report.version}`)} ${style.gray(`(Node ${report.node})`)}`,
     '',
-    `Auth          ${auth}`,
-    `Database      ${report.database.path}`,
+    field('Auth', report.authenticated ? style.green('yes') : style.yellow('no (run `starepo auth`)')),
+    field('Database', report.database.path),
   ];
+  if (!report.database.ok) lines.push(detail(style.red(`error: ${report.database.error}`)));
 
-  if (!report.database.ok) {
-    lines.push(`               ${style.red(`error: ${report.database.error}`)}`);
-  }
-
-  lines.push(`Schema        ${report.schemaVersion ? `v${report.schemaVersion}` : 'unknown'}`);
-  lines.push(`Stars         ${report.stars === null ? 'unavailable' : String(report.stars)}`);
-  lines.push(`Last sync     ${formatTimestamp(report.lastSync)}`);
+  lines.push(
+    field('Schema', report.schemaVersion ? `v${report.schemaVersion}` : style.gray('unknown')),
+    field('Stars', report.stars === null ? style.gray('unavailable') : String(report.stars)),
+    field('Last sync', formatTimestamp(report.lastSync, now)),
+  );
 
   if (report.embeddings) {
     const { embedded, total, missing, model, version, status } = report.embeddings;
-    const coverage = total > 0 ? `${formatBar(embedded / total, 10)} ` : '';
-    lines.push(`Embeddings    ${coverage}${embedded}/${total} ready (${missing} missing)`);
+    const complete = missing === 0;
+    const paint = complete ? style.green : style.yellow;
+    const coverage = total > 0 ? `${paint(formatBar(embedded / total, 10))} ` : '';
+    const missingLabel = complete ? style.gray('(0 missing)') : style.yellow(`(${missing} missing)`);
+    lines.push(field('Embeddings', `${coverage}${embedded}/${total} ready ${missingLabel}`));
     const modelLabel = model && version ? `${model}@${version}` : 'none';
     const statusLabel = status === 'current' ? style.green(status) : status === 'outdated' ? style.yellow(status) : status;
-    lines.push(`Model         ${modelLabel} (${statusLabel})`);
+    lines.push(field('Model', `${modelLabel} (${statusLabel})`));
     if (status === 'outdated') {
-      lines.push(`               run \`starepo embed --force\` to rebuild with ${EMBEDDING_MODEL}@${EMBEDDING_VERSION}`);
+      lines.push(detail(style.gray(`run \`starepo embed --force\` to rebuild with ${EMBEDDING_MODEL}@${EMBEDDING_VERSION}`)));
     }
   } else {
-    lines.push('Embeddings    unavailable');
-    lines.push('Model         unavailable');
+    lines.push(field('Embeddings', style.gray('unavailable')), field('Model', style.gray('unavailable')));
   }
 
   return lines.join('\n');

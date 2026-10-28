@@ -26,7 +26,8 @@ export interface CliDeps {
   getStats: typeof getStats;
   parseListOptions: typeof parseListOptions;
   version: string;
-  log: (message?: string) => void;
+  /** A person at a terminal (stdin and stdout are TTYs), as opposed to a script or agent. */
+  interactive: boolean;
   error: (message?: string) => void;
   exit: (code: number) => never;
 }
@@ -43,7 +44,7 @@ const defaultDeps: CliDeps = {
   getStats,
   parseListOptions,
   version: VERSION,
-  log: (message?: string) => console.log(message),
+  interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY),
   error: (message?: string) => console.error(message),
   exit: (code: number): never => process.exit(code),
 };
@@ -121,6 +122,13 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
     .option('--oneline', 'Print each result on one line')
     .option('--no-pager', 'Do not page long output through $PAGER')
     .action(action(async (query: string | undefined, opts) => {
+      const hasInput = Boolean(query?.trim() || opts.query?.trim() || opts.lang || opts.topic ||
+        opts.since || opts.until || opts.days);
+      // Nothing to search for yet: at a terminal, let the user type it in the browser UI.
+      if (!hasInput && !opts.json && deps.interactive) {
+        await deps.runBrowse('');
+        return;
+      }
       const { count, lastSync } = await deps.getStats();
       if (count === 0) {
         throw new Error('No local data found. Run `starepo sync` first.');
@@ -185,13 +193,9 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
   return program;
 }
 
-export async function runCli(
-  argv = process.argv,
-  deps: CliDeps = defaultDeps,
-  interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY),
-): Promise<void> {
+export async function runCli(argv = process.argv, deps: CliDeps = defaultDeps): Promise<void> {
   // A bare `starepo` in a terminal opens the browser UI; elsewhere it prints help.
-  const args = argv.length <= 2 && interactive ? [...argv, 'browse'] : argv;
+  const args = argv.length <= 2 && deps.interactive ? [...argv, 'browse'] : argv;
   await createProgram(deps).parseAsync(args);
 }
 

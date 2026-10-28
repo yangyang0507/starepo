@@ -155,6 +155,16 @@ describe('browse view', () => {
     expect(text).toMatch(/▌ acme\/tui-kit/);
   });
 
+  it('gives the description room before topics on short terminals', () => {
+    const repo = makeRepo('acme/long', {
+      description: 'word '.repeat(60).trim(),
+      topics: JSON.stringify(['alpha', 'beta', 'gamma']),
+    });
+    const text = renderFrame(initialState([repo]), ctx(120, 14)).lines.map(stripAnsi).join('\n');
+    expect(text.match(/word word/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(text).not.toContain('#alpha');
+  });
+
   it('falls back to a description strip on narrow terminals', () => {
     const lines = renderFrame(initialState(repos), ctx(80, 12)).lines.map(stripAnsi);
     expect(lines.join('\n')).not.toContain('│');

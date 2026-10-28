@@ -49,7 +49,7 @@ Once installed, your AI agent can search your GitHub stars directly. Just ask na
 starepo auth
 ```
 
-Follow the prompts to authorize via GitHub Device Flow.
+starepo shows a one-time code and copies it to your clipboard; press Enter to open the GitHub device page, paste the code, and approve.
 
 ### 2. Sync Your Stars
 
@@ -167,6 +167,8 @@ starepo search "query" --sort forks --order asc  # Sort by forks ascending
 starepo search "query" --json
 starepo search "query" --oneline
 ```
+
+In a terminal, `starepo search` with no query or filters opens the interactive browser (see `browse`).
 
 **Search modes:**
 - If embeddings exist: **Hybrid search** (vector + keyword, ranked with reciprocal rank fusion)

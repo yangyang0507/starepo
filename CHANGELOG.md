@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `starepo browse [query]`, also opened by a bare `starepo` in a terminal: a full-screen UI that filters by keyword as you type, swaps in semantic results after a pause, and shows a preview pane on wide terminals. `Enter` opens the repo, `Ctrl-Y` copies its URL, `Tab` cycles sort, `Esc` clears / quits
+- `auth` copies the one-time code to the clipboard, opens the GitHub device page when you press Enter, and shows a spinner while waiting for approval
+- In a terminal, `starepo search` with no query or filters opens the interactive browser instead of failing
 - `info` accepts pasted GitHub URLs, resolves names case-insensitively, and suggests similarly named stars when nothing matches
 - `sync` shows a real progress bar with ETA while fetching, sized from GitHub's `rel="last"` page link
 - `search` / `list` page output longer than one screen through `$STAREPO_PAGER` / `$PAGER` (default `less`, with `LESS=FRX` unless set); `--no-pager` opts out
@@ -20,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - All status output from `sync`, `embed`, and `auth` goes to stderr; stdout carries only command results
 - `sync` and `embed` end with a one-line summary (e.g. `✓ Synced 1618 stars (+12 new, −3 removed)`) instead of several paragraphs
+- `status` uses gray labels, shows the last sync's relative age (yellow when stale), and colors embedding coverage by completeness
 - Every command reports failures the same way: one `error: …` line on stderr and exit code 1
 - `search` / `list` render an aligned table (index, owner/name, language, stars, age) modeled on `gh` list output: column headers on TTYs, GitHub language-color dots, right-aligned star counts, compact ages (`7w`, `11mo`, `2y`), and descriptions wrapped under each name with a hanging indent (max 2 lines, 90-column block); `--oneline` keeps the table and appends a truncated description
 - Query highlighting matches whole ASCII words only, so `ai` no longer lights up inside `OpenAI`
@@ -30,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Loading a cached embedding model no longer redraws a fake "Downloading model" bar hundreds of times per search; a transient spinner is shown instead, and real downloads report sizes in MB
 - TTY progress redraws are throttled to ~12 fps
 - Ctrl+C during a progress bar or spinner ends the line and restores the cursor
+- The browser UI's preview pane keeps at least three lines of description on short terminals, dropping topics first
+- A bare `starepo` before the first sync explains how to get started instead of a bare error
 
 ## [2.2.0] - 2026-09-04
 

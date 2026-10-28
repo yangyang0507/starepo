@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Octokit } from '@octokit/rest';
 
 function starredItem(overrides: Record<string, unknown> = {}) {
@@ -99,5 +99,69 @@ describe('github star fetching', () => {
     await fetchAllStars(mockOctokit(pages, links), (count, total) => calls.push([count, total]));
 
     expect(calls).toEqual([[1, 300], [2, 300], [3, 3]]);
+  });
+});
+
+describe('presentVerification', () => {
+  const verification = { verification_uri: 'https://github.com/login/device', user_code: 'ABCD-1234', expires_in: 900 };
+  let output: string[] = [];
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    output = [];
+  });
+
+  function captureStderr() {
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      output.push(String(chunk));
+      return true;
+    });
+  }
+
+  it('copies the code and opens the page after Enter when someone is at the terminal', async () => {
+    captureStderr();
+    const calls: string[] = [];
+    const { presentVerification } = await import('../src/lib/github.js');
+
+    await presentVerification(verification, {
+      interactive: true,
+      copy: async (text) => (calls.push(`copy ${text}`), true),
+      waitForEnter: async () => {
+        calls.push('enter');
+      },
+      open: async (url) => (calls.push(`open ${url}`), true),
+    });
+
+    expect(calls).toEqual(['copy ABCD-1234', 'enter', 'open https://github.com/login/device']);
+    expect(output.join('')).toContain('One-time code: ABCD-1234 (copied to clipboard)');
+    expect(output.join('')).toContain('Press Enter to open https://github.com/login/device');
+  });
+
+  it('prints the URL to visit when no browser can be launched', async () => {
+    captureStderr();
+    const { presentVerification } = await import('../src/lib/github.js');
+
+    await presentVerification(verification, {
+      interactive: true,
+      copy: async () => false,
+      waitForEnter: async () => {},
+      open: async () => false,
+    });
+
+    expect(output.join('')).not.toContain('copied');
+    expect(output.join('')).toContain('open https://github.com/login/device manually');
+  });
+
+  it('just prints instructions without prompting when nobody is at a terminal', async () => {
+    captureStderr();
+    const copy = vi.fn();
+    const waitForEnter = vi.fn();
+    const { presentVerification } = await import('../src/lib/github.js');
+
+    await presentVerification(verification, { interactive: false, copy, waitForEnter, open: vi.fn() });
+
+    expect(copy).not.toHaveBeenCalled();
+    expect(waitForEnter).not.toHaveBeenCalled();
+    expect(output.join('')).toContain('Open https://github.com/login/device and enter the code (expires in 15 minutes).');
   });
 });

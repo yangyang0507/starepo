@@ -116,3 +116,5 @@ npx starepo status --json
 3. **Poor semantic relevance** → Run `npx starepo embed --force` to fix incomplete embeddings
 4. **Filter + search** → Combine `--query` with `--lang`/`--topic`/`--days` for precise results
 5. **Automation** → Use `--json` flag to pipe results to `jq` or other tools. Empty search results are `[]`.
+6. **Prefer `--json` as an agent** → Text output is formatted for people: in a terminal it adds colors and column headers and pages long output through `less`, which waits for a keypress. If you must read text output, add `--no-pager` (or set `PAGER=cat`).
+7. **Never run bare `starepo` or `starepo browse`** → In a terminal they open a full-screen interactive UI that waits for keyboard input.
