@@ -7,6 +7,7 @@ English | [简体中文](./README.zh.md)
 ## Features
 
 - 🔍 **Semantic Search** - Natural language queries powered by local embeddings
+- 🖥️ **Interactive Browser** - Run `starepo` for a full-screen search-as-you-type UI with a preview pane
 - ⚡ **Fast Keyword Search** - Full-text search fallback for instant results
 - 🔃 **Flexible Sorting** - Sort results by stars, forks, starred date, or updated date
 - 🔐 **Zero Config** - GitHub Device Flow authentication, no tokens needed
@@ -64,6 +65,8 @@ starepo sync --no-embeddings
 ```
 
 ### 3. Search
+
+Run `starepo` with no arguments to browse interactively: type to search, `↑↓` to move, `Enter` to open in the browser.
 
 ```bash
 # Semantic search (natural language)
@@ -126,6 +129,27 @@ starepo embed --force      # Regenerate all embeddings
 - Resume interrupted embedding generation
 - Upgrade to a newer embedding model
 - Fix corrupted embeddings
+
+### `browse [query]`
+
+Full-screen interactive search. This is also what a bare `starepo` opens in a terminal; in scripts and pipes it prints help instead, so use `search --json` there.
+
+```bash
+starepo              # same as `starepo browse`
+starepo browse "vector database"
+```
+
+| Key | Action |
+|---|---|
+| typing | Filter instantly by keyword; semantic results replace them after a short pause |
+| `↑` `↓` / `Ctrl-P` `Ctrl-N` | Move the selection (`PgUp` `PgDn` `Home` `End` jump) |
+| `Enter` | Open the selected repo in your browser |
+| `Ctrl-Y` | Copy the repo URL |
+| `Tab` | Cycle sort: relevance → recently starred → most stars → recently updated |
+| `Ctrl-W` / `Ctrl-U` | Delete a word / clear the query |
+| `Esc` | Clear the query; press again to quit (`Ctrl-C` quits anytime) |
+
+Wide terminals (100+ columns) show a preview pane with the description, topics, and dates; narrower ones show the selected description in a strip under the list.
 
 ### `search [query]`
 

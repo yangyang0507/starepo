@@ -8,6 +8,7 @@ import { runSearch } from './commands/search.js';
 import { runList, runInfo } from './commands/list.js';
 import { runEmbed } from './commands/embed.js';
 import { runStatus } from './commands/status.js';
+import { runBrowse } from './commands/browse.js';
 import { getStats } from './lib/storage.js';
 import { parseListOptions } from './lib/sort.js';
 import { style } from './lib/term.js';
@@ -21,6 +22,7 @@ export interface CliDeps {
   runInfo: typeof runInfo;
   runEmbed: typeof runEmbed;
   runStatus: typeof runStatus;
+  runBrowse: typeof runBrowse;
   getStats: typeof getStats;
   parseListOptions: typeof parseListOptions;
   version: string;
@@ -37,6 +39,7 @@ const defaultDeps: CliDeps = {
   runInfo,
   runEmbed,
   runStatus,
+  runBrowse,
   getStats,
   parseListOptions,
   version: VERSION,
@@ -165,6 +168,13 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
     }));
 
   program
+    .command('browse [query]')
+    .description('Browse and search your stars interactively (default when run with no arguments in a terminal)')
+    .action(action(async (query: string | undefined) => {
+      await deps.runBrowse(query ?? '');
+    }));
+
+  program
     .command('status')
     .description('Show local sync, embedding, and database status')
     .option('--json', 'Output as JSON')
@@ -175,8 +185,14 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
   return program;
 }
 
-export async function runCli(argv = process.argv, deps: CliDeps = defaultDeps): Promise<void> {
-  await createProgram(deps).parseAsync(argv);
+export async function runCli(
+  argv = process.argv,
+  deps: CliDeps = defaultDeps,
+  interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY),
+): Promise<void> {
+  // A bare `starepo` in a terminal opens the browser UI; elsewhere it prints help.
+  const args = argv.length <= 2 && interactive ? [...argv, 'browse'] : argv;
+  await createProgram(deps).parseAsync(args);
 }
 
 function realpathOrOriginal(path: string): string {

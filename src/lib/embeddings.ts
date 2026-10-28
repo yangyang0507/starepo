@@ -73,6 +73,15 @@ export function applyModelDownloadProgress(
   }
 }
 
+function modelCacheDir(): string {
+  return join(getDataDir(), 'models');
+}
+
+/** Whether the model weights are on disk, i.e. loading them needs no download. */
+export function isEmbeddingModelCached(): boolean {
+  return existsSync(join(modelCacheDir(), EMBEDDING_MODEL, EMBEDDING_MODEL_WEIGHTS));
+}
+
 async function getPipeline(): Promise<FeatureExtractionPipeline> {
   if (_pipeline) return _pipeline;
   if (_pipelinePromise) return _pipelinePromise;
@@ -82,12 +91,12 @@ async function getPipeline(): Promise<FeatureExtractionPipeline> {
 
     // Store model cache in XDG data dir (~/.local/share/starepo/models)
     // instead of node_modules, so it persists across installs and updates.
-    const modelCacheDir = join(getDataDir(), 'models');
-    env.cacheDir = modelCacheDir;
+    const cacheDir = modelCacheDir();
+    env.cacheDir = cacheDir;
 
     // transformers.js reports byte progress even when reading its own cache, so
     // decide from disk whether this is a real download worth a progress bar.
-    if (existsSync(join(modelCacheDir, EMBEDDING_MODEL, EMBEDDING_MODEL_WEIGHTS))) {
+    if (isEmbeddingModelCached()) {
       const spinner = new Spinner('Loading embedding model…').start();
       try {
         _pipeline = (await pipeline('feature-extraction', EMBEDDING_MODEL, {
@@ -107,7 +116,7 @@ async function getPipeline(): Promise<FeatureExtractionPipeline> {
       } finally {
         download.current?.finish();
       }
-      success(`Embedding model cached in ${modelCacheDir}`);
+      success(`Embedding model cached in ${cacheDir}`);
     }
     return _pipeline;
   })();

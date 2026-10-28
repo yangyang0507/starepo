@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `starepo browse [query]`, also opened by a bare `starepo` in a terminal: a full-screen UI that filters by keyword as you type, swaps in semantic results after a pause, and shows a preview pane on wide terminals. `Enter` opens the repo, `Ctrl-Y` copies its URL, `Tab` cycles sort, `Esc` clears / quits
 - `info` accepts pasted GitHub URLs, resolves names case-insensitively, and suggests similarly named stars when nothing matches
 - `sync` shows a real progress bar with ETA while fetching, sized from GitHub's `rel="last"` page link
 - `search` / `list` page output longer than one screen through `$STAREPO_PAGER` / `$PAGER` (default `less`, with `LESS=FRX` unless set); `--no-pager` opts out

@@ -94,7 +94,7 @@ const MAX_BLOCK_WIDTH = 90;
 const MIN_NAME_WIDTH = 16;
 const MAX_LANGUAGE_WIDTH = 12;
 
-interface Cell {
+export interface Cell {
   text: string;
   width: number;
 }
@@ -112,7 +112,7 @@ function nameCell(fullName: string, width: number, url: string, link: boolean): 
   return { text: link ? hyperlink(styled, url) : styled, width: displayWidth(plain) };
 }
 
-function languageCell(language: string): Cell {
+export function languageCell(language: string): Cell {
   if (!language) return cell('');
   const name = truncate(shortLanguageName(language), MAX_LANGUAGE_WIDTH - 2);
   const color = languageColor(language);

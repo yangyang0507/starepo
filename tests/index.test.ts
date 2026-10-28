@@ -3,7 +3,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { pathToFileURL } from 'url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createProgram, isDirectRun, type CliDeps } from '../src/index.js';
+import { createProgram, isDirectRun, runCli, type CliDeps } from '../src/index.js';
 import { parseListOptions } from '../src/lib/sort.js';
 
 function makeDeps(overrides: Partial<CliDeps> = {}): CliDeps {
@@ -15,6 +15,7 @@ function makeDeps(overrides: Partial<CliDeps> = {}): CliDeps {
     runInfo: vi.fn(async () => {}) as unknown as CliDeps['runInfo'],
     runEmbed: vi.fn(async () => {}) as unknown as CliDeps['runEmbed'],
     runStatus: vi.fn(async () => {}) as unknown as CliDeps['runStatus'],
+    runBrowse: vi.fn(async () => {}) as unknown as CliDeps['runBrowse'],
     getStats: vi.fn(async () => ({ count: 1, lastSync: null })) as unknown as CliDeps['getStats'],
     parseListOptions,
     version: '9.9.9-test',
@@ -52,6 +53,16 @@ describe('createProgram', () => {
     expect(deps.runEmbed).toHaveBeenCalledWith({ force: true });
     expect(deps.runInfo).toHaveBeenCalledWith('user/repo');
     expect(deps.runStatus).toHaveBeenCalledWith({ json: true });
+  });
+
+  it('opens the browser UI for a bare invocation only in a terminal', async () => {
+    const deps = makeDeps();
+
+    await parseUserArgs(deps, ['browse', 'vector db']);
+    await runCli(['node', 'starepo'], deps, true);
+
+    expect(deps.runBrowse).toHaveBeenNthCalledWith(1, 'vector db');
+    expect(deps.runBrowse).toHaveBeenNthCalledWith(2, '');
   });
 
   it('reports failures from any command as a single error line and exit 1', async () => {

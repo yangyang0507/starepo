@@ -346,8 +346,17 @@ export function formatProgressLine(input: ProgressLineInput): string {
   return `${label} ${formatBar(fraction, barWidth)} ${suffix}`;
 }
 
+// A full-screen UI owns the terminal; status lines, spinners and progress bars
+// written underneath it would scribble over the frame.
+let statusMuted = false;
+
+export function muteStatus(muted: boolean): void {
+  statusMuted = muted;
+}
+
 /** Writes a status line to stderr, keeping stdout for command results. */
 export function note(message = ''): void {
+  if (statusMuted) return;
   process.stderr.write(`${message}\n`);
 }
 
@@ -427,7 +436,7 @@ export class Progress {
 
   /** Records progress; `total` may be passed when it only becomes known (or exact) mid-run. */
   update(done: number, total?: number): void {
-    if (this.finished) return;
+    if (this.finished || statusMuted) return;
     if (total !== undefined) this.total = total;
     const ts = this.now();
     if (ts - this.startedAt < (this.options.delayMs ?? 0)) return;
@@ -475,7 +484,7 @@ export class Spinner {
   }
 
   start(): this {
-    if (!this.stream.isTTY || this.timer) return this;
+    if (!this.stream.isTTY || this.timer || statusMuted) return this;
     claimLine(this.stream);
     this.render();
     this.timer = setInterval(() => this.render(), TTY_REDRAW_INTERVAL_MS);
