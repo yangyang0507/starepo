@@ -1,7 +1,7 @@
 import { Octokit } from '@octokit/rest';
 import { createOAuthDeviceAuth } from '@octokit/auth-oauth-device';
 import { RepoInput } from './storage.js';
-import { style } from './term.js';
+import { note, style } from './term.js';
 
 // GitHub OAuth App client ID for device flow (public, non-secret)
 const GITHUB_CLIENT_ID = 'Ov23liAWejDY5000tT9s';
@@ -49,10 +49,10 @@ export async function runDeviceFlow(): Promise<DeviceFlowResult> {
     clientId: GITHUB_CLIENT_ID,
     scopes: ['read:user'],
     onVerification(verification) {
-      console.log('\nTo authenticate with GitHub:');
-      console.log(`  1. Open: ${verification.verification_uri}`);
-      console.log(`  2. Enter code: ${style.bold(verification.user_code)}`);
-      console.log(`\nWaiting for authorization (expires in ${Math.round(verification.expires_in / 60)} minutes)...`);
+      note('\nTo authenticate with GitHub:');
+      note(`  1. Open: ${verification.verification_uri}`);
+      note(`  2. Enter code: ${style.bold(verification.user_code, process.stderr)}`);
+      note(`\nWaiting for authorization (expires in ${Math.round(verification.expires_in / 60)} minutes)...`);
     },
   });
 
@@ -116,19 +116,38 @@ function starredResponseItems(data: unknown): StarredRepoItem[] {
   return data;
 }
 
+const STARS_PER_PAGE = 100;
+
+function lastPageFromLink(link: string | undefined): number | undefined {
+  const match = link?.match(/[?&]page=(\d+)[^>]*>;\s*rel="last"/);
+  return match ? Number(match[1]) : undefined;
+}
+
+/**
+ * `onPage` receives a running count and the expected total: an upper bound
+ * taken from the first page's `rel="last"` link, made exact on the last page.
+ */
 export async function fetchAllStars(
   octokit: Octokit,
-  onPage?: (count: number, total: number) => void
+  onPage?: (count: number, total?: number) => void
 ): Promise<RepoInput[]> {
   const results: RepoInput[] = [];
+  let total: number | undefined;
 
   for await (const response of octokit.paginate.iterator(
     octokit.activity.listReposStarredByAuthenticatedUser,
-    { per_page: 100, headers: { Accept: 'application/vnd.github.star+json' } }
+    { per_page: STARS_PER_PAGE, headers: { Accept: 'application/vnd.github.star+json' } }
   )) {
     const items = starredResponseItems(response.data);
     results.push(...items.map(mapToRepoInput));
-    onPage?.(results.length, -1);
+    const link: string | undefined = response.headers?.link;
+    if (!link?.includes('rel="next"')) {
+      total = results.length;
+    } else {
+      const lastPage = lastPageFromLink(link);
+      total ??= lastPage === undefined ? undefined : lastPage * STARS_PER_PAGE;
+    }
+    onPage?.(results.length, total);
   }
 
   return results;
@@ -143,7 +162,7 @@ export async function fetchStarsSince(
 
   for await (const response of octokit.paginate.iterator(
     octokit.activity.listReposStarredByAuthenticatedUser,
-    { per_page: 100, sort: 'created', direction: 'desc', headers: { Accept: 'application/vnd.github.star+json' } }
+    { per_page: STARS_PER_PAGE, sort: 'created', direction: 'desc', headers: { Accept: 'application/vnd.github.star+json' } }
   )) {
     const items = starredResponseItems(response.data);
     let done = false;

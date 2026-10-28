@@ -21,15 +21,15 @@ function starredItem(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function mockOctokit(pages: unknown[][]): Octokit {
+function mockOctokit(pages: unknown[][], links: string[] = []): Octokit {
   return {
     activity: {
       listReposStarredByAuthenticatedUser: () => undefined,
     },
     paginate: {
       iterator: async function* () {
-        for (const page of pages) {
-          yield { data: page };
+        for (const [i, page] of pages.entries()) {
+          yield { data: page, headers: { link: links[i] } };
         }
       },
     },
@@ -83,5 +83,21 @@ describe('github star fetching', () => {
     await expect(fetchAllStars(mockOctokit([
       [{ id: 1, full_name: 'user/repo' }],
     ]))).rejects.toThrow('Unexpected GitHub starred repository response');
+  });
+
+  it('reports an estimated total from the last-page link, made exact on the last page', async () => {
+    const { fetchAllStars } = await import('../src/lib/github.js');
+    const base = 'https://api.github.com/user/starred?per_page=100';
+    const pages = [[starredItem()], [starredItem()], [starredItem()]];
+    const links = [
+      `<${base}&page=2>; rel="next", <${base}&page=3>; rel="last"`,
+      `<${base}&page=1>; rel="prev", <${base}&page=3>; rel="next", <${base}&page=3>; rel="last"`,
+      `<${base}&page=2>; rel="prev", <${base}&page=1>; rel="first"`,
+    ];
+    const calls: Array<[number, number | undefined]> = [];
+
+    await fetchAllStars(mockOctokit(pages, links), (count, total) => calls.push([count, total]));
+
+    expect(calls).toEqual([[1, 300], [2, 300], [3, 3]]);
   });
 });

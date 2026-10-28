@@ -1,67 +1,44 @@
 import {
   EMBEDDING_MODEL,
-  EMBEDDING_MODEL_DOWNLOAD_NOTE,
   EMBEDDING_VERSION,
   generateAndStoreEmbeddings,
   getEmbeddingStatus,
 } from '../lib/embeddings.js';
-import { Progress } from '../lib/term.js';
+import { note, Progress, success, warn } from '../lib/term.js';
 
 export async function runEmbed(options: { force?: boolean } = {}): Promise<void> {
   const status = await getEmbeddingStatus();
+  const rebuildHint = `Run \`starepo embed --force\` to rebuild with ${EMBEDDING_MODEL}@${EMBEDDING_VERSION}.`;
+  const storedModel = `${status.metadata.model}@${status.metadata.version}`;
 
   if (status.totalRepos === 0) {
-    console.log('No repositories found. Run `starepo sync` first.');
+    note('No repositories found. Run `starepo sync` first.');
     return;
   }
 
   if (!options.force && status.missingRepos === 0) {
-    console.log('All repositories already have embeddings.');
     if (status.metadataStatus === 'outdated') {
-      console.log(
-        `Stored embeddings use ${status.metadata.model}@${status.metadata.version}; ` +
-        `run \`starepo embed --force\` to rebuild with ${EMBEDDING_MODEL}@${EMBEDDING_VERSION}.`
-      );
+      warn(`All ${status.totalRepos} repos have embeddings, but they use ${storedModel}. ${rebuildHint}`);
     } else {
-      console.log('Use --force to regenerate all embeddings.');
+      success(`All ${status.totalRepos} repos already have embeddings. Use --force to regenerate.`);
     }
     return;
   }
 
-  console.log(
-    `Embedding coverage: ${status.embeddedRepos}/${status.totalRepos} ready, ${status.missingRepos} missing.`
-  );
-  if (status.metadataStatus === 'outdated') {
-    console.log(
-      `Stored embeddings use ${status.metadata.model}@${status.metadata.version}; ` +
-      `${options.force ? 'rebuilding all vectors' : 'this run only fills missing vectors'}.`
-    );
+  if (!options.force && status.metadataStatus === 'outdated') {
+    warn(`Stored embeddings use ${storedModel}; this run only fills missing vectors. ${rebuildHint}`);
   }
-
-  const total = options.force ? status.totalRepos : status.missingRepos;
-  console.log(`${options.force ? 'Regenerating' : 'Generating'} embeddings for ${total} repositories...`);
-  console.log(`(${EMBEDDING_MODEL_DOWNLOAD_NOTE})\n`);
 
   let progress: Progress | undefined;
   const result = await generateAndStoreEmbeddings({
     force: options.force,
     onProgress: (done, total) => {
-      progress ??= new Progress({ label: 'Embedding', total });
+      progress ??= new Progress({ label: options.force ? 'Re-embedding' : 'Embedding', total });
       progress.update(done);
     },
   });
   progress?.finish();
 
-  console.log(`Done! Processed ${result.processedRepos} repositories.`);
-  if (result.skippedRepos > 0) {
-    console.log(`Skipped ${result.skippedRepos} repositories that already had embeddings.`);
-  }
-  if (!options.force && result.metadataStatusBefore === 'outdated') {
-    console.log(
-      `Older vectors still remain. Run \`starepo embed --force\` to fully rebuild with ${EMBEDDING_MODEL}@${EMBEDDING_VERSION}.`
-    );
-  }
   const coveredRepos = Math.min(result.totalRepos, result.processedRepos + result.skippedRepos);
-  console.log(`Embedding coverage is now ${coveredRepos}/${result.totalRepos}.`);
-  console.log('Semantic search is now available.');
+  success(`Embedded ${result.processedRepos} repos · coverage ${coveredRepos}/${result.totalRepos}`);
 }

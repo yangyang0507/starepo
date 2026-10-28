@@ -1,8 +1,9 @@
 import { getDataDir } from './config.js';
 import { setMeta, getMeta } from './config.js';
+import { existsSync } from 'fs';
 import { join } from 'path';
 import { Repo } from './storage.js';
-import { Progress } from './term.js';
+import { note, Progress, Spinner, success } from './term.js';
 
 type FeatureExtractionPipeline = (
   text: string | string[],
@@ -17,9 +18,8 @@ const EMBEDDING_BATCH_SIZE = 8;
 const EMBEDDING_WRITE_BATCH_SIZE = 25;
 export const EMBEDDING_MODEL = 'Xenova/bge-m3';
 export const EMBEDDING_MODEL_DTYPE = 'q8';
-export const EMBEDDING_MODEL_DOWNLOAD_NOTE =
-  `First run downloads the ${EMBEDDING_MODEL} ${EMBEDDING_MODEL_DTYPE} embedding model ` +
-  '(about 550 MB) and caches it under the starepo data directory.';
+// transformers.js stores q8 weights under this name inside the model's cache folder.
+const EMBEDDING_MODEL_WEIGHTS = join('onnx', 'model_quantized.onnx');
 export const EMBEDDING_VERSION = '2';
 
 export interface EmbeddingMetadata {
@@ -61,7 +61,7 @@ export interface ModelDownloadProgressInfo {
 export function applyModelDownloadProgress(
   info: ModelDownloadProgressInfo,
   slot: { current?: Progress },
-  createProgress: (total: number) => Progress = (total) => new Progress({ label: 'Downloading model', total }),
+  createProgress: (total: number) => Progress = (total) => new Progress({ label: 'Downloading', total, unit: 'bytes' }),
 ): void {
   if (info.status === 'progress_total' && typeof info.loaded === 'number' && typeof info.total === 'number' && info.total > 0) {
     slot.current ??= createProgress(info.total);
@@ -85,17 +85,30 @@ async function getPipeline(): Promise<FeatureExtractionPipeline> {
     const modelCacheDir = join(getDataDir(), 'models');
     env.cacheDir = modelCacheDir;
 
-    process.stderr.write(`Loading embedding model ${EMBEDDING_MODEL} (${EMBEDDING_MODEL_DTYPE})...\n`);
-    const download = { current: undefined as Progress | undefined };
-    try {
-      _pipeline = (await pipeline('feature-extraction', EMBEDDING_MODEL, {
-        dtype: EMBEDDING_MODEL_DTYPE,
-        progress_callback: (info: ModelDownloadProgressInfo) => applyModelDownloadProgress(info, download),
-      })) as unknown as FeatureExtractionPipeline;
-    } finally {
-      download.current?.finish();
+    // transformers.js reports byte progress even when reading its own cache, so
+    // decide from disk whether this is a real download worth a progress bar.
+    if (existsSync(join(modelCacheDir, EMBEDDING_MODEL, EMBEDDING_MODEL_WEIGHTS))) {
+      const spinner = new Spinner('Loading embedding model…').start();
+      try {
+        _pipeline = (await pipeline('feature-extraction', EMBEDDING_MODEL, {
+          dtype: EMBEDDING_MODEL_DTYPE,
+        })) as unknown as FeatureExtractionPipeline;
+      } finally {
+        spinner.stop();
+      }
+    } else {
+      note(`Downloading embedding model ${EMBEDDING_MODEL} (${EMBEDDING_MODEL_DTYPE}, ~550 MB, one-time)…`);
+      const download = { current: undefined as Progress | undefined };
+      try {
+        _pipeline = (await pipeline('feature-extraction', EMBEDDING_MODEL, {
+          dtype: EMBEDDING_MODEL_DTYPE,
+          progress_callback: (info: ModelDownloadProgressInfo) => applyModelDownloadProgress(info, download),
+        })) as unknown as FeatureExtractionPipeline;
+      } finally {
+        download.current?.finish();
+      }
+      success(`Embedding model cached in ${modelCacheDir}`);
     }
-    process.stderr.write('Embedding model ready.\n');
     return _pipeline;
   })();
 

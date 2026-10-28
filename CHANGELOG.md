@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `info` accepts pasted GitHub URLs, resolves names case-insensitively, and suggests similarly named stars when nothing matches
+- `sync` shows a real progress bar with ETA while fetching, sized from GitHub's `rel="last"` page link
+
+### Changed
+
+- All status output from `sync`, `embed`, and `auth` goes to stderr; stdout carries only command results
+- `sync` and `embed` end with a one-line summary (e.g. `✓ Synced 1618 stars (+12 new, −3 removed)`) instead of several paragraphs
+- Every command reports failures the same way: one `error: …` line on stderr and exit code 1
+
+### Fixed
+
+- Loading a cached embedding model no longer redraws a fake "Downloading model" bar hundreds of times per search; a transient spinner is shown instead, and real downloads report sizes in MB
+- TTY progress redraws are throttled to ~12 fps
+- Ctrl+C during a progress bar or spinner ends the line and restores the cursor
+
 ## [2.2.0] - 2026-09-04
 
 ### Added

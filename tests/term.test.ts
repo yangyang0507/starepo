@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   displayWidth,
   formatBar,
+  formatBytes,
   formatCount,
   formatDuration,
   formatProgressLine,
@@ -9,6 +10,7 @@ import {
   hyperlink,
   Progress,
   shouldUseColor,
+  Spinner,
   truncate,
   writeProgressLine,
 } from '../src/lib/term.js';
@@ -165,5 +167,98 @@ describe('Progress', () => {
     expect(chunks.some((chunk) => chunk.includes('1/2'))).toBe(true);
     expect(chunks.at(-1)).toContain('2/2');
     expect(chunks.every((chunk) => chunk.endsWith('\n'))).toBe(true);
+  });
+});
+
+function fakeStream(isTTY: boolean) {
+  const chunks: string[] = [];
+  const stream = {
+    isTTY,
+    columns: 80,
+    write(chunk: string) {
+      chunks.push(chunk);
+      return true;
+    },
+  } as unknown as NodeJS.WriteStream;
+  return { stream, chunks };
+}
+
+describe('formatBytes', () => {
+  it('scales to binary units', () => {
+    expect(formatBytes(512)).toBe('512 B');
+    expect(formatBytes(1536)).toBe('1.5 KB');
+    expect(formatBytes(586_779_294)).toBe('560 MB');
+  });
+
+  it('formats byte progress lines with byte rates', () => {
+    const line = formatProgressLine({
+      label: 'Downloading',
+      done: 100 * 1024 * 1024,
+      total: 400 * 1024 * 1024,
+      elapsedMs: 10_000,
+      unit: 'bytes',
+    });
+    expect(line).toBe('Downloading 100 MB/400 MB (25%) 10.0 MB/s ETA 30s');
+  });
+});
+
+describe('Progress on a TTY', () => {
+  it('throttles redraws but always draws completion', () => {
+    const { stream, chunks } = fakeStream(true);
+    let now = 0;
+    const progress = new Progress({ label: 'Embedding', total: 100, stream, now: () => now });
+
+    for (let done = 1; done < 100; done++) {
+      now = done; // 1ms apart: far faster than a terminal can usefully show
+      progress.update(done);
+    }
+    now = 100;
+    progress.update(100);
+    progress.finish();
+
+    const redraws = chunks.filter((chunk) => chunk.startsWith('\r'));
+    expect(redraws.length).toBeLessThanOrEqual(3);
+    expect(redraws.at(-1)).toContain('100/100');
+  });
+
+  it('stays silent when the work finishes inside delayMs', () => {
+    const { stream, chunks } = fakeStream(true);
+    let now = 0;
+    const progress = new Progress({ label: 'Loading', total: 10, stream, now: () => now, delayMs: 500 });
+
+    now = 100;
+    progress.update(10);
+    progress.finish();
+
+    expect(chunks).toEqual([]);
+  });
+
+  it('accepts a total discovered mid-run', () => {
+    const { stream, chunks } = fakeStream(false);
+    const progress = new Progress({ label: 'Fetching stars', stream });
+
+    progress.update(100, 300);
+    progress.update(250, 250);
+
+    expect(chunks[0]).toContain('100/300');
+    expect(chunks.at(-1)).toContain('250/250 (100%)');
+  });
+});
+
+describe('Spinner', () => {
+  it('prints only the final message when not on a TTY', () => {
+    const { stream, chunks } = fakeStream(false);
+    const spinner = new Spinner('Saving…', { stream }).start();
+    spinner.stop('done');
+    expect(chunks).toEqual(['done\n']);
+  });
+
+  it('erases itself and restores the cursor on a TTY', () => {
+    const { stream, chunks } = fakeStream(true);
+    const spinner = new Spinner('Saving…', { stream }).start();
+    spinner.stop();
+
+    expect(chunks.join('')).toContain('Saving…');
+    expect(chunks.at(-1)).toBe('\x1b[?25h');
   });
 });

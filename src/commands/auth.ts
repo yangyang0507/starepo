@@ -1,5 +1,6 @@
 import { getToken, saveToken } from '../lib/config.js';
 import { runDeviceFlow, createOctokit, getAuthenticatedUser } from '../lib/github.js';
+import { note, success, warn } from '../lib/term.js';
 
 export async function runAuth(options: { force?: boolean } = {}): Promise<string> {
   const existing = getToken();
@@ -7,20 +8,21 @@ export async function runAuth(options: { force?: boolean } = {}): Promise<string
     try {
       const octokit = createOctokit(existing);
       const user = await getAuthenticatedUser(octokit);
-      console.log(`Already authenticated as: ${user}`);
+      success(`Already authenticated as ${user}`);
       return existing;
     } catch {
-      console.log('Stored token is invalid, re-authenticating...');
+      warn('Stored token is invalid, re-authenticating…');
     }
   }
 
-  console.log('Starting GitHub authentication via Device Flow...');
+  note('Starting GitHub authentication via Device Flow…');
   const { token } = await runDeviceFlow();
   saveToken(token);
 
   const octokit = createOctokit(token);
   const user = await getAuthenticatedUser(octokit);
-  console.log(`\nAuthenticated successfully as: ${user}`);
+  note();
+  success(`Authenticated as ${user}`);
 
   return token;
 }
@@ -28,7 +30,7 @@ export async function runAuth(options: { force?: boolean } = {}): Promise<string
 export async function ensureAuth(): Promise<string> {
   const token = getToken();
   if (!token) {
-    console.log('No authentication found. Starting GitHub login...\n');
+    note('No authentication found. Starting GitHub login…');
     return runAuth();
   }
   return token;

@@ -54,6 +54,18 @@ describe('createProgram', () => {
     expect(deps.runStatus).toHaveBeenCalledWith({ json: true });
   });
 
+  it('reports failures from any command as a single error line and exit 1', async () => {
+    const deps = makeDeps({
+      runInfo: vi.fn(async () => {
+        throw new Error('Repository "x/y" not found in your stars.');
+      }) as unknown as CliDeps['runInfo'],
+    });
+
+    await expect(parseUserArgs(deps, ['info', 'x/y'])).rejects.toThrow('exit:1');
+
+    expect(deps.error).toHaveBeenCalledWith(expect.stringContaining('error: Repository "x/y" not found'));
+  });
+
   it('parses search options and checks local data before dispatching', async () => {
     const deps = makeDeps();
 
@@ -95,7 +107,7 @@ describe('createProgram', () => {
 
     await expect(parseUserArgs(deps, ['search', 'react'])).rejects.toThrow('exit:1');
 
-    expect(deps.log).toHaveBeenCalledWith('No local data found. Run `starepo sync` first.');
+    expect(deps.error).toHaveBeenCalledWith(expect.stringContaining('No local data found. Run `starepo sync` first.'));
     expect(deps.runSearch).not.toHaveBeenCalled();
   });
 

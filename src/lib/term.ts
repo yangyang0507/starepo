@@ -196,6 +196,21 @@ export function truncate(text: string, width: number): string {
   return `${out}…`;
 }
 
+export function formatBytes(bytes: number): string {
+  const n = Math.max(0, bytes);
+  if (n < 1024) return `${Math.round(n)} B`;
+  const units = ['KB', 'MB', 'GB'];
+  let value = n / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return `${value >= 100 ? value.toFixed(0) : value.toFixed(1)} ${units[unit]}`;
+}
+
+export type ProgressUnit = 'items' | 'bytes';
+
 export interface ProgressLineInput {
   label: string;
   done: number;
@@ -203,25 +218,65 @@ export interface ProgressLineInput {
   elapsedMs: number;
   barWidth?: number;
   tty?: boolean;
+  unit?: ProgressUnit;
 }
 
 export function formatProgressLine(input: ProgressLineInput): string {
-  const { label, done, total, elapsedMs, barWidth = 20, tty = false } = input;
-  if (total === undefined) return `${label} ${done}`;
+  const { label, done, total, elapsedMs, barWidth = 20, tty = false, unit = 'items' } = input;
+  const amount = unit === 'bytes' ? formatBytes : String;
+  if (total === undefined) return `${label} ${amount(done)}`;
 
   const pct = total === 0 ? 100 : Math.min(100, Math.round((done / total) * 100));
   const elapsedSec = elapsedMs / 1000;
   const rate = elapsedSec > 0.2 ? done / elapsedSec : 0;
   const remaining = rate > 0 ? Math.max(0, (total - done) / rate) : null;
-  const suffix = remaining === null ? `${done}/${total} (${pct}%)` : `${done}/${total} (${pct}%) ${rate.toFixed(1)}/s ETA ${formatDuration(remaining)}`;
+  const counts = `${amount(done)}/${amount(total)} (${pct}%)`;
+  const speed = unit === 'bytes' ? `${formatBytes(rate)}/s` : `${rate.toFixed(1)}/s`;
+  const suffix = remaining === null ? counts : `${counts} ${speed} ETA ${formatDuration(remaining)}`;
 
   if (!tty) return `${label} ${suffix}`;
   const fraction = total === 0 ? 1 : done / total;
   return `${label} ${formatBar(fraction, barWidth)} ${suffix}`;
 }
 
-export function writeBanner(message: string, stream: NodeJS.WriteStream = process.stderr): void {
-  stream.write(`${message}\n`);
+/** Writes a status line to stderr, keeping stdout for command results. */
+export function note(message = ''): void {
+  process.stderr.write(`${message}\n`);
+}
+
+export function success(message: string): void {
+  note(`${style.green('✓', process.stderr)} ${message}`);
+}
+
+export function warn(message: string): void {
+  note(`${style.yellow('!', process.stderr)} ${message}`);
+}
+
+const HIDE_CURSOR = `${ESC}[?25l`;
+const SHOW_CURSOR = `${ESC}[?25h`;
+
+// A progress bar or spinner owns the cursor's row while it redraws. Track it so
+// Ctrl+C ends that row and restores the cursor instead of leaving the shell
+// prompt glued to a half-drawn line.
+let liveStream: NodeJS.WriteStream | null = null;
+
+function onInterrupt(): void {
+  liveStream?.write(`${SHOW_CURSOR}\n`);
+  process.exit(130);
+}
+
+function claimLine(stream: NodeJS.WriteStream): void {
+  if (liveStream === stream) return;
+  if (!liveStream) process.on('SIGINT', onInterrupt);
+  liveStream = stream;
+  stream.write(HIDE_CURSOR);
+}
+
+function releaseLine(stream: NodeJS.WriteStream): void {
+  if (liveStream !== stream) return;
+  liveStream = null;
+  process.off('SIGINT', onInterrupt);
+  stream.write(SHOW_CURSOR);
 }
 
 export function writeProgressLine(stream: NodeJS.WriteStream, line: string): void {
@@ -236,44 +291,109 @@ export function writeProgressLine(stream: NodeJS.WriteStream, line: string): voi
 export interface ProgressOptions {
   label: string;
   total?: number;
+  unit?: ProgressUnit;
   stream?: NodeJS.WriteStream;
   now?: () => number;
   barWidth?: number;
+  /** Stay silent until the work has run this long, so fast operations print nothing. */
+  delayMs?: number;
 }
+
+const TTY_REDRAW_INTERVAL_MS = 80;
+const LOG_LINE_INTERVAL_MS = 1000;
 
 export class Progress {
   private readonly stream: NodeJS.WriteStream;
   private readonly now: () => number;
   private readonly startedAt: number;
+  private total: number | undefined;
   private lastEmitAt = Number.NEGATIVE_INFINITY;
+  private rendered = false;
   private finished = false;
 
   constructor(private readonly options: ProgressOptions) {
     this.stream = options.stream ?? process.stderr;
     this.now = options.now ?? Date.now;
     this.startedAt = this.now();
+    this.total = options.total;
   }
 
-  update(done: number): void {
+  /** Records progress; `total` may be passed when it only becomes known (or exact) mid-run. */
+  update(done: number, total?: number): void {
     if (this.finished) return;
+    if (total !== undefined) this.total = total;
     const ts = this.now();
-    const total = this.options.total;
-    const complete = total !== undefined && done >= total;
-    if (!this.stream.isTTY && !complete && ts - this.lastEmitAt < 1000) return;
+    if (ts - this.startedAt < (this.options.delayMs ?? 0)) return;
+    const complete = this.total !== undefined && done >= this.total;
+    const interval = this.stream.isTTY ? TTY_REDRAW_INTERVAL_MS : LOG_LINE_INTERVAL_MS;
+    if (!complete && ts - this.lastEmitAt < interval) return;
     this.lastEmitAt = ts;
+    if (this.stream.isTTY) claimLine(this.stream);
+    this.rendered = true;
     writeProgressLine(this.stream, formatProgressLine({
       label: this.options.label,
       done,
-      total,
+      total: this.total,
       elapsedMs: ts - this.startedAt,
       barWidth: this.options.barWidth,
       tty: Boolean(this.stream.isTTY),
+      unit: this.options.unit,
     }));
   }
 
   finish(): void {
     if (this.finished) return;
     this.finished = true;
-    if (this.stream.isTTY) this.stream.write('\n');
+    if (this.stream.isTTY && this.rendered) {
+      this.stream.write('\n');
+      releaseLine(this.stream);
+    }
+  }
+}
+
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+/**
+ * A transient one-line activity indicator. On a TTY it animates and erases
+ * itself when stopped; elsewhere it prints nothing, so logs only get the
+ * optional final message.
+ */
+export class Spinner {
+  private readonly stream: NodeJS.WriteStream;
+  private timer: NodeJS.Timeout | null = null;
+  private frame = 0;
+
+  constructor(private text: string, options: { stream?: NodeJS.WriteStream } = {}) {
+    this.stream = options.stream ?? process.stderr;
+  }
+
+  start(): this {
+    if (!this.stream.isTTY || this.timer) return this;
+    claimLine(this.stream);
+    this.render();
+    this.timer = setInterval(() => this.render(), TTY_REDRAW_INTERVAL_MS);
+    this.timer.unref();
+    return this;
+  }
+
+  update(text: string): void {
+    this.text = text;
+    if (this.timer) this.render();
+  }
+
+  stop(message?: string): void {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+      this.stream.write(`\r${ESC}[K`);
+      releaseLine(this.stream);
+    }
+    if (message) this.stream.write(`${message}\n`);
+  }
+
+  private render(): void {
+    const frame = style.cyan(SPINNER_FRAMES[this.frame++ % SPINNER_FRAMES.length], this.stream);
+    const text = truncate(this.text, terminalWidth(this.stream) - 2);
+    this.stream.write(`\r${frame} ${text}${ESC}[K`);
   }
 }

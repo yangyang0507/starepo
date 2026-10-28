@@ -1,7 +1,7 @@
 import { formatRepo } from '../lib/format.js';
 import { hybridSearch } from '../lib/search.js';
 import { parsePositiveIntOption, type SortField, type SortOrder } from '../lib/sort.js';
-import { writeBanner } from '../lib/term.js';
+import { note } from '../lib/term.js';
 
 export interface SearchCommandOptions {
   query?: string;
@@ -24,14 +24,7 @@ export async function runSearch(query: string | undefined, options: SearchComman
   );
 
   if (!finalQuery && !hasStructuredFilters) {
-    console.error('Please provide a query (positional or --query), or at least one filter (--lang/--topic/--since/--until/--days).');
-    process.exit(1);
-  }
-
-  if (finalQuery) {
-    writeBanner(`Searching for: "${finalQuery}"...`);
-  } else {
-    writeBanner('Searching with structured filters only...');
+    throw new Error('Please provide a query (positional or --query), or at least one filter (--lang/--topic/--since/--until/--days).');
   }
 
   const results = await hybridSearch(finalQuery, limit, {
@@ -48,12 +41,13 @@ export async function runSearch(query: string | undefined, options: SearchComman
     return;
   }
 
+  const subject = finalQuery ? ` for "${finalQuery}"` : '';
   if (results.length === 0) {
-    console.log('No results found.');
+    note(`No results found${subject}.`);
     return;
   }
 
-  writeBanner(`Found ${results.length} result(s):`);
+  note(`Found ${results.length} result(s)${subject}:`);
   results.forEach((repo, i) => {
     console.log(formatRepo(repo, { index: i, oneline: options.oneline }));
     if (!options.oneline) console.log();

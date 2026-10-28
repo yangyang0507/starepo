@@ -10,6 +10,7 @@ import { runEmbed } from './commands/embed.js';
 import { runStatus } from './commands/status.js';
 import { getStats } from './lib/storage.js';
 import { parseListOptions } from './lib/sort.js';
+import { style } from './lib/term.js';
 import { VERSION } from './lib/version.js';
 
 export interface CliDeps {
@@ -48,8 +49,23 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+function formatError(err: unknown): string {
+  return `${style.red('error', process.stderr)}: ${errorMessage(err)}`;
+}
+
 export function createProgram(deps: CliDeps = defaultDeps): Command {
   const program = new Command();
+
+  // Every command reports failures the same way: one red line on stderr, exit 1.
+  const action = <A extends unknown[]>(fn: (...args: A) => Promise<unknown>) =>
+    async (...args: A): Promise<void> => {
+      try {
+        await fn(...args);
+      } catch (err) {
+        deps.error(formatError(err));
+        deps.exit(1);
+      }
+    };
 
   program
     .name('starepo')
@@ -60,9 +76,9 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
     .command('auth')
     .description('Authenticate with GitHub (runs automatically on first use)')
     .option('-f, --force', 'Force re-authentication even if already logged in')
-    .action(async (opts) => {
+    .action(action(async (opts) => {
       await deps.runAuth({ force: opts.force });
-    });
+    }));
 
   program
     .command('sync')
@@ -70,21 +86,21 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
     .option('-f, --force', 'Force a full reconcile (default)')
     .option('--incremental', 'Only fetch stars since last sync; skip metadata and unstar cleanup')
     .option('--no-embeddings', 'Skip generating embeddings after sync')
-    .action(async (opts) => {
+    .action(action(async (opts) => {
       await deps.runSync({
         force: opts.force,
         incremental: opts.incremental,
         noEmbeddings: !opts.embeddings,
       });
-    });
+    }));
 
   program
     .command('embed')
     .description('Generate embeddings for semantic search')
     .option('-f, --force', 'Regenerate all embeddings (even if they exist)')
-    .action(async (opts) => {
+    .action(action(async (opts) => {
       await deps.runEmbed({ force: opts.force });
-    });
+    }));
 
   program
     .command('search [query]')
@@ -100,24 +116,18 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
     .option('--order <direction>', 'Sort direction: asc or desc (default: desc)')
     .option('--json', 'Output as JSON')
     .option('--oneline', 'Print each result on one line')
-    .action(async (query: string | undefined, opts) => {
-      try {
-        const { count } = await deps.getStats();
-        if (count === 0) {
-          deps.log('No local data found. Run `starepo sync` first.');
-          deps.exit(1);
-        }
-        const parsed = deps.parseListOptions(opts);
-        await deps.runSearch(query, {
-          query: opts.query,
-          ...parsed,
-          oneline: opts.oneline,
-        });
-      } catch (err) {
-        deps.error(errorMessage(err));
-        deps.exit(1);
+    .action(action(async (query: string | undefined, opts) => {
+      const { count } = await deps.getStats();
+      if (count === 0) {
+        throw new Error('No local data found. Run `starepo sync` first.');
       }
-    });
+      const parsed = deps.parseListOptions(opts);
+      await deps.runSearch(query, {
+        query: opts.query,
+        ...parsed,
+        oneline: opts.oneline,
+      });
+    }));
 
   program
     .command('list')
@@ -133,39 +143,29 @@ export function createProgram(deps: CliDeps = defaultDeps): Command {
     .option('--order <direction>', 'Sort direction: asc or desc (default: desc)')
     .option('--json', 'Output as JSON')
     .option('--oneline', 'Print each result on one line')
-    .action(async (opts) => {
-      try {
-        const parsed = deps.parseListOptions(opts);
-        await deps.runList({
-          query: opts.query,
-          ...parsed,
-          oneline: opts.oneline,
-        });
-      } catch (err) {
-        deps.error(errorMessage(err));
-        deps.exit(1);
-      }
-    });
+    .action(action(async (opts) => {
+      const parsed = deps.parseListOptions(opts);
+      await deps.runList({
+        query: opts.query,
+        ...parsed,
+        oneline: opts.oneline,
+      });
+    }));
 
   program
     .command('info <owner/repo>')
     .description('Show detailed info about a starred repository')
-    .action(async (fullName: string) => {
+    .action(action(async (fullName: string) => {
       await deps.runInfo(fullName);
-    });
+    }));
 
   program
     .command('status')
     .description('Show local sync, embedding, and database status')
     .option('--json', 'Output as JSON')
-    .action(async (opts) => {
-      try {
-        await deps.runStatus({ json: opts.json });
-      } catch (err) {
-        deps.error(errorMessage(err));
-        deps.exit(1);
-      }
-    });
+    .action(action(async (opts) => {
+      await deps.runStatus({ json: opts.json });
+    }));
 
   return program;
 }
@@ -189,7 +189,7 @@ export function isDirectRun(importMetaUrl: string, argvPath = process.argv[1]): 
 
 if (isDirectRun(import.meta.url)) {
   runCli().catch((err: unknown) => {
-    console.error(errorMessage(err));
+    console.error(formatError(err));
     process.exit(1);
   });
 }

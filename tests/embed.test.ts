@@ -8,14 +8,14 @@ beforeEach(() => {
 describe('runEmbed', () => {
   it('prints sync guidance when there are no repositories', async () => {
     const logs: string[] = [];
-    vi.spyOn(console, 'log').mockImplementation((message?: string) => {
-      logs.push(String(message ?? ''));
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      logs.push(String(chunk));
+      return true;
     });
     const generateAndStoreEmbeddings = vi.fn();
 
     vi.doMock('../src/lib/embeddings.js', () => ({
       EMBEDDING_MODEL: 'Xenova/bge-m3',
-      EMBEDDING_MODEL_DOWNLOAD_NOTE: 'First run downloads the embedding model.',
       EMBEDDING_VERSION: '2',
       getEmbeddingStatus: vi.fn().mockResolvedValue({
         totalRepos: 0,
@@ -36,14 +36,14 @@ describe('runEmbed', () => {
 
   it('skips regeneration when embeddings are complete and metadata is current', async () => {
     const logs: string[] = [];
-    vi.spyOn(console, 'log').mockImplementation((message?: string) => {
-      logs.push(String(message ?? ''));
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      logs.push(String(chunk));
+      return true;
     });
     const generateAndStoreEmbeddings = vi.fn();
 
     vi.doMock('../src/lib/embeddings.js', () => ({
       EMBEDDING_MODEL: 'Xenova/bge-m3',
-      EMBEDDING_MODEL_DOWNLOAD_NOTE: 'First run downloads the embedding model.',
       EMBEDDING_VERSION: '2',
       getEmbeddingStatus: vi.fn().mockResolvedValue({
         totalRepos: 3,
@@ -58,21 +58,20 @@ describe('runEmbed', () => {
     const { runEmbed } = await import('../src/commands/embed.js');
     await runEmbed();
 
-    expect(logs.join('\n')).toContain('All repositories already have embeddings.');
-    expect(logs.join('\n')).toContain('Use --force to regenerate all embeddings.');
+    expect(logs.join('\n')).toContain('All 3 repos already have embeddings.');
+    expect(logs.join('\n')).toContain('Use --force to regenerate.');
     expect(generateAndStoreEmbeddings).not.toHaveBeenCalled();
   });
 
   it('advises force rebuild when embeddings are complete but metadata is outdated', async () => {
     const logs: string[] = [];
-    vi.spyOn(console, 'log').mockImplementation((message?: string) => {
-      logs.push(String(message ?? ''));
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      logs.push(String(chunk));
+      return true;
     });
-    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     vi.doMock('../src/lib/embeddings.js', () => ({
       EMBEDDING_MODEL: 'Xenova/bge-m3',
-      EMBEDDING_MODEL_DOWNLOAD_NOTE: 'First run downloads the embedding model.',
       EMBEDDING_VERSION: '2',
       getEmbeddingStatus: vi.fn().mockResolvedValue({
         totalRepos: 5,
@@ -92,10 +91,10 @@ describe('runEmbed', () => {
 
   it('forwards force mode to embedding generation', async () => {
     const logs: string[] = [];
-    vi.spyOn(console, 'log').mockImplementation((message?: string) => {
-      logs.push(String(message ?? ''));
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      logs.push(String(chunk));
+      return true;
     });
-    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const generateAndStoreEmbeddings = vi.fn().mockResolvedValue({
       totalRepos: 5,
@@ -108,7 +107,6 @@ describe('runEmbed', () => {
 
     vi.doMock('../src/lib/embeddings.js', () => ({
       EMBEDDING_MODEL: 'Xenova/bge-m3',
-      EMBEDDING_MODEL_DOWNLOAD_NOTE: 'First run downloads the embedding model.',
       EMBEDDING_VERSION: '2',
       getEmbeddingStatus: vi.fn().mockResolvedValue({
         totalRepos: 5,
@@ -129,16 +127,16 @@ describe('runEmbed', () => {
         onProgress: expect.any(Function),
       })
     );
-    expect(logs.join('\n')).toContain('Regenerating embeddings for 5 repositories...');
-    expect(logs.join('\n')).toContain('Processed 5 repositories.');
+    expect(logs.join('\n')).toContain('Embedded 5 repos · coverage 5/5');
+    expect(logs.join('\n')).not.toContain('only fills missing vectors');
   });
 
   it('generates only missing embeddings and reports skipped repos', async () => {
     const logs: string[] = [];
-    vi.spyOn(console, 'log').mockImplementation((message?: string) => {
-      logs.push(String(message ?? ''));
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      logs.push(String(chunk));
+      return true;
     });
-    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const generateAndStoreEmbeddings = vi.fn().mockResolvedValue({
       totalRepos: 5,
@@ -151,7 +149,6 @@ describe('runEmbed', () => {
 
     vi.doMock('../src/lib/embeddings.js', () => ({
       EMBEDDING_MODEL: 'Xenova/bge-m3',
-      EMBEDDING_MODEL_DOWNLOAD_NOTE: 'First run downloads the embedding model.',
       EMBEDDING_VERSION: '2',
       getEmbeddingStatus: vi.fn().mockResolvedValue({
         totalRepos: 5,
@@ -170,8 +167,6 @@ describe('runEmbed', () => {
       force: undefined,
       onProgress: expect.any(Function),
     });
-    expect(logs.join('\n')).toContain('Generating embeddings for 2 repositories...');
-    expect(logs.join('\n')).toContain('Skipped 3 repositories that already had embeddings.');
-    expect(logs.join('\n')).toContain('Embedding coverage is now 5/5.');
+    expect(logs.join('\n')).toContain('Embedded 2 repos · coverage 5/5');
   });
 });

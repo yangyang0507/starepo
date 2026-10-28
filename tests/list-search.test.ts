@@ -119,23 +119,13 @@ describe('runSearch', () => {
     expect(logs[0]).not.toContain('\n');
   });
 
-  it('exits when no query or structured filters are provided', async () => {
-    const errors: string[] = [];
-    const exit = vi.spyOn(process, 'exit').mockImplementation((() => {
-      throw new Error('process.exit');
-    }) as typeof process.exit);
-    vi.spyOn(console, 'error').mockImplementation((message?: string) => {
-      errors.push(String(message ?? ''));
-    });
+  it('rejects when no query or structured filters are provided', async () => {
     vi.doMock('../src/lib/search.js', () => ({
       hybridSearch: vi.fn(),
     }));
 
     const { runSearch } = await import('../src/commands/search.js');
-    await expect(runSearch(undefined)).rejects.toThrow('process.exit');
-
-    expect(exit).toHaveBeenCalledWith(1);
-    expect(errors.join('\n')).toContain('Please provide a query');
+    await expect(runSearch(undefined)).rejects.toThrow('Please provide a query');
   });
 });
 
@@ -211,5 +201,47 @@ describe('runList', () => {
 
     expect(logs.join('\n')).toContain('Name:        user/repo');
     expect(logs.join('\n')).toContain('Topics:      cli, typescript');
+  });
+
+  it('accepts GitHub URLs and resolves case-insensitive names', async () => {
+    const logs: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((message?: string) => {
+      logs.push(String(message ?? ''));
+    });
+    const getRepoByName = vi.fn().mockResolvedValue(null);
+    vi.doMock('../src/lib/storage.js', () => ({
+      listRepos: vi.fn().mockResolvedValue([repo]),
+      getStats: vi.fn(),
+      getRepoByName,
+    }));
+    vi.doMock('../src/lib/search.js', () => ({
+      hybridSearch: vi.fn(),
+    }));
+
+    const { runInfo } = await import('../src/commands/list.js');
+    await runInfo('https://github.com/User/Repo.git');
+
+    expect(getRepoByName).toHaveBeenCalledWith('User/Repo');
+    expect(logs.join('\n')).toContain('Name:        user/repo');
+  });
+
+  it('suggests similarly named repos when the repo is not found', async () => {
+    vi.doMock('../src/lib/storage.js', () => ({
+      listRepos: vi.fn().mockResolvedValue([
+        { ...repo, full_name: 'other/repo', stars_count: 5 },
+        { ...repo, full_name: 'user/repo', stars_count: 50 },
+        { ...repo, full_name: 'user/unrelated', name: 'unrelated' },
+      ]),
+      getStats: vi.fn(),
+      getRepoByName: vi.fn().mockResolvedValue(null),
+    }));
+    vi.doMock('../src/lib/search.js', () => ({
+      hybridSearch: vi.fn(),
+    }));
+
+    const { runInfo } = await import('../src/commands/list.js');
+    await expect(runInfo('someone/repo')).rejects.toThrow(
+      'Repository "someone/repo" not found in your stars.\nDid you mean:\n  user/repo\n  other/repo',
+    );
   });
 });

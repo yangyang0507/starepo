@@ -2,7 +2,7 @@ import { formatRepo, formatRepoInfo } from '../lib/format.js';
 import { listRepos, getRepoByName, getStats, type Repo } from '../lib/storage.js';
 import { hybridSearch } from '../lib/search.js';
 import { parsePositiveIntOption, sortRepos, SortField, SortOrder } from '../lib/sort.js';
-import { formatRelativeTime, writeBanner } from '../lib/term.js';
+import { formatRelativeTime, note } from '../lib/term.js';
 
 export interface ListCommandOptions {
   query?: string;
@@ -49,10 +49,10 @@ export async function runList(options: ListCommandOptions = {}): Promise<void> {
     return;
   }
 
-  writeBanner(`Total stars: ${count}  |  Last sync: ${lastSync ? formatRelativeTime(lastSync) : 'never'}`);
+  note(`Total stars: ${count}  |  Last sync: ${lastSync ? formatRelativeTime(lastSync) : 'never'}`);
 
   if (repos.length === 0) {
-    console.log('No repositories found. Run `starepo sync` to fetch your stars.');
+    note(count === 0 ? 'No local data. Run `starepo sync` to fetch your stars.' : 'No repositories match these filters.');
     return;
   }
 
@@ -62,11 +62,42 @@ export async function runList(options: ListCommandOptions = {}): Promise<void> {
   });
 }
 
-export async function runInfo(fullName: string): Promise<void> {
-  const repo = await getRepoByName(fullName);
+/** Accepts `owner/repo` as well as pasted GitHub URLs like `https://github.com/owner/repo.git`. */
+export function normalizeRepoRef(input: string): string {
+  return input
+    .trim()
+    .replace(/^(https?:\/\/)?(www\.)?github\.com\//i, '')
+    .replace(/\.git$/i, '')
+    .replace(/\/+$/, '');
+}
+
+/** Repos whose name resembles `ref`, most-starred first. */
+export function suggestRepos(ref: string, repos: Repo[], max = 3): Repo[] {
+  const needle = ref.toLowerCase();
+  const name = needle.split('/').pop() ?? needle;
+  if (!name) return [];
+  return repos
+    .filter((repo) => repo.name.toLowerCase() === name || repo.full_name.toLowerCase().includes(name))
+    .sort((a, b) => b.stars_count - a.stars_count)
+    .slice(0, max);
+}
+
+export async function runInfo(input: string): Promise<void> {
+  const ref = normalizeRepoRef(input);
+  let repo = await getRepoByName(ref);
+
   if (!repo) {
-    console.error(`Repository "${fullName}" not found. Try running \`starepo sync\` first.`);
-    process.exit(1);
+    const all = await listRepos();
+    const sameName = all.filter((candidate) => candidate.full_name.toLowerCase() === ref.toLowerCase());
+    if (sameName.length === 1) {
+      repo = sameName[0];
+    } else {
+      const suggestions = suggestRepos(ref, all);
+      const hint = suggestions.length > 0
+        ? `Did you mean:\n${suggestions.map((candidate) => `  ${candidate.full_name}`).join('\n')}`
+        : 'If you starred it recently, run `starepo sync` first.';
+      throw new Error(`Repository "${ref}" not found in your stars.\n${hint}`);
+    }
   }
 
   console.log(formatRepoInfo(repo));

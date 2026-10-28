@@ -128,10 +128,10 @@ describe('runSync: full sync cleanup', () => {
 
   it('warns about outdated embedding metadata and skips regeneration when coverage is complete', async () => {
     const logs: string[] = [];
-    vi.spyOn(console, 'log').mockImplementation((message?: string) => {
-      logs.push(String(message ?? ''));
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      logs.push(String(chunk));
+      return true;
     });
-    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     vi.doMock('../src/commands/auth.js', () => ({
       ensureAuth: vi.fn().mockResolvedValue('token'),
@@ -147,7 +147,6 @@ describe('runSync: full sync cleanup', () => {
     const generateAndStoreEmbeddings = vi.fn();
     vi.doMock('../src/lib/embeddings.js', () => ({
       EMBEDDING_MODEL: 'Xenova/bge-m3',
-      EMBEDDING_MODEL_DOWNLOAD_NOTE: 'First run downloads the embedding model.',
       EMBEDDING_VERSION: '2',
       getEmbeddingStatus: vi.fn().mockResolvedValue({
         totalRepos: 1,
@@ -163,7 +162,7 @@ describe('runSync: full sync cleanup', () => {
     await runSync();
 
     expect(logs.join('\n')).toContain('starepo embed --force');
-    expect(logs.join('\n')).toContain('Embeddings already up to date.');
+    expect(logs.join('\n')).toContain('Embeddings up to date (1/1)');
     expect(generateAndStoreEmbeddings).not.toHaveBeenCalled();
   });
 
@@ -199,8 +198,9 @@ describe('runSync: full sync cleanup', () => {
 
   it('does not update last_sync when incremental sync finds no new stars', async () => {
     const logs: string[] = [];
-    vi.spyOn(console, 'log').mockImplementation((message?: string) => {
-      logs.push(String(message ?? ''));
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      logs.push(String(chunk));
+      return true;
     });
     const { setMeta, getMeta } = await import('../src/lib/config.js');
     setMeta('last_sync', '2026-01-01T00:00:00.000Z');
@@ -287,10 +287,10 @@ describe('runSync: full sync cleanup', () => {
 
   it('generates embeddings when synced repos have missing vectors', async () => {
     const logs: string[] = [];
-    vi.spyOn(console, 'log').mockImplementation((message?: string) => {
-      logs.push(String(message ?? ''));
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      logs.push(String(chunk));
+      return true;
     });
-    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     vi.doMock('../src/commands/auth.js', () => ({
       ensureAuth: vi.fn().mockResolvedValue('token'),
@@ -313,7 +313,6 @@ describe('runSync: full sync cleanup', () => {
     });
     vi.doMock('../src/lib/embeddings.js', () => ({
       EMBEDDING_MODEL: 'Xenova/bge-m3',
-      EMBEDDING_MODEL_DOWNLOAD_NOTE: 'First run downloads the embedding model.',
       EMBEDDING_VERSION: '2',
       getEmbeddingStatus: vi.fn().mockResolvedValue({
         totalRepos: 1,
@@ -331,7 +330,7 @@ describe('runSync: full sync cleanup', () => {
     expect(generateAndStoreEmbeddings).toHaveBeenCalledWith({
       onProgress: expect.any(Function),
     });
-    expect(logs.join('\n')).toContain('Generating embeddings for semantic search...');
-    expect(logs.join('\n')).toContain('Semantic search is now available.');
+    expect(logs.join('\n')).toContain('Synced 1 stars (+1 new)');
+    expect(logs.join('\n')).toContain('Embedded 1 repos · semantic search ready');
   });
 });
